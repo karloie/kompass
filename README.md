@@ -155,7 +155,7 @@ sudo rpm -i kompass_<version>_linux_amd64.rpm
 
 ### Container
 
-The Docker image is designed for running the REST API server. For CLI usage, install the binary instead.
+The Docker image is intended to be deployed inside a Kubernetes cluster as a service running the REST API. For local CLI usage, install the binary instead.
 
 ```bash
 # Run API server
