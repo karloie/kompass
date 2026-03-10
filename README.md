@@ -32,6 +32,8 @@ Kompass helps you learn Kubernetes by visualizing Kubernetes resource relationsh
 
 ## Quick Start
 
+> **Prerequisite:** For CLI usage against a real cluster, you need a valid Kubernetes client configuration (kubeconfig) for your target context. `kubectl` is the most common way to set this up, but any valid kubeconfig source works.
+
 ```bash
 # List all pods in current namespace
 kompass
