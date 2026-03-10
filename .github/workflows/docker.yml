@@ -38,11 +38,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Update Docker Hub description
-        if: ${{ secrets.DOCKERHUB_DESC_USERNAME != '' && secrets.DOCKERHUB_DESC_PASSWORD != '' }}
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_PASSWORD != '' }}
         continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:
-          username: ${{ secrets.DOCKERHUB_DESC_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_DESC_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
           repository: karloie/kompass
           readme-filepath: ./README.md
