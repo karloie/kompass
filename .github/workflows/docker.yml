@@ -29,19 +29,10 @@ jobs:
             type=sha,prefix=sha-
       
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Containerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Update Docker Hub description
-        continue-on-error: true
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD != '' && secrets.DOCKERHUB_PASSWORD || secrets.DOCKERHUB_TOKEN }}
-          repository: karloie/kompass
-          readme-filepath: ./README.md
