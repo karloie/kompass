@@ -1,0 +1,270 @@
+🌍 Context: mock-cluster, Namespace: petshop, Selectors: [], Config: mock, Cache: 32 calls | 0 hits | 32 misses | 0.0% hit rate
+
+🚀 deployment: petshop-db [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: petshop-db[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-motor}[0m
+│  │  └─ 🖥️ service: petshop-motor[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-motor app.kubernetes.io/name=petshop-motor], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-web}[0m
+│  │  └─ 🖥️ service: petshop-web[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-web app.kubernetes.io/name=petshop-web], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-db
+│  └─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-db
+├─ 🎮 replicaset: petshop-db-5cb9cd8b74 [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: petshop-db-5cb9cd8b74-pqhk9[90m {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.90}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: docker-hub/neo4j:5.26.20-community-ubi9
+├─ 🖥️ service: petshop-db-service[90m {ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=petshop-db app.kubernetes.io/name=petshop-db], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: petshop-db-service
+│  │  └─ 🔗 subset:[90m {ports=[petshop-db-bolt:7687/TCP petshop-db-http:7474/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.90, nodeName=bunny-01-worker-055ceed2, targetName=petshop-db-5cb9cd8b74-pqhk9}[0m
+│  └─ 📍 endpointslice: petshop-db-service-672nq[90m {addressType=IPv4, port=7474, portName=petshop-db-http, protocol=TCP}[0m
+│     └─ 🔌 endpoint:[90m {address=10.244.9.90, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-db-5cb9cd8b74-pqhk9}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  └─ 💬 env: NEO_DB_PASSWORD=<SECRET>[90m {key=PETSHOP-DATABASE-PASSWORD}[0m
+   │     └─ 🔒 secret: petshop-db-secrets[90m {keys=1, type=Opaque}[0m
+   ├─ 🐋 image: docker-hub/neo4j:5.26.20-community-ubi9[90m {pullPolicy=Always}[0m
+   ├─ 💓 livenessprobe:[90m {failureThreshold=40, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
+   ├─ 📀 persistentvolumeclaim: petshop-db-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=3Gi, phase=Bound, storage=3Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
+   │  └─ 💿 persistentvolume: pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522[90m {accessModes=[ReadWriteOnce], capacity=3Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}[0m
+   │     ├─ 💽 storageclass: standard[90m {allowVolumeExpansion=true, provisioner=kubernetes.io/gce-pd, reclaimPolicy=Delete, volumeBindingMode=Immediate}[0m
+   │     └─ 💿 volumeattachment: csi-959030a095e12a5c5224b5fe15796d0ad6ae46b1099c05fc09f46e08a6f47359[90m {attached=true, attacher=pd.csi.storage.gke.io, nodeName=bunny-01-worker-055ceed2, pvName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
+   ├─ 🛡️ podsecuritycontext:[90m {fsGroup=7474, runAsGroup=7474, runAsUser=7474}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ ✅ readinessprobe:[90m {failureThreshold=20, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
+   ├─ 💾 resources:[90m {limits=memory:1Gi, requests=cpu:100m memory:128Mi}[0m
+   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=7474, seccompProfile=RuntimeDefault}[0m
+   └─ ▶️ startupprobe:[90m {failureThreshold=1000, periodSeconds=5, port=7687, type=tcpSocket}[0m
+
+🚀 deployment: petshop-kafka [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: petshop-kafka[90m {egress=true, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-web}[0m
+│  │  └─ 🖥️ service: petshop-web[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-web app.kubernetes.io/name=petshop-web], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-webservice}[0m
+│  │  └─ 🖥️ service: petshop-webservice[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-webservice app.kubernetes.io/name=petshop-webservice], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-kafka
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-kafka
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=k8s:io.kubernetes.pod.namespace:kube-system k8s:k8s-app:kube-dns}[0m
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=k8s:app.kubernetes.io/name:zookeeper k8s:io.kubernetes.pod.namespace:kafka-system}[0m
+│  │  └─ 🖥️ service: zookeeper[90m {namespace=kafka-system, ports=[2181/TCP 2888/TCP 3888/TCP], selector=[app.kubernetes.io/name=zookeeper], type=ClusterIP}[0m
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:schema-registry}[0m
+│  │  └─ 🖥️ service: kafka-schema-registry[90m {ports=[443/TCP], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: toport[90m {ports=map[port:9093 protocol:TCP],map[port:9094 protocol:TCP]}[0m
+│  ├─ 👉 cnp-ingress: toport[90m {ports=map[port:8080 protocol:TCP]}[0m
+│  ├─ 👈 cnp-egress: toport[90m {ports=map[port:53 protocol:UDP]}[0m
+│  └─ 👈 cnp-egress: toport[90m {ports=map[port:443 protocol:TCP]}[0m
+├─ 🎮 replicaset: petshop-kafka-6b7c8d9e0f [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: petshop-kafka-6b7c8d9e0f-xxxxx[90m {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.242}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: docker-hub/confluentinc/cp-kafka:7.5.0
+├─ 🖥️ service: petshop-kafka[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-kafka app.kubernetes.io/name=petshop-kafka], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: petshop-kafka
+│  │  ├─ 🔗 subset:[90m {ports=[petshop-kafka-http:8080/TCP]}[0m
+│  │  │  ├─ 🔌 address:[90m {ip=10.244.9.242, nodeName=bunny-01-worker-055ceed2, targetName=petshop-kafka-6b7c8d9e0f-xxxxx}[0m
+│  │  │  ├─ 🔌 address:[90m {ip=10.244.9.243, nodeName=bunny-01-worker-055ceed3, targetName=petshop-kafka-6b7c8d9e0f-yyyyy}[0m
+│  │  │  ├─ 🔌 address:[90m {hostname=kafka-0, ip=10.244.10.100, nodeName=bunny-02-worker-12345678, targetName=petshop-kafka-6b7c8d9e0f-bbbbb}[0m
+│  │  │  ├─ 🔌 address:[90m {ip=10.244.9.244, nodeName=bunny-01-worker-055ceed4, ready=false, targetName=petshop-kafka-6b7c8d9e0f-zzzzz}[0m
+│  │  │  └─ 🔌 address:[90m {ip=10.244.9.245, nodeName=bunny-01-worker-055ceed5, ready=false, targetName=petshop-kafka-6b7c8d9e0f-aaaaa}[0m
+│  │  └─ 🔗 subset:[90m {ports=[kafka-ssl:9093/TCP kafka-metrics:7071/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.11.50, nodeName=bunny-03-worker-99999999, targetName=petshop-kafka-6b7c8d9e0f-ccccc}[0m
+│  ├─ 📍 endpointslice: petshop-kafka-abcde[90m {addressType=IPv4, port=8080, portName=petshop-kafka-http, protocol=TCP}[0m
+│  │  ├─ 🔌 endpoint:[90m {address=10.244.9.242, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-kafka-6b7c8d9e0f-xxxxx}[0m
+│  │  ├─ 🔌 endpoint:[90m {address=10.244.9.243, nodeName=bunny-01-worker-055ceed3, ready=true, serving=true, targetName=petshop-kafka-6b7c8d9e0f-yyyyy}[0m
+│  │  ├─ 🔌 endpoint:[90m {address=10.244.9.244, nodeName=bunny-01-worker-055ceed4, ready=false, serving=true, targetName=petshop-kafka-6b7c8d9e0f-zzzzz, terminating=true}[0m
+│  │  ├─ 🔌 endpoint:[90m {address=10.244.9.245, nodeName=bunny-01-worker-055ceed5, ready=false, targetName=petshop-kafka-6b7c8d9e0f-aaaaa}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.10.100, nodeName=bunny-02-worker-12345678, ready=true, serving=true, targetName=petshop-kafka-6b7c8d9e0f-bbbbb}[0m
+│  ├─ 🔄 httproute: petshop-kafka[90m {hostnames=[kafka.bunny.petshop.com], paths=[/*], service=petshop-kafka:8080/TCP (ClusterIP)}[0m
+│  └─ 👉 ingress: petshop-kafka-ingress [[32mACTIVE[0m][90m {hosts=[kafka.bunny.petshop.com], ingressClass=nginx, tls=true}[0m
+│     └─ 🏷️ ingressclass: nginx
+└─ 📄 spec
+   ├─ 📝 configmap: kafka-server-config[90m {keys=4}[0m
+   ├─ 🔤 envars
+   │  ├─ 💬 env: KAFKA_BROKER_ID=1
+   │  ├─ 💬 env: KAFKA_LOG_LEVEL=INFO[90m {key=log-level}[0m
+   │  │  └─ 📝 configmap: kafka-server-config[90m {keys=4}[0m
+   │  ├─ 💬 env: POD_NAME
+   │  └─ 💬 env: MEMORY_LIMIT
+   ├─ 🐋 image: docker-hub/confluentinc/cp-kafka:7.5.0[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  ├─ 📁 mount:[90m {mount=/etc/kafka/config, readOnly=true, volume=kafka-server-config}[0m
+   │  │  └─ 📝 configmap: kafka-server-config[90m {keys=4}[0m
+   │  ├─ 📁 mount:[90m {mount=/etc/kafka/tls, readOnly=true, volume=kafka-tls-certs}[0m
+   │  │  └─ 🔒 secret: kafka-tls-certs[90m {keys=3, type=kubernetes.io/tls}[0m
+   │  ├─ 📁 mount:[90m {mount=/mnt/azure-keyvault, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   │  ├─ 📁 mount:[90m {mount=/kafka-logs, volume=/var/log/kafka}[0m
+   │  ├─ 📁 mount:[90m {mount=/etc/kafka/projected, readOnly=true, volume=projected}[0m
+   │  └─ 📁 mount:[90m {mount=/etc/podinfo, readOnly=true, volume=downwardAPI}[0m
+   ├─ 🔌 ports
+   │  ├─ ⇄ port: ssl[90m {containerPort=9093, hostPort=9093, protocol=TCP}[0m
+   │  ├─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   │  ├─ ⇄ port: metrics[90m {containerPort=7071, protocol=TCP}[0m
+   │  ├─ ⇄ port: admin-udp[90m {containerPort=9095, protocol=UDP}[0m
+   │  └─ ⇄ port: sctp-port[90m {containerPort=9096, protocol=SCTP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   ├─ 🔒 secret: kafka-tls-certs[90m {keys=3, type=kubernetes.io/tls}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: petshop-motor [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: petshop-motor[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-motor
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-motor
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-webservice}[0m
+│  │  └─ 🖥️ service: petshop-webservice[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-webservice app.kubernetes.io/name=petshop-webservice], type=ClusterIP}[0m
+│  └─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-db}[0m
+│     └─ 🖥️ service: petshop-db-service[90m {ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=petshop-db app.kubernetes.io/name=petshop-db], type=ClusterIP}[0m
+├─ 🛡️ poddisruptionbudget: petshop-motor-pdb [[31mHEALTHY[0m]
+├─ 🎮 replicaset: petshop-motor-5689f8488b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: petshop-motor-5689f8488b-xxxxx[90m {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.239}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: petshop/petshop-motor:main_20260223_043932
+├─ 🖥️ service: petshop-motor[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-motor app.kubernetes.io/name=petshop-motor], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: petshop-motor
+│  │  └─ 🔗 subset:[90m {ports=[petshop-motor-http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.239, nodeName=bunny-01-worker-055ceed2, targetName=petshop-motor-5689f8488b-xxxxx}[0m
+│  ├─ 📍 endpointslice: petshop-motor-abcde[90m {addressType=IPv4, port=8080, portName=petshop-motor-http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.239, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-motor-5689f8488b-xxxxx}[0m
+│  └─ 🔄 httproute: petshop-motor[90m {paths=[/*], service=petshop-motor:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: AD_EXPLORE_WEBSERVICE_URL=http://petshop-webservice:8080
+   │  ├─ 💬 env: HOUR_OF_DAY=1
+   │  ├─ 💬 env: LDAP_BIND_SECRET=<SECRET>[90m {key=SA-PETSHOP-MOTOR-PASSWORD}[0m
+   │  │  └─ 🔒 secret: petshop-motor-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: LDAP_BIND_USER=Sa-PetShop-Motor
+   │  ├─ 💬 env: LOGGING_LEVEL=INFO
+   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=PETSHOP-DATABASE-PASSWORD}[0m
+   │  │  └─ 🔒 secret: petshop-motor-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: NEO4J_URL=bolt://petshop-db-service:7687
+   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
+   │  ├─ 💬 env: RUN_ONCE=True
+   │  └─ 💬 env: SLETT_ALT_I_DATABASEN_FOER_NY_SCRAPING=True
+   ├─ 🐋 image: petshop/petshop-motor:main_20260223_043932[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: petshop-web [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: petshop-web[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-web
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-web
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-db}[0m
+│  │  └─ 🖥️ service: petshop-db-service[90m {ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=petshop-db app.kubernetes.io/name=petshop-db], type=ClusterIP}[0m
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=am.kpt.petshop.com}[0m
+├─ 🎮 replicaset: petshop-web-598696998b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  ├─ 🫛 pod: petshop-web-598696998b-xxxxx[90m {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.240}[0m
+│  │  └─ 🧊 container: app
+│  │     └─ 🐋 image: petshop/petshop-web:main_20260226_100330
+│  └─ 🫛 pod: petshop-web-598696998b-yyyyy[90m {phase=Running, podIP=10.244.9.250}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: petshop/petshop-web:main_20260226_100330
+├─ 🖥️ service: petshop-web[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-web app.kubernetes.io/name=petshop-web], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: petshop-web
+│  │  └─ 🔗 subset:[90m {ports=[petshop-web-http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.240, nodeName=bunny-01-worker-055ceed2, targetName=petshop-web-598696998b-xxxxx}[0m
+│  ├─ 📍 endpointslice: petshop-web-abcde[90m {addressType=IPv4, port=8080, portName=petshop-web-http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.240, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-web-598696998b-xxxxx}[0m
+│  └─ 🔄 httproute: petshop-web[90m {hostnames=[petshop-web.bunny.los.petshop.com petshop-web.bunny.petshop.com], paths=[/*], service=petshop-web:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: LOG_LEVEL=info
+   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=PETSHOP-DATABASE-PASSWORD}[0m
+   │  │  └─ 🔒 secret: petshop-web-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: NEO4J_URI=bolt://petshop-db-service:7687
+   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
+   │  ├─ 💬 env: OIDC_CLIENT_ID=petshop-web
+   │  ├─ 💬 env: OIDC_CLIENT_SECRET=<SECRET>[90m {key=PETSHOP-WEB-CLIENT-SECRET}[0m
+   │  │  └─ 🔒 secret: petshop-web-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: OIDC_ISSUER_URL=https://am.kpt.petshop.com/am/oauth2/realms/root/realms/intranett
+   │  ├─ 💬 env: OIDC_REDIRECT_URL=https://petshop-web.bunny.petshop.com/auth/callback
+   │  └─ 💬 env: REQUIRE_SECURE_CONNECTION=true
+   ├─ 🐋 image: petshop/petshop-web:main_20260226_100330[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: petshop-webservice [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: petshop-webservice[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-motor}[0m
+│  │  └─ 🖥️ service: petshop-motor[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-motor app.kubernetes.io/name=petshop-motor], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:petshop-web}[0m
+│  │  └─ 🖥️ service: petshop-web[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-web app.kubernetes.io/name=petshop-web], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-webservice
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-webservice
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=mdc11.petshop.com}[0m
+├─ 🎮 replicaset: petshop-webservice-7d9b7b4cd [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: petshop-webservice-7d9b7b4cd-xxxxx[90m {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.241}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: petshop/petshop-webservice:main_20260216_064614
+├─ 🖥️ service: petshop-webservice[90m {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-webservice app.kubernetes.io/name=petshop-webservice], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: petshop-webservice
+│  │  └─ 🔗 subset:[90m {ports=[petshop-webservice-http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.241, nodeName=bunny-01-worker-055ceed2, targetName=petshop-webservice-7d9b7b4cd-xxxxx}[0m
+│  ├─ 📍 endpointslice: petshop-webservice-abcde[90m {addressType=IPv4, port=8080, portName=petshop-webservice-http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.241, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-webservice-7d9b7b4cd-xxxxx}[0m
+│  └─ 🔄 httproute: petshop-webservice[90m {hostnames=[petshop-webservice.bunny.los.petshop.com petshop-webservice.bunny.petshop.com], paths=[/*], service=petshop-webservice:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  └─ 💬 env: LOGLEVEL=INFO
+   ├─ 🐋 image: petshop/petshop-webservice:main_20260216_064614[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  └─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+📜 ciliumnetworkpolicy: allow-external-egress[90m {namespace=petshop}[0m
+└─ 👈 cnp-egress: toentities[90m {entities=[cluster]}[0m
+
+📜 ciliumnetworkpolicy: allow-observability[90m {namespace=petshop}[0m
+└─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:prometheus}[0m
+
+📜 ciliumnetworkpolicy: allow-tracing[90m {namespace=petshop}[0m
+├─ 🎯 endpointselector: label tracing=enabled
+└─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:tempo}[0m
+
+📝 configmap: kube-root-ca.crt[90m {keys=1, namespace=petshop}[0m
+
+📏 limitrange: petshop-limits[90m {namespace=petshop}[0m
+
+📊 resourcequota: petshop-quota[90m {namespace=petshop}[0m
+
+🔒 secret: docker-registry-credentials[90m {keys=1, namespace=petshop, type=kubernetes.io/dockerconfigjson}[0m
+
+🔒 secret: petshop-db-secret[90m {keys=1, namespace=petshop, type=Opaque}[0m
+
+🔒 secret: petshop-motor-secret[90m {keys=1, namespace=petshop, type=Opaque}[0m
+
+🔒 secret: petshop-web-secret[90m {keys=1, namespace=petshop, type=Opaque}[0m
+
+🔒 secret: petshop-webservice-secret[90m {keys=1, namespace=petshop, type=Opaque}[0m
+
+🔒 secret: tls-wildcard-cert[90m {keys=3, namespace=petshop, type=kubernetes.io/tls}[0m
+
+👤 serviceaccount: default[90m {namespace=petshop}[0m
+
+📜 certificate: expired-cert [[31mEXPIRED 5D AGO[0m][90m {dnsNames=[expired.bunny.mock.no], namespace=management, ready=False, readyReason=Expired}[0m
+
+📜 certificate: long-lived-cert [[32mREADY[0m][90m {dnsNames=[long-lived.bunny.mock.no], expiresIn=59d, namespace=management, ready=True, readyReason=Ready}[0m
+
+🚺 gateway: internal-gateway [[31mPROGRAMMED[0m][90m {gatewayClass=cilium, listeners=[443/HTTPS], namespace=management}[0m
+├─ 📜 certificate: default-gateway-certificate [[31mEXPIRES IN 14D[0m][90m {dnsNames=[*.bunny.mock.no *.bunny.mock.com], ready=True, readyReason=Ready}[0m
+│  └─ 🗝️ clusterissuer: letsencrypt-prod[90m {email=certs@mock.com, server=https://acme-v02.api.letsencrypt.org/directory}[0m
+├─ 🔄 httproute: petshop-kafka[90m {hostnames=[kafka.bunny.petshop.com], namespace=petshop, paths=[/*], service=petshop-kafka:8080/TCP (ClusterIP)}[0m
+├─ 🔄 httproute: petshop-motor[90m {namespace=petshop, paths=[/*], service=petshop-motor:8080/TCP (ClusterIP)}[0m
+├─ 🔄 httproute: petshop-web[90m {hostnames=[petshop-web.bunny.los.petshop.com petshop-web.bunny.petshop.com], namespace=petshop, paths=[/*], service=petshop-web:8080/TCP (ClusterIP)}[0m
+└─ 🔄 httproute: petshop-webservice[90m {hostnames=[petshop-webservice.bunny.los.petshop.com petshop-webservice.bunny.petshop.com], namespace=petshop, paths=[/*], service=petshop-webservice:8080/TCP (ClusterIP)}[0m

@@ -1,0 +1,82 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kompass
+    main: ./cmd/kompass
+    binary: kompass
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+universal_binaries:
+  - replace: true
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+nfpms:
+  - id: packages
+    package_name: kompass
+    homepage: https://github.com/karloie/kompass
+    maintainer: karloie
+    description: Kubernetes resource relationship visualizer
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+
+brews:
+  - name: kompass
+    repository:
+      owner: karloie
+      name: homebrew-tap
+    homepage: https://github.com/karloie/kompass
+    description: Kubernetes resource relationship visualizer
+    license: MIT
+
+source:
+  enabled: true
+
+checksum:
+  name_template: 'checksums.txt'
+
+sboms:
+  - artifacts: archive
+
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*feat.*:+.*$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*fix.*:+.*$'
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^style:'

@@ -1,0 +1,8 @@
+*.md
+*.tgz
+.git
+.gitignore
+kompass
+coverage.out
+*.test
+*.out
