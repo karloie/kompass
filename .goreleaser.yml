@@ -45,15 +45,6 @@ nfpms:
       - rpm
     bindir: /usr/bin
 
-brews:
-  - name: kompass
-    repository:
-      owner: karloie
-      name: homebrew-tap
-    homepage: https://github.com/karloie/kompass
-    description: Kubernetes resource relationship visualizer
-    license: MIT
-
 source:
   enabled: true
 
