@@ -38,7 +38,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Update Docker Hub description
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_PASSWORD != '' }}
         continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:
