@@ -21,7 +21,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/kompass
+          images: karloie/kompass
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -38,10 +38,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Update Docker Hub description
+        if: ${{ secrets.DOCKERHUB_DESC_USERNAME != '' && secrets.DOCKERHUB_DESC_PASSWORD != '' }}
         continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_DESC_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_DESC_PASSWORD }}
           repository: karloie/kompass
           readme-filepath: ./README.md
