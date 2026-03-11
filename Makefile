@@ -2,7 +2,8 @@
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
+VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
+LDFLAGS ?=
 ARGS ?=
 
 SNAPSHOT_DIR ?= testdata/fixtures
@@ -16,7 +17,10 @@ SNAPSHOT_MOCK_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_mock.txt
 SNAPSHOT_TOOL_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_tool_app.txt
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o kompass cmd/kompass/*.go
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
+
+build-release: LDFLAGS := $(VERSION_LDFLAGS)
+build-release: build
 
 test: build
 	go test ./...
@@ -41,25 +45,25 @@ cover: build
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
 help:
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass --help
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --help
 
 mock:
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass --mock $(ARGS)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock $(ARGS)
 
 real:
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass $(ARGS)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass $(ARGS)
 
 snapshot-json:
 	@echo "Generating JSON snapshots for mock and pinned tool context/namespace..."
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass --json --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_JSON)
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass --json -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_JSON)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --json --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_JSON)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --json -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_JSON)
 	@echo "Wrote $(SNAPSHOT_MOCK_JSON)"
 	@echo "Wrote $(SNAPSHOT_TOOL_JSON)"
 
 snapshot-tree:
 	@echo "Generating tree snapshots for mock and pinned tool context/namespace..."
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_TREE)
-	@go run -ldflags "$(LDFLAGS)" ./cmd/kompass -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_TREE)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_TREE)
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_TREE)
 	@echo "Wrote $(SNAPSHOT_MOCK_TREE)"
 	@echo "Wrote $(SNAPSHOT_TOOL_TREE)"
 
