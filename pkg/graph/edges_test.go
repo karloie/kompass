@@ -92,9 +92,6 @@ func TestBuildGraphSortsNodesAndEdges(t *testing.T) {
 	}
 
 	graph := buildGraph("pod/petshop/api-0", visited, nil, nil, edges)
-	if len(graph.NodeKeys) != 2 || graph.NodeKeys[0] != "pod/petshop/api-0" || graph.NodeKeys[1] != "service/petshop/api" {
-		t.Fatalf("expected sorted node keys, got %#v", graph.NodeKeys)
-	}
 	if len(graph.Edges) != 2 {
 		t.Fatalf("expected two edges, got %#v", graph.Edges)
 	}
@@ -207,7 +204,7 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 	}
 
 	provider := kube.NewMockClient(mock.GenerateMock())
-	resp, err := InferGraphs(provider, kube.GraphRequest{KeySelector: "pod/petshop/*"})
+	resp, err := InferGraphs(provider, kube.Request{KeySelector: "pod/petshop/*"})
 	if err != nil {
 		t.Fatalf("InferGraphs error: %v", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
 	"github.com/karloie/kompass/pkg/pipeline"
+	"github.com/karloie/kompass/pkg/tree"
 )
 
 var (
@@ -17,6 +18,8 @@ var (
 	commit  = "none"
 	date    = "unknown"
 )
+
+const jsonAPIVersion = "v1"
 
 type CacheStats struct {
 	Calls   int64
@@ -26,8 +29,21 @@ type CacheStats struct {
 }
 
 type JSONOutput struct {
-	Request  RequestMetadata     `json:"request"`
-	Response *kube.GraphResponse `json:"response"`
+	APIVersion string              `json:"apiVersion"`
+	Request    RequestMetadata     `json:"request"`
+	Response   *kube.ResponseGraph `json:"response"`
+}
+
+type JSONOutputGraph struct {
+	APIVersion string              `json:"apiVersion"`
+	Request    RequestMetadata     `json:"request"`
+	Response   *kube.ResponseGraph `json:"response"`
+}
+
+type JSONOutputTree struct {
+	APIVersion string             `json:"apiVersion"`
+	Request    RequestMetadata    `json:"request"`
+	Response   *kube.ResponseTree `json:"response"`
 }
 
 type RequestMetadata struct {
@@ -90,7 +106,7 @@ func main() {
 	namespaceArg := flag.String("namespace", "", "Kubernetes namespace (defaults to current namespace or 'default')")
 	mockArg := flag.Bool("mock", false, "Use mock provider")
 	debugArg := flag.Bool("debug", false, "Enable debug logging")
-	jsonArg := flag.Bool("json", false, "Output as pretty-printed JSON")
+	jsonArg := flag.Bool("json", false, "JSON output")
 	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
 	serviceArg := &serviceFlag{}
 	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
@@ -148,9 +164,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	totalNodes, totalEdges := 0, 0
+	totalNodes, totalEdges := len(result.Nodes), 0
 	for _, g := range result.Graphs {
-		totalNodes += len(g.NodeKeys)
 		totalEdges += len(g.Edges)
 	}
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)
@@ -158,7 +173,7 @@ func main() {
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
 	} else {
-		printTrees(result, context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
+		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
 	}
 }
 

@@ -19,16 +19,6 @@ func TestInferGraphsSuccess(t *testing.T) {
 	if len(res.Graphs) == 0 {
 		t.Fatalf("expected at least one graph in response")
 	}
-	hasTree := false
-	for _, g := range res.Graphs {
-		if g.Tree != nil {
-			hasTree = true
-			break
-		}
-	}
-	if !hasTree {
-		t.Fatalf("expected at least one built tree in graphs")
-	}
 }
 
 func TestInferGraphsPropagatesProviderError(t *testing.T) {
@@ -42,72 +32,69 @@ func TestInferGraphsPropagatesProviderError(t *testing.T) {
 	}
 }
 
-func TestGraphNodesForGraph_UsesResponseNodesWithNodeKeys(t *testing.T) {
+func TestGraphNodesForGraph_UsesResponseNodes(t *testing.T) {
 	shared := &kube.Resource{Key: "service/default/api", Type: "service", Resource: map[string]any{"metadata": map[string]any{"name": "api", "namespace": "default"}}}
 	podA := &kube.Resource{Key: "pod/default/a", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "a", "namespace": "default"}}}
 	podB := &kube.Resource{Key: "pod/default/b", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "b", "namespace": "default"}}}
 
-	resp := &kube.GraphResponse{
+	resp := &kube.ResponseGraph{
 		Nodes: map[string]*kube.Resource{
 			"pod/default/a":       podA,
 			"pod/default/b":       podB,
 			"service/default/api": shared,
 		},
 		Graphs: []kube.Graph{
-			{ID: "pod/default/a", NodeKeys: []string{"pod/default/a", "service/default/api"}},
-			{ID: "pod/default/b", NodeKeys: []string{"pod/default/b", "service/default/api"}},
+			{ID: "pod/default/a"},
+			{ID: "pod/default/b"},
 		},
 	}
 
 	nodesA := GraphNodesForGraph(resp, &resp.Graphs[0])
 	nodesB := GraphNodesForGraph(resp, &resp.Graphs[1])
 
-	if len(nodesA) != 2 || len(nodesB) != 2 {
-		t.Fatalf("expected 2 nodes per graph, got %d and %d", len(nodesA), len(nodesB))
+	if len(nodesA) != 3 || len(nodesB) != 3 {
+		t.Fatalf("expected full response node map, got %d and %d", len(nodesA), len(nodesB))
 	}
 	if nodesA["service/default/api"] == nil || nodesB["service/default/api"] == nil {
 		t.Fatalf("expected shared node to be resolved for both graphs")
 	}
 }
 
-func TestGraphNodesForGraph_FallsBackToGraphNodes(t *testing.T) {
-	pod := &kube.Resource{Key: "pod/default/a", Type: "pod"}
-	resp := &kube.GraphResponse{Graphs: []kube.Graph{
-		{ID: "pod/default/a", Nodes: map[string]*kube.Resource{"pod/default/a": pod}},
-	}}
+func TestGraphNodesForGraph_ReturnsNilWithoutResponseNodes(t *testing.T) {
+	resp := &kube.ResponseGraph{Graphs: []kube.Graph{{ID: "pod/default/a"}}}
 
 	nodes := GraphNodesForGraph(resp, &resp.Graphs[0])
-	if len(nodes) != 1 {
-		t.Fatalf("expected fallback graph nodes map")
+	if nodes != nil {
+		t.Fatalf("expected nil when response nodes are not present, got %#v", nodes)
 	}
 }
 
 func TestGraphNodesForGraph_NilGraph(t *testing.T) {
-	resp := &kube.GraphResponse{}
+	resp := &kube.ResponseGraph{}
 	if nodes := GraphNodesForGraph(resp, nil); nodes != nil {
 		t.Fatalf("expected nil nodes for nil graph input, got %#v", nodes)
 	}
 }
 
-func TestGraphNodesForGraph_ResponseNodesMissingKeyFilteredOut(t *testing.T) {
-	resp := &kube.GraphResponse{
+func TestGraphNodesForGraph_UsesAllResponseNodes(t *testing.T) {
+	resp := &kube.ResponseGraph{
 		Nodes: map[string]*kube.Resource{
-			"pod/default/a": {Key: "pod/default/a", Type: "pod"},
+			"pod/default/a":           {Key: "pod/default/a", Type: "pod"},
+			"service/default/missing": {Key: "service/default/missing", Type: "service"},
 		},
 		Graphs: []kube.Graph{{
-			ID:       "pod/default/a",
-			NodeKeys: []string{"pod/default/a", "service/default/missing"},
+			ID: "pod/default/a",
 		}},
 	}
 
 	nodes := GraphNodesForGraph(resp, &resp.Graphs[0])
-	if len(nodes) != 1 {
-		t.Fatalf("expected only existing response nodes to be mapped, got %#v", nodes)
+	if len(nodes) != 2 {
+		t.Fatalf("expected full response nodes to be returned, got %#v", nodes)
 	}
 	if nodes["pod/default/a"] == nil {
 		t.Fatalf("expected mapped pod node")
 	}
-	if nodes["service/default/missing"] != nil {
-		t.Fatalf("expected missing key to be skipped")
+	if nodes["service/default/missing"] == nil {
+		t.Fatalf("expected additional response node to be present")
 	}
 }

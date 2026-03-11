@@ -9,12 +9,12 @@ func secretResourceKey(namespace, secretName string) string {
 	return BuildResourceKeyRef("secret", namespace, secretName)
 }
 
-func newSecretReferenceNode(nodeMap map[string]kube.Resource, namespace, secretName string) *kube.GraphTree {
+func newSecretReferenceNode(nodeMap map[string]kube.Resource, namespace, secretName string) *kube.Tree {
 	secretKey := secretResourceKey(namespace, secretName)
 	if _, exists := nodeMap[secretKey]; !exists {
 		return nil
 	}
-	return NewGraphTree(secretKey, "secret", nil)
+	return NewTree(secretKey, "secret", nil)
 }
 
 func lookupSecretDataValue(nodeMap map[string]kube.Resource, namespace, secretName, key string) (string, bool) {

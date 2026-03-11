@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Simplified JSON response contracts by removing per-graph duplicated node references and relying on response-level `nodes` maps.
+- Simplified tree contract shape: `response.trees` now contains tree nodes directly.
+- Aligned response struct field order to place `nodes` first in graph/tree responses for clearer shared-node contract readability.
+
+### Docs
+- Updated API docs to reflect current JSON-first endpoints and text rendering endpoint separation.
+
 ## [0.0.8] - 2026-03-12
 
 ### Changed

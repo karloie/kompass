@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/karloie/kompass/pkg/kube"
-	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
 )
 
@@ -19,7 +18,7 @@ Options:
   --service [addr]         Start web server (format: :port or host:port, default :8080)
   --json                   JSON output
   --mock <name>            Mock provider (mock)
-	--plain                  Plain output without ANSI colors
+  --plain                  Plain output without ANSI colors
   -d, --debug              Enable debug logging
   -h, --help               Show help
   -v, --version            Show version
@@ -51,10 +50,11 @@ Note: All selectors automatically include inferred/connected resources.
 `)
 }
 
-func printGraphs(result *kube.GraphResponse, context, namespace, configPath string, selectors []string) {
+func printGraphs(result *kube.ResponseGraph, context, namespace, configPath string, selectors []string) {
 	output := JSONOutput{
-		Request:  RequestMetadata{context, namespace, configPath, selectors},
-		Response: result,
+		APIVersion: jsonAPIVersion,
+		Request:    RequestMetadata{context, namespace, configPath, selectors},
+		Response:   result,
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	if err := encoder.Encode(output); err != nil {
@@ -63,20 +63,21 @@ func printGraphs(result *kube.GraphResponse, context, namespace, configPath stri
 	}
 }
 
-func printTrees(result *kube.GraphResponse, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
+func printTrees(result *kube.ResponseTree, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
 	statsStr := ""
 	if cs := getStats(stats); cs != nil {
 		statsStr = fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate", cs.Calls, cs.Hits, cs.Misses, cs.HitRate)
 	}
 	fmt.Printf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s%s\n\n", context, namespace, selectors, configPath, statsStr)
 
-	for graphIdx := range result.Graphs {
-		g := &result.Graphs[graphIdx]
-		if g.Tree != nil {
-			fmt.Print(tree.RenderTree(g.Tree, pipeline.GraphNodesForGraph(result, g), plain))
-			if graphIdx < len(result.Graphs)-1 && !plain {
-				fmt.Println()
-			}
+	for treeIdx := range result.Trees {
+		treeNode := result.Trees[treeIdx]
+		if treeNode == nil {
+			continue
+		}
+		fmt.Print(tree.RenderTree(treeNode, result.Nodes, plain))
+		if treeIdx < len(result.Trees)-1 && !plain {
+			fmt.Println()
 		}
 	}
 }

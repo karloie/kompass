@@ -10,12 +10,14 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 	cronJobID := "cronjob/applikasjonsplattform/appwatch"
 	jobID := "job/applikasjonsplattform/appwatch-29552340"
 
-	resp := &kube.GraphResponse{
+	resp := &kube.ResponseGraph{
+		Nodes: map[string]*kube.Resource{
+			cronJobID: newRootNode(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil),
+			jobID:     newRootNode(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{{"kind": "CronJob", "name": "appwatch"}}),
+		},
 		Graphs: []kube.Graph{
-			newGraph(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil),
-			newGraph(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{
-				{"kind": "CronJob", "name": "appwatch"},
-			}),
+			{ID: cronJobID},
+			{ID: jobID},
 		},
 	}
 
@@ -32,9 +34,12 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 	jobID := "job/applikasjonsplattform/manual-job"
 
-	resp := &kube.GraphResponse{
+	resp := &kube.ResponseGraph{
+		Nodes: map[string]*kube.Resource{
+			jobID: newRootNode(jobID, "job", "manual-job", "applikasjonsplattform", nil),
+		},
 		Graphs: []kube.Graph{
-			newGraph(jobID, "job", "manual-job", "applikasjonsplattform", nil),
+			{ID: jobID},
 		},
 	}
 
@@ -48,7 +53,7 @@ func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 	}
 }
 
-func newGraph(id, typ, name, namespace string, owners []map[string]any) kube.Graph {
+func newRootNode(id, typ, name, namespace string, owners []map[string]any) *kube.Resource {
 	meta := map[string]any{
 		"name":      name,
 		"namespace": namespace,
@@ -61,16 +66,11 @@ func newGraph(id, typ, name, namespace string, owners []map[string]any) kube.Gra
 		meta["ownerReferences"] = ownerSlice
 	}
 
-	node := &kube.Resource{
+	return &kube.Resource{
 		Key:  id,
 		Type: typ,
 		Resource: map[string]any{
 			"metadata": meta,
 		},
-	}
-
-	return kube.Graph{
-		ID:    id,
-		Nodes: map[string]*kube.Resource{id: node},
 	}
 }

@@ -8,14 +8,14 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func RenderTree(treeNode *kube.GraphTree, nodeMap map[string]*kube.Resource, plain bool) string {
+func RenderTree(treeNode *kube.Tree, nodeMap map[string]*kube.Resource, plain bool) string {
 	var sb strings.Builder
 	visited := make(map[string]bool)
 	renderTreeNode(&sb, treeNode, "", true, true, nodeMap, visited, plain, nil)
 	return sb.String()
 }
 
-func renderTreeNode(sb *strings.Builder, treeNode *kube.GraphTree, prefix string, isLast bool, isRoot bool, nodeMap map[string]*kube.Resource, visited map[string]bool, plain bool, parentMeta map[string]any) {
+func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isLast bool, isRoot bool, nodeMap map[string]*kube.Resource, visited map[string]bool, plain bool, parentMeta map[string]any) {
 	if treeNode == nil {
 		return
 	}

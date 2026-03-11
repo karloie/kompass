@@ -26,7 +26,7 @@
          ├─ 💾 resources:[90m {limits=memory:256Mi, requests=cpu:100m memory:128Mi}[0m
          └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true}[0m
 
-🚀 cronjob: fiskeoye-repo-update [[32mACTIVE[0m][90m {lastSchedule=54s, namespace=applikasjonsplattform, schedule=0 6-23 * * *, suspended=false}[0m
+🚀 cronjob: fiskeoye-repo-update [[33mSCHEDULED[0m][90m {lastSchedule=38m, namespace=applikasjonsplattform, schedule=0 6-23 * * *, suspended=false}[0m
 ├─ 🎮 job: fiskeoye-repo-update-29552220 [[32mCOMPLETE[0m][90m {active=0, completions=1, duration=29m, failed=0, parallelism=1, succeeded=1}[0m
 │  └─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc [[32mSUCCEEDED[0m][90m {nodeName=tool-test-01-worker-055ceed2, phase=Succeeded, podIP=10.244.9.165, qosClass=BestEffort, startTime=1d}[0m
 │     ├─ 📜 ciliumnetworkpolicy: fiskeoye[90m {egress=false, ingress=true}[0m
@@ -34,28 +34,20 @@
 │     │  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
 │     │  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
 │     │  ├─ 🫛 pod: fiskeoye-8699f8f467-fphr6
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-425zs
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-69vv8
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-6h5qf
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-fgknk
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-p8l9b
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-rthpv
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-wbvx6
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-54dfs
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dcnc4
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dh8g7
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-kh5hr
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-nmdd7
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-tz447
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-xjjxr
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-56zqr
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-5nxtp
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-brt29
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-ccdfv
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-dtvn8
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-q7fp2
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-slrh2
-│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553660-cbkp9
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-2jc5s
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-6v6lm
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-78zkl
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-fnx4d
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-pdc65
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-t2m7m
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553840-xphcc
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-4k5rk
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-dnbpp
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-p2jnh
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-ql6vd
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-r7dt6
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-tfwh4
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553900-zhp6v
 │     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
 │     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
 │     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
@@ -66,8 +58,6 @@
 │     │  ├─ 📍 endpoints: fiskeoye
 │     │  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
 │     │  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
-│     │  ├─ 📍 endpointslice: fiskeoye-f5562[90m {addressType=IPv4}[0m
-│     │  │  └─ 🔌 endpoint:[90m {address=10.244.9.91, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=fiskeoye-repo-update-29553660-cbkp9}[0m
 │     │  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
 │     │  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
 │     │  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m
@@ -78,10 +68,8 @@
 │        ├─ 📂 mounts
 │        │  └─ 📁 mount:[90m {mount=/var/run/secrets/kubernetes.io/serviceaccount, readOnly=true, volume=projected}[0m
 │        └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], runAsNonRoot=true, runAsUser=1001, seccompProfile=RuntimeDefault}[0m
-├─ 🎮 job: fiskeoye-repo-update-29553480 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
-├─ 🎮 job: fiskeoye-repo-update-29553540 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
-├─ 🎮 job: fiskeoye-repo-update-29553600 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
-└─ 🎮 job: fiskeoye-repo-update-29553660 [[32mACTIVE[0m][90m {active=1, completions=1, failed=0, parallelism=1, succeeded=0}[0m
+├─ 🎮 job: fiskeoye-repo-update-29553840 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
+└─ 🎮 job: fiskeoye-repo-update-29553900 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
 
 🚀 deployment: ad-explore-db [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
 ├─ 📜 ciliumnetworkpolicy: ad-explore-db[90m {egress=false, ingress=true}[0m
@@ -248,28 +236,20 @@
 │  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
 │  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
 │  ├─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-425zs
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-69vv8
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-6h5qf
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-fgknk
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-p8l9b
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-rthpv
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-wbvx6
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-54dfs
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dcnc4
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dh8g7
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-kh5hr
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-nmdd7
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-tz447
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-xjjxr
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-56zqr
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-5nxtp
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-brt29
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-ccdfv
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-dtvn8
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-q7fp2
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-slrh2
-│  ├─ 🫛 pod: fiskeoye-repo-update-29553660-cbkp9
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-2jc5s
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-6v6lm
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-78zkl
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-fnx4d
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-pdc65
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-t2m7m
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553840-xphcc
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-4k5rk
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-dnbpp
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-p2jnh
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-ql6vd
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-r7dt6
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-tfwh4
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553900-zhp6v
 │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
 │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
 │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
@@ -285,8 +265,6 @@
 │  ├─ 📍 endpoints: fiskeoye
 │  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
 │  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
-│  ├─ 📍 endpointslice: fiskeoye-f5562[90m {addressType=IPv4}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.9.91, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=fiskeoye-repo-update-29553660-cbkp9}[0m
 │  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
 │  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
 │  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m

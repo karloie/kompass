@@ -50,7 +50,7 @@ func trimVerboseMetadata(obj map[string]any) {
 	}
 }
 
-func (r GraphRequest) Selectors() []string {
+func (r Request) Selectors() []string {
 	if r.KeySelector == "" {
 		return nil
 	}
@@ -63,7 +63,7 @@ func (r GraphRequest) Selectors() []string {
 	return selectors
 }
 
-func (r GraphRequest) DefaultNamespace() string {
+func (r Request) DefaultNamespace() string {
 	selectors := r.Selectors()
 	if len(selectors) == 0 {
 		return ""

@@ -7,10 +7,10 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func buildEnvarsNode(containerKey string, namespace string, envVars []any, containerSpec map[string]any, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildEnvarsNode(containerKey string, namespace string, envVars []any, containerSpec map[string]any, nodeMap map[string]kube.Resource) *kube.Tree {
 	envarsKey := containerKey + "/envars"
 
-	envarsNode := NewGraphTree(envarsKey, "envars", nil)
+	envarsNode := NewTree(envarsKey, "envars", nil)
 
 	for idx, ev := range envVars {
 		if envMap, ok := ev.(map[string]any); ok {
@@ -24,7 +24,7 @@ func buildEnvarsNode(containerKey string, namespace string, envVars []any, conta
 	return envarsNode
 }
 
-func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string]any, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string]any, nodeMap map[string]kube.Resource) *kube.Tree {
 	envName, _ := envMap["name"].(string)
 	envKey := fmt.Sprintf("%s/env/%d", envarsKey, idx)
 
@@ -32,7 +32,7 @@ func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string
 		"name": envName,
 	}
 
-	var referencedResource *kube.GraphTree
+	var referencedResource *kube.Tree
 	var sourceType string
 
 	if valueFrom, ok := graph.M(envMap).MapOk("valueFrom"); ok {
@@ -69,7 +69,7 @@ func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string
 
 				cmKey := BuildResourceKeyRef("configmap", namespace, configMapName)
 				if _, exists := nodeMap[cmKey]; exists {
-					referencedResource = NewGraphTree(cmKey, "configmap", nil)
+					referencedResource = NewTree(cmKey, "configmap", nil)
 				}
 			}
 		} else if fieldRef, ok := valueFrom.MapOk("fieldRef"); ok {
@@ -95,7 +95,7 @@ func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string
 		metadata["sourceType"] = sourceType
 	}
 
-	envNode := NewGraphTree(envKey, "env", metadata)
+	envNode := NewTree(envKey, "env", metadata)
 
 	if referencedResource != nil {
 		envNode.Children = append(envNode.Children, referencedResource)

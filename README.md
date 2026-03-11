@@ -214,8 +214,14 @@ kompass --debug '*/petshop/*'
 
 ### Available Output Formats
 
-- **Text** - ASCII tree (`/tree`)
-- **JSON** - Raw graph data (`/graph`)
+- **JSON Graph** - Graph-oriented JSON (`/graph`)
+- **JSON Tree** - Tree-oriented JSON (`/tree`)
+- **Text Tree** - ASCII tree rendering (`/tree/text`)
+
+### JSON Contract Notes
+
+- Responses provide a shared `response.nodes` map and graph/tree structures reference that shared node data.
+- `response.trees` contains tree nodes directly (no extra wrapper objects).
 
 ### REST API
 
@@ -236,8 +242,11 @@ curl "http://localhost:8080/graph?selector=deployment/myapp/frontend&namespace=d
 # JSON graph in mock mode
 curl "http://localhost:8080/graph?mock=mock&selector=*/petshop/*"
 
-# ASCII tree
+# JSON tree
 curl "http://localhost:8080/tree?namespace=production&selector=pod/production/myapp"
+
+# ASCII tree
+curl "http://localhost:8080/tree/text?namespace=production&selector=pod/production/myapp"
 
 # Health check
 curl "http://localhost:8080/healthz"  # Liveness

@@ -83,8 +83,8 @@ func TestToMapMarshalError(t *testing.T) {
 	}
 }
 
-func TestGraphRequestSelectorsAndDefaultNamespace(t *testing.T) {
-	req := GraphRequest{KeySelector: " pod/petshop/api , */management/* ,,service/default/web "}
+func TestRequestSelectorsAndDefaultNamespace(t *testing.T) {
+	req := Request{KeySelector: " pod/petshop/api , */management/* ,,service/default/web "}
 	sel := req.Selectors()
 	if len(sel) != 3 {
 		t.Fatalf("expected 3 selectors, got %#v", sel)
@@ -96,7 +96,7 @@ func TestGraphRequestSelectorsAndDefaultNamespace(t *testing.T) {
 		t.Fatalf("expected default namespace petshop, got %q", req.DefaultNamespace())
 	}
 
-	empty := GraphRequest{}
+	empty := Request{}
 	if empty.Selectors() != nil {
 		t.Fatalf("expected nil selectors for empty request")
 	}

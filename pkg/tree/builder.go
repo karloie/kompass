@@ -7,7 +7,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-type ChildBuilder func(string, kube.Resource, map[string][]string, *treeBuildState, map[string]kube.Resource) []*kube.GraphTree
+type ChildBuilder func(string, kube.Resource, map[string][]string, *treeBuildState, map[string]kube.Resource) []*kube.Tree
 
 var childBuilders map[string]ChildBuilder
 
@@ -31,40 +31,40 @@ func init() {
 }
 
 type ChildrenBuilder struct {
-	children []*kube.GraphTree
+	children []*kube.Tree
 }
 
 func NewChildrenBuilder() *ChildrenBuilder {
 	return &ChildrenBuilder{
-		children: make([]*kube.GraphTree, 0),
+		children: make([]*kube.Tree, 0),
 	}
 }
 
-func (cb *ChildrenBuilder) Add(node *kube.GraphTree) *ChildrenBuilder {
+func (cb *ChildrenBuilder) Add(node *kube.Tree) *ChildrenBuilder {
 	if node != nil {
 		cb.children = append(cb.children, node)
 	}
 	return cb
 }
 
-func (cb *ChildrenBuilder) AddAll(nodes ...*kube.GraphTree) *ChildrenBuilder {
+func (cb *ChildrenBuilder) AddAll(nodes ...*kube.Tree) *ChildrenBuilder {
 	for _, node := range nodes {
 		cb.Add(node)
 	}
 	return cb
 }
 
-func (cb *ChildrenBuilder) Extend(nodes []*kube.GraphTree) *ChildrenBuilder {
+func (cb *ChildrenBuilder) Extend(nodes []*kube.Tree) *ChildrenBuilder {
 	cb.children = append(cb.children, nodes...)
 	return cb
 }
 
-func (cb *ChildrenBuilder) Build() []*kube.GraphTree {
+func (cb *ChildrenBuilder) Build() []*kube.Tree {
 	sortChildren(cb.children)
 	return cb.children
 }
 
-func sortChildren(children []*kube.GraphTree) {
+func sortChildren(children []*kube.Tree) {
 	sort.Slice(children, func(i, j int) bool {
 		if children[i].Type != children[j].Type {
 			return children[i].Type < children[j].Type
@@ -81,32 +81,32 @@ func sortChildren(children []*kube.GraphTree) {
 	})
 }
 
-func BuildTrees(graphSet *kube.GraphResponse) {
+func BuildResponseTree(graphSet *kube.ResponseGraph) *kube.ResponseTree {
 	if graphSet == nil {
-		return
+		return nil
 	}
+	out := &kube.ResponseTree{Nodes: graphSet.Nodes, Trees: make([]*kube.Tree, 0, len(graphSet.Graphs))}
 	for i := range graphSet.Graphs {
-		nodeMap := make(map[string]kube.Resource)
-
-		if len(graphSet.Nodes) > 0 && len(graphSet.Graphs[i].NodeKeys) > 0 {
-			for _, key := range graphSet.Graphs[i].NodeKeys {
-				if node := graphSet.Nodes[key]; node != nil {
-					nodeMap[key] = *node
-				}
-			}
-		} else {
-			for key, node := range graphSet.Graphs[i].Nodes {
-				if node != nil {
-					nodeMap[key] = *node
-				}
-			}
-		}
-
-		graphSet.Graphs[i].Tree = BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, nodeMap)
+		graphNodes := graphNodesForTree(graphSet)
+		treeNode := BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, graphNodes)
+		out.Trees = append(out.Trees, treeNode)
 	}
+	return out
 }
 
-func BuildTree(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func graphNodesForTree(graphSet *kube.ResponseGraph) map[string]kube.Resource {
+	nodeMap := make(map[string]kube.Resource)
+	if graphSet != nil && len(graphSet.Nodes) > 0 {
+		for key, node := range graphSet.Nodes {
+			if node != nil {
+				nodeMap[key] = *node
+			}
+		}
+	}
+	return nodeMap
+}
+
+func BuildTree(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Tree {
 	children := buildTreeAdjacency(edges, nodeMap)
 	normalizeChildrenMap(children)
 
@@ -114,7 +114,7 @@ func BuildTree(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kub
 	return buildTreeNode(rootKey, children, state, nodeMap)
 }
 
-func buildTreeNode(key string, children map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildTreeNode(key string, children map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	resource, exists := nodeMap[key]
 	if !exists {
 		return nil
@@ -122,7 +122,7 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 
 	state.MarkSeen(key)
 
-	treeNode := NewGraphTree(key, resource.Type, map[string]any{})
+	treeNode := NewTree(key, resource.Type, map[string]any{})
 
 	if builder, hasBuilder := childBuilders[resource.Type]; hasBuilder {
 		treeNode.Children = builder(key, resource, children, state, nodeMap)
@@ -145,7 +145,7 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 			}
 
 			if leafChildrenTypes != nil && leafChildrenTypes[childResource.Type] {
-				leafNode := NewGraphTree(childKey, childResource.Type, map[string]any{})
+				leafNode := NewTree(childKey, childResource.Type, map[string]any{})
 				treeNode.Children = append(treeNode.Children, leafNode)
 				state.MarkSeen(childKey)
 			} else {
@@ -160,14 +160,14 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 	return treeNode
 }
 
-func NewGraphTree(key, nodeType string, meta map[string]any) *kube.GraphTree {
+func NewTree(key, nodeType string, meta map[string]any) *kube.Tree {
 	if meta == nil {
 		meta = map[string]any{}
 	}
-	return &kube.GraphTree{
+	return &kube.Tree{
 		Key:      key,
 		Type:     nodeType,
 		Meta:     meta,
-		Children: []*kube.GraphTree{},
+		Children: []*kube.Tree{},
 	}
 }

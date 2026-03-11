@@ -7,10 +7,10 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func buildMountsNode(containerKey string, namespace string, volumeMounts []any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildMountsNode(containerKey string, namespace string, volumeMounts []any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	mountsKey := containerKey + "/mounts"
 
-	mountsNode := NewGraphTree(mountsKey, "mounts", nil)
+	mountsNode := NewTree(mountsKey, "mounts", nil)
 
 	for idx, vm := range volumeMounts {
 		if vmMap, ok := vm.(map[string]any); ok {
@@ -24,7 +24,7 @@ func buildMountsNode(containerKey string, namespace string, volumeMounts []any, 
 	return mountsNode
 }
 
-func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	mountName, _ := vmMap["name"].(string)
 	mountPath, _ := vmMap["mountPath"].(string)
 	mountKey := fmt.Sprintf("%s/mount/%d", mountsKey, idx)
@@ -50,7 +50,7 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 		}
 	}
 
-	var referencedResource *kube.GraphTree
+	var referencedResource *kube.Tree
 
 	if volumeDef != nil {
 		volumeType, volumeSource, resourceKey := extractVolumeInfo(volumeDef, namespace)
@@ -67,14 +67,14 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 
 		if volumeType == "secret" || volumeType == "configmap" || volumeType == "persistentvolumeclaim" {
 			if resource, exists := nodeMap[resourceKey]; exists {
-				referencedResource = NewGraphTree(resourceKey, resource.Type, map[string]any{})
+				referencedResource = NewTree(resourceKey, resource.Type, map[string]any{})
 			}
 		}
 	} else {
 		metadata["volume"] = mountName
 	}
 
-	mountNode := NewGraphTree(mountKey, "mount", metadata)
+	mountNode := NewTree(mountKey, "mount", metadata)
 
 	if referencedResource != nil {
 		mountNode.Children = append(mountNode.Children, referencedResource)

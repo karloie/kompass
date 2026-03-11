@@ -8,8 +8,8 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 
 	endpoints, ok := endpointSlice.AsMap()["endpoints"].([]any)
 	if !ok || len(endpoints) == 0 {
@@ -63,7 +63,7 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 				}
 			}
 
-			epNode := NewGraphTree(epKey, "endpoint", metadata)
+			epNode := NewTree(epKey, "endpoint", metadata)
 			children = append(children, epNode)
 		}
 	}
@@ -71,8 +71,8 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 	return children
 }
 
-func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 
 	subsets, ok := endpoints.AsMap()["subsets"].([]any)
 	if !ok || len(subsets) == 0 {
@@ -118,7 +118,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 				}
 			}
 
-			subsetNode := NewGraphTree(subsetKey, "subset", subsetMetadata)
+			subsetNode := NewTree(subsetKey, "subset", subsetMetadata)
 
 			addrCounter := 0
 			if addresses, ok := subsetMap["addresses"].([]any); ok && len(addresses) > 0 {
@@ -147,7 +147,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							}
 						}
 
-						addrNode := NewGraphTree(addrKey, "address", addrMetadata)
+						addrNode := NewTree(addrKey, "address", addrMetadata)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}
@@ -181,7 +181,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							}
 						}
 
-						addrNode := NewGraphTree(addrKey, "address", addrMetadata)
+						addrNode := NewTree(addrKey, "address", addrMetadata)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}
@@ -196,8 +196,8 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 	return children
 }
 
-func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 
 	spec := graph.M(policy.AsMap()).Map("spec").Raw()
 	if spec == nil {
@@ -214,7 +214,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 			for _, labelKey := range labelKeys {
 				labelValue := matchLabels[labelKey]
 				if labelStr, ok := labelValue.(string); ok {
-					labelNode := NewGraphTree(
+					labelNode := NewTree(
 						fmt.Sprintf("%s/endpointSelector/label/%s", policyKey, labelKey),
 						"label",
 						map[string]any{
@@ -239,7 +239,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 						if epMap, ok := ep.(map[string]any); ok {
 							if matchLabels, ok := epMap["matchLabels"].(map[string]any); ok {
 								epKey := fmt.Sprintf("%s/fromEndpoint/%d", ruleKey, epIdx)
-								epNode := NewGraphTree(epKey, "fromendpoint", map[string]any{
+								epNode := NewTree(epKey, "fromendpoint", map[string]any{
 									"displayPrefix": "cnp-ingress",
 									"matchLabels":   matchLabels,
 								})
@@ -251,7 +251,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 											continue
 										}
 										if childResource.Type == "service" {
-											childNode := NewGraphTree(childKey, childResource.Type, map[string]any{})
+											childNode := NewTree(childKey, childResource.Type, map[string]any{})
 											epNode.Children = append(epNode.Children, childNode)
 										}
 									}
@@ -272,7 +272,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 					if len(entities) > 0 {
 						entitiesKey := fmt.Sprintf("%s/fromEntities", ruleKey)
-						entitiesNode := NewGraphTree(entitiesKey, "fromentities", map[string]any{
+						entitiesNode := NewTree(entitiesKey, "fromentities", map[string]any{
 							"displayPrefix": "cnp-ingress",
 							"entities":      entities,
 						})
@@ -290,7 +290,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								portMetadata["ports"] = ports
 							}
 
-							portNode := NewGraphTree(portKey, "toport", portMetadata)
+							portNode := NewTree(portKey, "toport", portMetadata)
 							children = append(children, portNode)
 						}
 					}
@@ -309,7 +309,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 						if epMap, ok := ep.(map[string]any); ok {
 							if matchLabels, ok := epMap["matchLabels"].(map[string]any); ok {
 								epKey := fmt.Sprintf("%s/toEndpoint/%d", ruleKey, epIdx)
-								epNode := NewGraphTree(epKey, "toendpoint", map[string]any{
+								epNode := NewTree(epKey, "toendpoint", map[string]any{
 									"displayPrefix": "cnp-egress",
 									"matchLabels":   matchLabels,
 								})
@@ -321,7 +321,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 											continue
 										}
 										if childResource.Type == "service" {
-											childNode := NewGraphTree(childKey, childResource.Type, map[string]any{})
+											childNode := NewTree(childKey, childResource.Type, map[string]any{})
 											epNode.Children = append(epNode.Children, childNode)
 										}
 									}
@@ -342,7 +342,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 					if len(entities) > 0 {
 						entitiesKey := fmt.Sprintf("%s/toEntities", ruleKey)
-						entitiesNode := NewGraphTree(entitiesKey, "toentities", map[string]any{
+						entitiesNode := NewTree(entitiesKey, "toentities", map[string]any{
 							"displayPrefix": "cnp-egress",
 							"entities":      entities,
 						})
@@ -363,7 +363,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								fqdnMetadata["matchName"] = matchName
 							}
 
-							fqdnNode := NewGraphTree(fqdnKey, "tofqdn", fqdnMetadata)
+							fqdnNode := NewTree(fqdnKey, "tofqdn", fqdnMetadata)
 							children = append(children, fqdnNode)
 						}
 					}
@@ -379,7 +379,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								portMetadata["ports"] = ports
 							}
 
-							portNode := NewGraphTree(portKey, "toport", portMetadata)
+							portNode := NewTree(portKey, "toport", portMetadata)
 							children = append(children, portNode)
 						}
 					}
@@ -403,7 +403,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 				}
 
-				leafNode := NewGraphTree(childKey, childResource.Type, leafMeta)
+				leafNode := NewTree(childKey, childResource.Type, leafMeta)
 				children = append(children, leafNode)
 				state.MarkSeen(childKey)
 			} else {
@@ -419,26 +419,26 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 	return children
 }
 
-func buildPersistentVolumeClaimChildren(pvcKey string, pvc kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildPersistentVolumeClaimChildren(pvcKey string, pvc kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	return appendGraphChildren(pvcKey, graphChildren, state, nodeMap)
 }
 
-func buildSecretChildren(secretKey string, secret kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildSecretChildren(secretKey string, secret kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	builder := NewChildrenBuilder()
 
 	if immutable, ok := secret.AsMap()["immutable"].(bool); ok && immutable {
-		builder.Add(NewGraphTree(secretKey+"/immutable", "immutable", map[string]any{"value": true}))
+		builder.Add(NewTree(secretKey+"/immutable", "immutable", map[string]any{"value": true}))
 	}
 
 	builder.Extend(appendGraphChildren(secretKey, graphChildren, state, nodeMap))
 	return builder.Build()
 }
 
-func buildCertificateChildren(certKey string, cert kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildCertificateChildren(certKey string, cert kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	return appendGraphChildren(certKey, graphChildren, state, nodeMap)
 }
 
-func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	builder := NewChildrenBuilder()
 	for _, childKey := range graphChildren[httpRouteKey] {
 		if state.CanTraverse(childKey) {

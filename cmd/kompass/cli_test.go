@@ -20,7 +20,7 @@ func TestPrintHelpIncludesDebugFlag(t *testing.T) {
 }
 
 func TestPrintGraphsOutputsValidJSON(t *testing.T) {
-	result := &kube.GraphResponse{}
+	result := &kube.ResponseGraph{}
 	out := captureStdout(t, func() {
 		printGraphs(result, "ctx-a", "ns-a", "mock", []string{"*/ns-a/*"})
 	})
@@ -28,6 +28,9 @@ func TestPrintGraphsOutputsValidJSON(t *testing.T) {
 	var parsed JSONOutput
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("expected valid JSON output, got err: %v\noutput:\n%s", err, out)
+	}
+	if parsed.APIVersion != jsonAPIVersion {
+		t.Fatalf("expected apiVersion %q, got %q", jsonAPIVersion, parsed.APIVersion)
 	}
 	if parsed.Request.Context != "ctx-a" || parsed.Request.Namespace != "ns-a" || parsed.Request.ConfigPath != "mock" {
 		t.Fatalf("unexpected request metadata in output: %+v", parsed.Request)

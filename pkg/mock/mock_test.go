@@ -29,12 +29,12 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 
 	resp, err := graph.InferGraphs(
 		client,
-		kube.GraphRequest{KeySelector: ""},
+		kube.Request{KeySelector: ""},
 	)
 	if err != nil {
 		t.Fatalf("InferGraphs failed: %v", err)
 	}
-	tree.BuildTrees(resp)
+	treeResp := tree.BuildResponseTree(resp)
 
 	t.Run("GraphOrdering", func(t *testing.T) {
 		if len(resp.Graphs) == 0 {
@@ -164,16 +164,10 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 	t.Run("RenderedMetadata", func(t *testing.T) {
 
 		var rendered strings.Builder
-		for i := range resp.Graphs {
-			g := &resp.Graphs[i]
-			if g.Tree != nil {
-				nodeMap := map[string]*kube.Resource{}
-				for _, key := range g.NodeKeys {
-					if node := resp.Nodes[key]; node != nil {
-						nodeMap[key] = node
-					}
-				}
-				rendered.WriteString(tree.RenderTree(g.Tree, nodeMap, false))
+		for i := range treeResp.Trees {
+			treeNode := treeResp.Trees[i]
+			if treeNode != nil {
+				rendered.WriteString(tree.RenderTree(treeNode, treeResp.Nodes, false))
 				rendered.WriteString("\n")
 			}
 		}
