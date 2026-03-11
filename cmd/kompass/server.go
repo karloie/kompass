@@ -77,14 +77,17 @@ func startServer(addr, contextArg, namespaceArg string) {
 
 func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method, "readyCheck", checkReady, "format", format)
 		if checkReady && s.client != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			if _, err := s.client.GetPods(s.namespaceArg, ctx, metav1.ListOptions{Limit: 1}); err != nil {
+				slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 				http.Error(w, "not ready", http.StatusServiceUnavailable)
 				return
 			}
 		} else if checkReady {
+			slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", "no active client")
 			http.Error(w, "not ready", http.StatusServiceUnavailable)
 			return
 		}
@@ -94,16 +97,23 @@ func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 		} else {
 			w.Write([]byte("ok"))
 		}
+		slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK)
 	}
 }
 
 func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method)
 	if s.client == nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", "no active client")
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.client.GetCacheStats())
+	if err := json.NewEncoder(w).Encode(s.client.GetCacheStats()); err != nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
+		return
+	}
+	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK)
 }
 
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
@@ -112,15 +122,18 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	if namespace == "" {
 		namespace = s.namespaceArg
 	}
+	slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method, "selectors", selectors, "namespace", namespace, "mock", r.URL.Query().Get("mock"))
 
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -136,7 +149,9 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		Response: result,
 	}); err != nil {
 		slog.Error("JSON encoding error", "error", err)
+		return
 	}
+	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
@@ -148,15 +163,18 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	if namespace == "" {
 		namespace = s.namespaceArg
 	}
+	slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method, "selectors", selectors, "namespace", namespace, "mock", r.URL.Query().Get("mock"))
 
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		w.Write([]byte("Error: Failed to connect to cluster\n"))
 		return
 	}
 
 	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
+		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		w.Write([]byte(fmt.Sprintf("Error: %s\n", err.Error())))
 		return
 	}
@@ -179,17 +197,26 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(output.String()))
+	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
 }
 
 func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) {
+	slog.Debug("resolving provider", "mock", mockProvider, "namespace", namespace)
 	if s.clientFactory != nil {
+		slog.Debug("using custom client factory", "namespace", namespace)
 		return s.clientFactory(s.contextArg, namespace)
 	}
 	if mockProvider != "" {
 		if mockProvider != "mock" {
+			slog.Debug("provider resolve failed", "mock", mockProvider, "error", "unknown mock provider")
 			return nil, fmt.Errorf("unknown mock provider: %s", mockProvider)
 		}
 		provider, _, _, err := initProvider(true, "", namespace)
+		if err != nil {
+			slog.Debug("provider resolve failed", "mock", mockProvider, "namespace", namespace, "error", err)
+			return nil, err
+		}
+		slog.Debug("provider resolved", "provider", "mock", "namespace", namespace)
 		return provider, err
 	}
 	if s.client != nil {
@@ -197,8 +224,14 @@ func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) 
 		if namespace != "" && namespace != currentNS {
 			s.client.SetNamespace(namespace)
 		}
+		slog.Debug("provider resolved", "provider", "cluster", "namespace", namespace)
 		return s.client, nil
 	}
 	provider, _, _, err := initProvider(false, s.contextArg, namespace)
+	if err != nil {
+		slog.Debug("provider resolve failed", "provider", "cluster", "namespace", namespace, "error", err)
+		return nil, err
+	}
+	slog.Debug("provider resolved", "provider", "cluster", "namespace", namespace)
 	return provider, err
 }

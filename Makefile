@@ -5,6 +5,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
 LDFLAGS ?=
 ARGS ?=
+COVERPKG ?= ./...
 
 SNAPSHOT_DIR ?= testdata/fixtures
 SNAPSHOT_MOCK_NAMESPACE ?= petshop
@@ -26,12 +27,12 @@ test: build
 	go test ./...
 
 cover: build
-	@go test ./... -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
+	@go test ./... -coverpkg=$(COVERPKG) -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
 	@echo "┌────────────────────────────────────────────────────────────────────┬──────────┐"
 	@echo "│ Package                                                            │ Coverage │"
 	@echo "├────────────────────────────────────────────────────────────────────┼──────────┤"
 	@for pkg in $$(go list ./...); do \
-		cov=$$(go test $$pkg -cover 2>&1 | grep -o 'coverage: [0-9.]*%' | cut -d' ' -f2); \
+		cov=$$(awk -v p="$$pkg" 'NR>1 { split($$1, a, ":"); file=a[1]; pkg=file; sub("/[^/]+$$", "", pkg); if (pkg==p) { total += $$2; if ($$3 > 0) covered += $$2 } } END { if (total > 0) printf "%.1f%%", (covered/total)*100 }' coverage.out); \
 		if [ -n "$$cov" ]; then \
 			printf "│ %-66s │ %7s  │\n" $$pkg $$cov; \
 		fi; \

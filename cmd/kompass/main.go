@@ -45,6 +45,7 @@ func main() {
 	contextArg := flag.String("context", "", "Kubernetes context (defaults to current context)")
 	namespaceArg := flag.String("namespace", "", "Kubernetes namespace (defaults to current namespace or 'default')")
 	mockArg := flag.Bool("mock", false, "Use mock provider")
+	debugArg := flag.Bool("debug", false, "Enable debug logging")
 	jsonArg := flag.Bool("json", false, "Output as pretty-printed JSON")
 	plainArg := flag.Bool("plain", false, "Plain output without emojis and colors")
 	serviceArg := flag.String("service", "", "Start web server (format: :port or host:port, defaults to :8080)")
@@ -52,9 +53,17 @@ func main() {
 	versionArg := flag.Bool("version", false, "Show version information")
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
 	flag.BoolVar(versionArg, "v", false, "Shorthand for --version")
+	flag.BoolVar(debugArg, "d", false, "Shorthand for --debug")
 	flag.StringVar(contextArg, "c", "", "Shorthand for --context")
 	flag.StringVar(namespaceArg, "n", "", "Shorthand for --namespace")
 	flag.Parse()
+
+	level := slog.LevelInfo
+	if *debugArg {
+		level = slog.LevelDebug
+	}
+	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	slog.SetDefault(slog.New(h))
 
 	if *versionArg {
 		fmt.Printf("kompass %s\n  commit: %s\n  built:  %s\n", version, commit, date)

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/karloie/kompass/pkg/kube"
@@ -17,6 +18,7 @@ func printHelp() {
 Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
+	-d, --debug              Enable debug logging
   --mock <name>            Mock provider (mock)
   --json                   JSON output
   --plain                  Plain output without emojis and colors
@@ -64,19 +66,30 @@ func printGraphs(result *kube.GraphResponse, context, namespace, configPath stri
 }
 
 func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
+	slog.Debug("initializing provider", "provider", map[bool]string{true: "mock", false: "cluster"}[useMock], "requestedContext", contextArg, "requestedNamespace", namespaceArg)
+
 	if useMock {
 		provider := kube.NewMockClient(mock.GenerateMock())
 		if namespaceArg == "" {
 			namespaceArg = "petshop"
 		}
 		provider.SetNamespace(namespaceArg)
+		resolvedContext, _ := provider.GetContext()
+		resolvedNamespace, _ := provider.GetNamespace()
+		configPath, _ := provider.GetConfigPath()
+		slog.Debug("provider initialized", "provider", "mock", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
 		return provider, "mock", namespaceArg, nil
 	}
 
 	client, err := kube.NewClient(contextArg, namespaceArg)
 	if err != nil {
+		slog.Debug("provider initialization failed", "provider", "cluster", "requestedContext", contextArg, "requestedNamespace", namespaceArg, "error", err)
 		return nil, "", "", fmt.Errorf("error connecting to cluster: %w", err)
 	}
+	resolvedContext, _ := client.GetContext()
+	resolvedNamespace, _ := client.GetNamespace()
+	configPath, _ := client.GetConfigPath()
+	slog.Debug("provider initialized", "provider", "cluster", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
 	if contextArg == "" {
 		contextArg, _ = client.GetContext()
 	}
