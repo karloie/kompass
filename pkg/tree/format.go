@@ -20,7 +20,7 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 	var display string
 
 	prefix := ""
-	if !plain {
+	{
 
 		emojiType := nodeType
 		if displayPrefix, ok := meta["displayPrefix"].(string); ok && displayPrefix != "" {

@@ -163,6 +163,14 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 
+	plain := true
+	switch strings.ToLower(r.URL.Query().Get("plain")) {
+	case "0", "false", "no":
+		plain = false
+	case "1", "true", "yes":
+		plain = true
+	}
+
 	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
@@ -194,7 +202,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	for i := range result.Graphs {
 		g := &result.Graphs[i]
 		if g.Tree != nil {
-			output.WriteString(tree.RenderTree(g.Tree, pipeline.GraphNodesForGraph(result, g), true))
+			output.WriteString(tree.RenderTree(g.Tree, pipeline.GraphNodesForGraph(result, g), plain))
 		}
 		if i < len(result.Graphs)-1 {
 			output.WriteString("\n")

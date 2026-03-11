@@ -146,6 +146,51 @@ func TestHandleTreeSuccess(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "Context:") {
 		t.Fatalf("expected tree output to include context line, got %q", rr.Body.String())
 	}
+	if !strings.Contains(rr.Body.String(), "🫛") {
+		t.Fatalf("expected default /tree output to keep emojis in plain mode, got %q", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "\x1b[") {
+		t.Fatalf("expected default /tree output without ANSI color escapes, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleTreePlainQueryOverridesDefault(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/tree?selector=*/petshop/*&plain=1", nil)
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "🫛") {
+		t.Fatalf("expected plain tree output to keep emojis, got %q", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "\x1b[") {
+		t.Fatalf("expected plain tree output without ANSI color escapes, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleTreeRichQueryOverridesDefault(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/tree?selector=*/petshop/*&plain=false", nil)
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "🫛") {
+		t.Fatalf("expected rich tree output to keep emojis, got %q", rr.Body.String())
+	}
 }
 
 func TestHandleTreeProviderError(t *testing.T) {

@@ -41,11 +41,7 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.GraphTree, prefix string
 	if len(meta) > 0 {
 		displayKey = formatNodeName(treeNode.Type, meta, nil, plain, parentMeta)
 	} else {
-
-		emoji := ""
-		if !plain {
-			emoji = graph.GetResourceEmoji(treeNode.Type) + " "
-		}
+		emoji := graph.GetResourceEmoji(treeNode.Type) + " "
 		displayKey = emoji + treeNode.Type
 	}
 
