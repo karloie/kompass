@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.8] - 2026-03-11
+## [0.0.8] - 2026-03-12
 
 ### Changed
 - `/tree` now defaults to plain output in server mode; rich output can be requested via the `plain` query parameter.
@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 - Expanded test coverage for `pkg/graph` and `pkg/kube`, including cache/client/loaders/core utilities and graph inference paths.
+
+## [0.0.7] - 2026-03-11
+
+### Fixed
+- Improved `--json` performance for large clusters by reducing response-building overhead in graph output paths.
+- Resolved smaller stability bugs in server/CLI handling and provider edge cases.
 
 ## [0.0.1] - 2026-03-10
 
@@ -58,4 +64,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [Unreleased]: https://github.com/karloie/kompass/compare/v0.0.8...HEAD
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
-[0.0.1]: https://github.com/karloie/kompass/releases/tag/v0.0.1
+[0.0.7]: https://github.com/karloie/kompass/releases/tag/v0.0.7
