@@ -18,13 +18,13 @@ func printHelp() {
 Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
-	-d, --debug              Enable debug logging
-  --mock <name>            Mock provider (mock)
-  --json                   JSON output
-  --plain                  Plain output without emojis and colors
   --service [addr]         Start web server (format: :port or host:port, default :8080)
-  -v, --version            Show version
+  --json                   JSON output
+  --mock <name>            Mock provider (mock)
+  --plain                  Plain output without emojis and colors
+  -d, --debug              Enable debug logging
   -h, --help               Show help
+  -v, --version            Show version
 
 Selectors (type/namespace/name format):
   (empty)                  All pods in current namespace + inferred resources
