@@ -53,13 +53,14 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
 	}
 	srv := &server{contextArg: contextArg, namespaceArg: namespaceArg, client: client}
-	http.HandleFunc("/graph", srv.handleGraph)
-	http.HandleFunc("/tree", srv.handleTree)
-	http.HandleFunc("/health", srv.handleHealth("json", false))
-	http.HandleFunc("/healthz", srv.handleHealth("text", false))
-	http.HandleFunc("/readyz", srv.handleHealth("text", true))
-	http.HandleFunc("/stats", srv.handleStats)
-	httpServer := &http.Server{Addr: addr}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graph", srv.handleGraph)
+	mux.HandleFunc("/tree", srv.handleTree)
+	mux.HandleFunc("/health", srv.handleHealth("json", false))
+	mux.HandleFunc("/healthz", srv.handleHealth("text", false))
+	mux.HandleFunc("/readyz", srv.handleHealth("text", true))
+	mux.HandleFunc("/stats", srv.handleStats)
+	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -181,14 +182,14 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
 		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
-		w.Write([]byte("Error: Failed to connect to cluster\n"))
+		http.Error(w, "Error: Failed to connect to cluster", http.StatusInternalServerError)
 		return
 	}
 
 	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
 		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
-		w.Write([]byte(fmt.Sprintf("Error: %s\n", err.Error())))
+		http.Error(w, fmt.Sprintf("Error: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -233,10 +234,6 @@ func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) 
 		return provider, err
 	}
 	if s.client != nil {
-		currentNS, _ := s.client.GetNamespace()
-		if namespace != "" && namespace != currentNS {
-			s.client.SetNamespace(namespace)
-		}
 		slog.Debug("provider resolved", "provider", "cluster", "namespace", namespace)
 		return s.client, nil
 	}

@@ -77,7 +77,7 @@ func TestGetProviderFromClientFactoryError(t *testing.T) {
 	}
 }
 
-func TestGetProviderUsesExistingClientAndSetsNamespace(t *testing.T) {
+func TestGetProviderUsesExistingClientWithoutMutatingNamespace(t *testing.T) {
 	c := kube.NewMockClient(mock.GenerateMock())
 	c.SetNamespace("default")
 	s := &server{client: c}
@@ -90,8 +90,8 @@ func TestGetProviderUsesExistingClientAndSetsNamespace(t *testing.T) {
 		t.Fatalf("expected provider")
 	}
 	ns, _ := c.GetNamespace()
-	if ns != "petshop" {
-		t.Fatalf("expected namespace to be updated to petshop, got %q", ns)
+	if ns != "default" {
+		t.Fatalf("expected namespace to remain default, got %q", ns)
 	}
 }
 
@@ -201,8 +201,8 @@ func TestHandleTreeProviderError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/tree", nil)
 
 	s.handleTree(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200 with plain error message body, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500 with plain error message body, got %d", rr.Code)
 	}
 	if !strings.Contains(rr.Body.String(), "Failed to connect to cluster") {
 		t.Fatalf("expected error text in body, got %q", rr.Body.String())

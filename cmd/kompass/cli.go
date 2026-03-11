@@ -19,7 +19,7 @@ Options:
   --service [addr]         Start web server (format: :port or host:port, default :8080)
   --json                   JSON output
   --mock <name>            Mock provider (mock)
-  --plain                  Plain output without emojis and colors
+	--plain                  Plain output without ANSI colors
   -d, --debug              Enable debug logging
   -h, --help               Show help
   -v, --version            Show version

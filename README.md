@@ -117,7 +117,7 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 | `--namespace <name>` | `-n` | Namespace |
 | `--mock` | | Use mock data |
 | `--json` | | JSON output |
-| `--plain` | | Plain output |
+| `--plain` | | Plain output without ANSI colors |
 | `--debug` | `-d` | Enable debug logging |
 | `--service [addr]` | | Start server (`:8080`) |
 | `--version` | `-v` | Show version |

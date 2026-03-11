@@ -91,7 +91,7 @@ func main() {
 	mockArg := flag.Bool("mock", false, "Use mock provider")
 	debugArg := flag.Bool("debug", false, "Enable debug logging")
 	jsonArg := flag.Bool("json", false, "Output as pretty-printed JSON")
-	plainArg := flag.Bool("plain", false, "Plain output without emojis and colors")
+	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
 	serviceArg := &serviceFlag{}
 	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
