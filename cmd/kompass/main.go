@@ -83,7 +83,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: --service address must be in format ':port' or 'host:port' (e.g., :8080 or 0.0.0.0:8080)\n")
 			os.Exit(1)
 		}
-		startServer(addr, *contextArg, *namespaceArg)
+		startServer(addr, *contextArg, *namespaceArg, *mockArg)
 		return
 	}
 

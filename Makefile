@@ -18,29 +18,34 @@ SNAPSHOT_MOCK_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_mock.txt
 SNAPSHOT_TOOL_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_tool_app.txt
 
 build:
-	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
+	@go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
 
 build-release: LDFLAGS := $(VERSION_LDFLAGS)
 build-release: build
 
 test: build
-	go test ./...
+	@go test ./...
 
 cover: build
 	@go test ./... -coverpkg=$(COVERPKG) -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
-	@echo "┌────────────────────────────────────────────────────────────────────┬──────────┐"
-	@echo "│ Package                                                            │ Coverage │"
-	@echo "├────────────────────────────────────────────────────────────────────┼──────────┤"
+	@echo "┌─────────────────────────────────────────────────────────┬──────────┬──────────┐"
+	@echo "│ Package                                                 │  LOCAL   │  CROSS   │"
+	@echo "├─────────────────────────────────────────────────────────┼──────────┼──────────┤"
 	@for pkg in $$(go list ./...); do \
-		cov=$$(awk -v p="$$pkg" 'NR>1 { split($$1, a, ":"); file=a[1]; pkg=file; sub("/[^/]+$$", "", pkg); if (pkg==p) { total += $$2; if ($$3 > 0) covered += $$2 } } END { if (total > 0) printf "%.1f%%", (covered/total)*100 }' coverage.out); \
-		if [ -n "$$cov" ]; then \
-			printf "│ %-66s │ %7s  │\n" $$pkg $$cov; \
+		local_cov=$$(go test $$pkg -cover 2>&1 | grep -o 'coverage: [0-9.]*%' | cut -d' ' -f2); \
+		cross_cov=$$(awk -v p="$$pkg" 'NR>1 { split($$1, a, ":"); file=a[1]; pkg=file; sub("/[^/]+$$", "", pkg); if (pkg==p) { total += $$2; if ($$3 > 0) covered += $$2 } } END { if (total > 0) printf "%.1f%%", (covered/total)*100 }' coverage.out); \
+		if [ -n "$$local_cov" ] || [ -n "$$cross_cov" ]; then \
+			if [ -z "$$local_cov" ]; then local_cov="-"; fi; \
+			if [ -z "$$cross_cov" ]; then cross_cov="-"; fi; \
+			printf "│ %-55s │ %7s  │ %7s  │\n" $$pkg $$local_cov $$cross_cov; \
 		fi; \
 	done
-	@echo "├────────────────────────────────────────────────────────────────────┼──────────┤"
-	@go tool cover -func=coverage.out | grep 'total:' | awk '{printf "│ %-66s │ %7s  │\n", "TOTAL", $$3}'
-	@echo "├────────────────────────────────────────────────────────────────────┴──────────┤"
-	@echo "│ Function Coverage                                                              │"
+	@echo "├─────────────────────────────────────────────────────────┼──────────┼──────────┤"
+	@go tool cover -func=coverage.out | grep 'total:' | awk '{printf "│ %-55s │ %7s  │ %7s  │\n", "TOTAL", "-", $$3}'
+	@echo "└─────────────────────────────────────────────────────────┴──────────┴──────────┘"
+	@echo
+	@echo "┌───────────────────────────────────────────────────────────────────────────────┐"
+	@echo "│ Function Coverage                                                             │"
 	@echo "├────────────────────────────────────────────────────────────────────┬──────────┤"
 	@go tool cover -func=coverage.out | grep -v 'total:' | awk '{printf "│ %-66s │ %7s  │\n", substr($$1":"$$2, 1, 66), $$3}'
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"

@@ -26,16 +26,21 @@ type server struct {
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
 }
 
-func startServer(addr, contextArg, namespaceArg string) {
+func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "0.0.0.0" + addr
 	}
-	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg)
+	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
 	port := ":" + parts[len(parts)-1]
-	client, err := kube.NewClient(contextArg, namespaceArg)
+	provider, _, _, err := initProvider(useMock, contextArg, namespaceArg)
 	if err != nil {
-		slog.Error("Failed to create kubernetes client", "error", err)
+		slog.Error("Failed to create provider", "error", err)
+		os.Exit(1)
+	}
+	client, ok := provider.(*kube.Client)
+	if !ok {
+		slog.Error("Provider type assertion failed", "error", "provider is not *kube.Client")
 		os.Exit(1)
 	}
 	namespacesToWatch := []string{namespaceArg}
