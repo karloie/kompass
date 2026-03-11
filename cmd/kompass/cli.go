@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
+	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
 )
 
@@ -64,42 +63,6 @@ func printGraphs(result *kube.GraphResponse, context, namespace, configPath stri
 	}
 }
 
-func graphNodesForGraph(result *kube.GraphResponse, graph *kube.Graph) map[string]*kube.Resource {
-	if graph == nil {
-		return nil
-	}
-
-	if len(result.Nodes) > 0 && len(graph.NodeKeys) > 0 {
-		nodeMap := make(map[string]*kube.Resource, len(graph.NodeKeys))
-		for _, key := range graph.NodeKeys {
-			if node := result.Nodes[key]; node != nil {
-				nodeMap[key] = node
-			}
-		}
-		return nodeMap
-	}
-
-	return graph.Nodes
-}
-
-func printTrees(result *kube.GraphResponse, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
-	statsStr := ""
-	if cs := getCacheStats(stats); cs != nil {
-		statsStr = fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate", cs.Calls, cs.Hits, cs.Misses, cs.HitRate)
-	}
-	fmt.Printf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s%s\n\n", context, namespace, selectors, configPath, statsStr)
-
-	for graphIdx := range result.Graphs {
-		g := &result.Graphs[graphIdx]
-		if g.Tree != nil {
-			fmt.Print(tree.RenderTree(g.Tree, graphNodesForGraph(result, g), plain))
-			if graphIdx < len(result.Graphs)-1 && !plain {
-				fmt.Println()
-			}
-		}
-	}
-}
-
 func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
 	if useMock {
 		provider := kube.NewMockClient(mock.GenerateMock())
@@ -120,78 +83,22 @@ func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, str
 	return client, contextArg, namespaceArg, nil
 }
 
-func inferGraphs(provider kube.Kube, selectors []string) (*kube.GraphResponse, error) {
-	req := kube.GraphRequest{KeySelector: strings.Join(selectors, ",")}
-	result, err := graph.InferGraphs(provider, req)
-	if err != nil {
-		return nil, err
+func printTrees(result *kube.GraphResponse, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
+	statsStr := ""
+	if cs := getCacheStats(stats); cs != nil {
+		statsStr = fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate", cs.Calls, cs.Hits, cs.Misses, cs.HitRate)
 	}
-	tree.BuildTrees(result)
-	filterOwnedJobRoots(result)
-	return result, nil
-}
+	fmt.Printf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s%s\n\n", context, namespace, selectors, configPath, statsStr)
 
-func filterOwnedJobRoots(result *kube.GraphResponse) {
-	if result == nil || len(result.Graphs) < 2 {
-		return
-	}
-
-	rootIDs := make(map[string]bool, len(result.Graphs))
-	for _, g := range result.Graphs {
-		rootIDs[g.ID] = true
-	}
-
-	filtered := make([]kube.Graph, 0, len(result.Graphs))
-	for _, g := range result.Graphs {
-		if tree.ParseResourceKeyRef(g.ID).Type != "job" {
-			filtered = append(filtered, g)
-			continue
-		}
-
-		var rootNode *kube.Resource
-		if result.Nodes != nil {
-			rootNode = result.Nodes[g.ID]
-		}
-		if rootNode == nil && g.Nodes != nil {
-			rootNode = g.Nodes[g.ID]
-		}
-		if rootNode == nil {
-			filtered = append(filtered, g)
-			continue
-		}
-
-		meta := graph.M(rootNode.AsMap()).Map("metadata")
-		namespace := meta.String("namespace")
-		owners := meta.Slice("ownerReferences")
-
-		hasCronJobRoot := false
-		for _, owner := range owners {
-			ownerMap, ok := owner.(map[string]any)
-			if !ok {
-				continue
-			}
-			if !strings.EqualFold(graph.M(ownerMap).String("kind"), "CronJob") {
-				continue
-			}
-			ownerName := graph.M(ownerMap).String("name")
-			if ownerName == "" {
-				continue
-			}
-			cronJobKey := tree.BuildResourceKeyRef("cronjob", namespace, ownerName)
-			if rootIDs[cronJobKey] {
-				hasCronJobRoot = true
-				break
+	for graphIdx := range result.Graphs {
+		g := &result.Graphs[graphIdx]
+		if g.Tree != nil {
+			fmt.Print(tree.RenderTree(g.Tree, pipeline.GraphNodesForGraph(result, g), plain))
+			if graphIdx < len(result.Graphs)-1 && !plain {
+				fmt.Println()
 			}
 		}
-
-		if hasCronJobRoot {
-			continue
-		}
-
-		filtered = append(filtered, g)
 	}
-
-	result.Graphs = filtered
 }
 
 func extractStats(provider kube.Kube) map[string]interface{} {

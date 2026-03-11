@@ -14,6 +14,7 @@ import (
 
 	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
+	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -118,7 +119,7 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := inferGraphs(provider, selectors)
+	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -154,7 +155,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := inferGraphs(provider, selectors)
+	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
 		w.Write([]byte(fmt.Sprintf("Error: %s\n", err.Error())))
 		return
@@ -170,7 +171,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	for i := range result.Graphs {
 		g := &result.Graphs[i]
 		if g.Tree != nil {
-			output.WriteString(tree.RenderTree(g.Tree, graphNodesForGraph(result, g), true))
+			output.WriteString(tree.RenderTree(g.Tree, pipeline.GraphNodesForGraph(result, g), true))
 		}
 		if i < len(result.Graphs)-1 {
 			output.WriteString("\n")
