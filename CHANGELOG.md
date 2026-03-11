@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified JSON response contracts by removing per-graph duplicated node references and relying on response-level `nodes` maps.
 - Simplified tree contract shape: `response.trees` now contains tree nodes directly.
 - Aligned response struct field order to place `nodes` first in graph/tree responses for clearer shared-node contract readability.
+- Added CI workflow for branch and PR.
 
 ### Fixed
 - ReplicaSet ownership inference now correctly falls back to selector-vs-pod-label matching when owner references are missing.
