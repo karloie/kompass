@@ -59,6 +59,9 @@ mock:
 real:
 	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass $(ARGS)
 
+service:
+	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock --service $(ARGS)
+
 snapshot-json:
 	@echo "Generating JSON snapshots for mock and pinned tool context/namespace..."
 	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --json --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_JSON)

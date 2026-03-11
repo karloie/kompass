@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,51 @@ import (
 	"testing"
 	"time"
 )
+
+func TestServiceFlagDefaultsWithBareFlag(t *testing.T) {
+	fs := flag.NewFlagSet("svc", flag.ContinueOnError)
+	svc := &serviceFlag{}
+	fs.Var(svc, "service", "")
+
+	if err := fs.Parse([]string{"--service"}); err != nil {
+		t.Fatalf("expected bare --service to parse, got err: %v", err)
+	}
+	if !svc.set {
+		t.Fatalf("expected service flag to be set")
+	}
+	if svc.addr != ":8080" {
+		t.Fatalf("expected default addr :8080, got %q", svc.addr)
+	}
+}
+
+func TestServiceFlagAcceptsExplicitAddress(t *testing.T) {
+	fs := flag.NewFlagSet("svc", flag.ContinueOnError)
+	svc := &serviceFlag{}
+	fs.Var(svc, "service", "")
+
+	if err := fs.Parse([]string{"--service=:19090"}); err != nil {
+		t.Fatalf("expected --service with address to parse, got err: %v", err)
+	}
+	if !svc.set {
+		t.Fatalf("expected service flag to be set")
+	}
+	if svc.addr != ":19090" {
+		t.Fatalf("expected addr :19090, got %q", svc.addr)
+	}
+}
+
+func TestNormalizeServiceArgsSupportsSeparateAddressToken(t *testing.T) {
+	args := normalizeServiceArgs([]string{"--service", ":19090", "--mock"})
+	if len(args) < 2 {
+		t.Fatalf("unexpected normalized args: %#v", args)
+	}
+	if args[0] != "--service=:19090" {
+		t.Fatalf("expected first arg to be --service=:19090, got %q", args[0])
+	}
+	if args[1] != "--mock" {
+		t.Fatalf("expected second arg to remain --mock, got %q", args[1])
+	}
+}
 
 func TestMainHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {

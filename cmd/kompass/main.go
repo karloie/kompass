@@ -37,6 +37,49 @@ type RequestMetadata struct {
 	Selectors  []string `json:"selectors"`
 }
 
+type serviceFlag struct {
+	set  bool
+	addr string
+}
+
+func (s *serviceFlag) String() string {
+	if s == nil {
+		return ""
+	}
+	return s.addr
+}
+
+func (s *serviceFlag) Set(v string) error {
+	s.set = true
+	s.addr = v
+	if v == "" || v == "true" {
+		s.addr = ":8080"
+	}
+	if v == "false" {
+		s.set = false
+		s.addr = ""
+	}
+	return nil
+}
+
+func (s *serviceFlag) IsBoolFlag() bool { return true }
+
+func normalizeServiceArgs(args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--service" && i+1 < len(args) {
+			next := args[i+1]
+			if next != "" && !strings.HasPrefix(next, "-") {
+				normalized = append(normalized, "--service="+next)
+				i++
+				continue
+			}
+		}
+		normalized = append(normalized, args[i])
+	}
+	return normalized
+}
+
 func init() {
 	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	slog.SetDefault(slog.New(h))
@@ -49,7 +92,8 @@ func main() {
 	debugArg := flag.Bool("debug", false, "Enable debug logging")
 	jsonArg := flag.Bool("json", false, "Output as pretty-printed JSON")
 	plainArg := flag.Bool("plain", false, "Plain output without emojis and colors")
-	serviceArg := flag.String("service", "", "Start web server (format: :port or host:port, defaults to :8080)")
+	serviceArg := &serviceFlag{}
+	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
 	versionArg := flag.Bool("version", false, "Show version information")
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
@@ -57,7 +101,7 @@ func main() {
 	flag.BoolVar(debugArg, "d", false, "Shorthand for --debug")
 	flag.StringVar(contextArg, "c", "", "Shorthand for --context")
 	flag.StringVar(namespaceArg, "n", "", "Shorthand for --namespace")
-	flag.Parse()
+	_ = flag.CommandLine.Parse(normalizeServiceArgs(os.Args[1:]))
 
 	level := slog.LevelInfo
 	if *debugArg {
@@ -75,8 +119,8 @@ func main() {
 		os.Exit(0)
 	}
 	selectors := flag.Args()
-	if flag.Lookup("service").Value.String() != "" {
-		addr := *serviceArg
+	if serviceArg.set {
+		addr := serviceArg.addr
 		if addr == "" {
 			addr = ":8080"
 		}
