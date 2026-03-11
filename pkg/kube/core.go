@@ -3,8 +3,10 @@ package kube
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +35,40 @@ import (
 
 type warningHandler struct{}
 
+const (
+	defaultRequestTimeout = 15 * time.Second
+	requestTimeoutEnvVar  = "KOMPASS_K8S_TIMEOUT"
+)
+
+func configureRequestTimeout(config *rest.Config) error {
+	if config == nil || config.Timeout > 0 {
+		return nil
+	}
+
+	config.Timeout = defaultRequestTimeout
+
+	if raw := strings.TrimSpace(os.Getenv(requestTimeoutEnvVar)); raw != "" {
+		if seconds, err := strconv.Atoi(raw); err == nil {
+			if seconds <= 0 {
+				return fmt.Errorf("%s must be > 0 seconds when using integer format", requestTimeoutEnvVar)
+			}
+			config.Timeout = time.Duration(seconds) * time.Second
+			return nil
+		}
+
+		timeout, err := time.ParseDuration(raw)
+		if err != nil {
+			return fmt.Errorf("invalid %s value %q: %w", requestTimeoutEnvVar, raw, err)
+		}
+		if timeout <= 0 {
+			return fmt.Errorf("%s must be > 0", requestTimeoutEnvVar)
+		}
+		config.Timeout = timeout
+	}
+
+	return nil
+}
+
 func (warningHandler) HandleWarningHeader(code int, agent string, message string) {
 	if strings.Contains(message, "Endpoints is deprecated") {
 		return
@@ -50,14 +86,16 @@ type GraphRequest struct {
 }
 
 type GraphResponse struct {
-	Graphs []Graph `json:"graphs"`
+	Graphs []Graph              `json:"graphs"`
+	Nodes  map[string]*Resource `json:"nodes,omitempty"`
 }
 
 type Graph struct {
-	ID    string               `json:"id"`
-	Edges []ResourceEdge       `json:"edges"`
-	Nodes map[string]*Resource `json:"nodes"`
-	Tree  *GraphTree           `json:"tree"`
+	ID       string               `json:"id"`
+	Edges    []ResourceEdge       `json:"edges"`
+	Nodes    map[string]*Resource `json:"-"`
+	NodeKeys []string             `json:"nodeKeys,omitempty"`
+	Tree     *GraphTree           `json:"tree"`
 }
 
 type GraphTree struct {
@@ -318,6 +356,9 @@ func NewClient(contextName, namespace string) (*Client, error) {
 
 	config, err = rest.InClusterConfig()
 	if err == nil {
+		if err := configureRequestTimeout(config); err != nil {
+			return nil, err
+		}
 
 		config.WarningHandler = warningHandler{}
 		clientset, err := kubernetes.NewForConfig(config)
@@ -369,6 +410,9 @@ func NewClient(contextName, namespace string) (*Client, error) {
 
 	config, err = kubeConfig.ClientConfig()
 	if err != nil {
+		return nil, err
+	}
+	if err := configureRequestTimeout(config); err != nil {
 		return nil, err
 	}
 

@@ -164,9 +164,16 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 	t.Run("RenderedMetadata", func(t *testing.T) {
 
 		var rendered strings.Builder
-		for _, g := range resp.Graphs {
+		for i := range resp.Graphs {
+			g := &resp.Graphs[i]
 			if g.Tree != nil {
-				rendered.WriteString(tree.RenderTree(g.Tree, g.Nodes, false))
+				nodeMap := map[string]*kube.Resource{}
+				for _, key := range g.NodeKeys {
+					if node := resp.Nodes[key]; node != nil {
+						nodeMap[key] = node
+					}
+				}
+				rendered.WriteString(tree.RenderTree(g.Tree, nodeMap, false))
 				rendered.WriteString("\n")
 			}
 		}

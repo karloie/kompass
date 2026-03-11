@@ -95,7 +95,7 @@ func main() {
 
 	totalNodes, totalEdges := 0, 0
 	for _, g := range result.Graphs {
-		totalNodes += len(g.Nodes)
+		totalNodes += len(g.NodeKeys)
 		totalEdges += len(g.Edges)
 	}
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)

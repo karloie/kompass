@@ -410,18 +410,23 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 
 		return graphs[i].ID < graphs[j].ID
 	})
-	return &kube.GraphResponse{Graphs: graphs}
+	responseNodes := make(map[string]*kube.Resource, len(nodeMap))
+	for _, n := range nodeMap {
+		nCopy := n
+		nCopy.Discovered = !matchedKeySet[n.Key]
+		responseNodes[n.Key] = &nCopy
+	}
+
+	return &kube.GraphResponse{Graphs: graphs, Nodes: responseNodes}
 }
 
-func buildGraph(id string, visited map[string]bool, matchedKeySet map[string]bool, nodeMap map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {
-	graph := kube.Graph{ID: id, Nodes: make(map[string]*kube.Resource)}
-	for _, n := range nodeMap {
-		if visited[n.Key] {
-			nCopy := n
-			nCopy.Discovered = !matchedKeySet[n.Key]
-			graph.Nodes[nCopy.Key] = &nCopy
-		}
+func buildGraph(id string, visited map[string]bool, _ map[string]bool, _ map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {
+	graph := kube.Graph{ID: id, NodeKeys: make([]string, 0, len(visited))}
+	for key := range visited {
+		graph.NodeKeys = append(graph.NodeKeys, key)
 	}
+	sort.Strings(graph.NodeKeys)
+
 	for _, e := range edges {
 		if visited[e.Source] && visited[e.Target] {
 			graph.Edges = append(graph.Edges, e)

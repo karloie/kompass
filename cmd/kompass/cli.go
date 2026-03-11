@@ -57,12 +57,29 @@ func printGraphs(result *kube.GraphResponse, context, namespace, configPath stri
 		Request:  RequestMetadata{context, namespace, configPath, selectors},
 		Response: result,
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
+	encoder := json.NewEncoder(os.Stdout)
+	if err := encoder.Encode(output); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println(string(data))
+}
+
+func graphNodesForGraph(result *kube.GraphResponse, graph *kube.Graph) map[string]*kube.Resource {
+	if graph == nil {
+		return nil
+	}
+
+	if len(result.Nodes) > 0 && len(graph.NodeKeys) > 0 {
+		nodeMap := make(map[string]*kube.Resource, len(graph.NodeKeys))
+		for _, key := range graph.NodeKeys {
+			if node := result.Nodes[key]; node != nil {
+				nodeMap[key] = node
+			}
+		}
+		return nodeMap
+	}
+
+	return graph.Nodes
 }
 
 func printTrees(result *kube.GraphResponse, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
@@ -72,9 +89,10 @@ func printTrees(result *kube.GraphResponse, context, namespace, configPath strin
 	}
 	fmt.Printf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s%s\n\n", context, namespace, selectors, configPath, statsStr)
 
-	for graphIdx, g := range result.Graphs {
+	for graphIdx := range result.Graphs {
+		g := &result.Graphs[graphIdx]
 		if g.Tree != nil {
-			fmt.Print(tree.RenderTree(g.Tree, g.Nodes, plain))
+			fmt.Print(tree.RenderTree(g.Tree, graphNodesForGraph(result, g), plain))
 			if graphIdx < len(result.Graphs)-1 && !plain {
 				fmt.Println()
 			}
@@ -130,8 +148,14 @@ func filterOwnedJobRoots(result *kube.GraphResponse) {
 			continue
 		}
 
-		rootNode, exists := g.Nodes[g.ID]
-		if !exists || rootNode == nil {
+		var rootNode *kube.Resource
+		if result.Nodes != nil {
+			rootNode = result.Nodes[g.ID]
+		}
+		if rootNode == nil && g.Nodes != nil {
+			rootNode = g.Nodes[g.ID]
+		}
+		if rootNode == nil {
 			filtered = append(filtered, g)
 			continue
 		}
