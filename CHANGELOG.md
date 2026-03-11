@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.8]
+
+### Changed
+- `/tree` now defaults to plain output in server mode; rich output can be requested via the `plain` query parameter.
+- Plain tree rendering keeps emoji markers while removing ANSI styling.
+
+### Fixed
+- ReplicaSet ownership inference now correctly falls back to selector-vs-pod-label matching when owner references are missing.
+
+### Tests
+- Expanded test coverage for `pkg/graph` and `pkg/kube`, including cache/client/loaders/core utilities and graph inference paths.
 
 ## [0.0.1] - 2026-03-10
 

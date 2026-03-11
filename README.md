@@ -118,6 +118,7 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 | `--mock` | | Use mock data |
 | `--json` | | JSON output |
 | `--plain` | | Plain output |
+| `--debug` | `-d` | Enable debug logging |
 | `--service [addr]` | | Start server (`:8080`) |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
@@ -206,6 +207,9 @@ kompass --service --namespace production --context prod
 
 # Using mock data
 kompass --service --mock
+
+# Enable debug logging
+kompass --debug '*/petshop/*'
 ```
 
 ### Available Output Formats
