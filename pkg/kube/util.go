@@ -24,7 +24,29 @@ func toMap(obj interface{}) map[string]any {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return map[string]any{"unmarshalError": err.Error()}
 	}
+	trimVerboseMetadata(m)
 	return m
+}
+
+func trimVerboseMetadata(obj map[string]any) {
+	if obj == nil {
+		return
+	}
+
+	metadata, ok := obj["metadata"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	// managedFields can be extremely large and is not used in graph/tree inference.
+	delete(metadata, "managedFields")
+
+	if annotations, ok := metadata["annotations"].(map[string]any); ok {
+		delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		if len(annotations) == 0 {
+			delete(metadata, "annotations")
+		}
+	}
 }
 
 func (r GraphRequest) Selectors() []string {
@@ -113,6 +135,7 @@ func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionRes
 
 	result := make([]map[string]any, 0, len(list.Items))
 	for _, item := range list.Items {
+		trimVerboseMetadata(item.Object)
 		result = append(result, item.Object)
 	}
 	return result, nil

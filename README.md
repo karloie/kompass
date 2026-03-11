@@ -106,7 +106,6 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 
 - `name` - Resource in default namespace
 - `namespace/name` - Resource in namespace
-- `type/name` - Typed resource
 - `type/namespace/name` - Exact resource
 - `*/namespace/*` - All in namespace
 
@@ -167,6 +166,27 @@ docker run -p 8080:8080 karloie/kompass:latest --service --mock
 
 > **Note:** Direct cluster access from containers may fail with OIDC or exec-based authentication plugins (AWS, GKE, Azure). Use binary installation for CLI usage.
 
+### Kubernetes Deployment (Recommended)
+
+Use the included manifest for an in-cluster API deployment with service account + read-only RBAC:
+
+```bash
+kubectl apply -f deploy/kompass-k8s.yaml
+kubectl -n kompass rollout status deploy/kompass
+```
+
+Forward locally and query:
+
+```bash
+kubectl -n kompass port-forward svc/kompass 8080:8080
+
+# In another terminal
+curl "http://localhost:8080/healthz"
+curl "http://localhost:8080/graph?namespace=default&selector=*/default/*"
+```
+
+Manifest location: `deploy/kompass-k8s.yaml`
+
 ## API Server Usage
 
 ### Starting the Server
@@ -201,13 +221,16 @@ Endpoints accept query parameters:
 |-----------|-------------|
 | `selector` | Resource selector (comma-separated) |
 | `namespace` | Target namespace |
-| `mock` | Use mock data |
+| `mock` | Use mock data when set to `mock` |
 
 ### API Examples
 
 ```bash
 # JSON graph
 curl "http://localhost:8080/graph?selector=deployment/myapp/frontend&namespace=default"
+
+# JSON graph in mock mode
+curl "http://localhost:8080/graph?mock=mock&selector=*/petshop/*"
 
 # ASCII tree
 curl "http://localhost:8080/tree?namespace=production&selector=pod/production/myapp"

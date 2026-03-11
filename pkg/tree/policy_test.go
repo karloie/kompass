@@ -1,4 +1,4 @@
-package main
+package tree
 
 import (
 	"testing"
@@ -19,7 +19,7 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 		},
 	}
 
-	filterOwnedJobRoots(resp)
+	FilterOwnedJobRoots(resp)
 
 	if len(resp.Graphs) != 1 {
 		t.Fatalf("expected 1 graph after filtering, got %d", len(resp.Graphs))
@@ -38,7 +38,7 @@ func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 		},
 	}
 
-	filterOwnedJobRoots(resp)
+	FilterOwnedJobRoots(resp)
 
 	if len(resp.Graphs) != 1 {
 		t.Fatalf("expected detached job root to remain, got %d graphs", len(resp.Graphs))

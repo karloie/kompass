@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/karloie/kompass/pkg/kube"
+	"github.com/karloie/kompass/pkg/pipeline"
 )
 
 var (
@@ -87,7 +88,7 @@ func main() {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 
-	result, err := inferGraphs(provider, selectors)
+	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
 		slog.Error("failed to infer graph", "cluster", context_, "namespace", namespace_, "selectors", selectors, "error", err.Error())
 		os.Exit(1)
@@ -95,7 +96,7 @@ func main() {
 
 	totalNodes, totalEdges := 0, 0
 	for _, g := range result.Graphs {
-		totalNodes += len(g.Nodes)
+		totalNodes += len(g.NodeKeys)
 		totalEdges += len(g.Edges)
 	}
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)

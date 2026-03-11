@@ -1,0 +1,399 @@
+🌍 Context: tool-test-01, Namespace: applikasjonsplattform, Selectors: [], Config: /home/spk.no/koi/.kube/config, Cache: 31 calls | 0 hits | 31 misses | 0.0% hit rate
+
+🚀 cronjob: appwatch [[32mACTIVE[0m][90m {lastSchedule=1d, namespace=applikasjonsplattform, schedule=*/5 * * * *, suspended=false}[0m
+└─ 🎮 job: appwatch-29552210 [[32mACTIVE[0m][90m {active=1, completions=1, failed=0, parallelism=1, succeeded=0}[0m
+   └─ 🫛 pod: appwatch-29552210-mz27k [[33mPENDING[0m][90m {nodeName=tool-test-01-worker-d4215435, phase=Pending, qosClass=Burstable, startTime=1d}[0m
+      ├─ 📜 ciliumnetworkpolicy: appwatch
+      │  ├─ 🎯 endpointselector: label app.kubernetes.io/name=appwatch
+      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.prod.spk.no}[0m
+      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.test.spk.no}[0m
+      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.utv.spk.no}[0m
+      │  └─ 👈 cnp-egress: tofqdn[90m {matchPattern=*.slack.com}[0m
+      ├─ 🧊 container: appwatch[90m {reason=ContainerCreating, state=Waiting}[0m
+      │  └─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/appwatch:main_prod
+      ├─ 🛡️ podsecuritycontext:[90m {fsGroup=1000, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+      ├─ 👤 serviceaccount: appwatch
+      │  └─ 🔗 clusterrolebinding: appwatch-reader-binding
+      └─ 📄 spec
+         ├─ 🔤 envars
+         │  ├─ 💬 env: APPWATCH_LOGLEVEL=info
+         │  └─ 💬 env: APPWATCH_SLACK_WEBHOOK_URL_FILE=/run/secrets/APPWATCH-SLACK-HOOK-URL
+         ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/appwatch:main_prod[90m {pullPolicy=Always}[0m
+         ├─ 📂 mounts
+         │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+         │  ├─ 📁 mount:[90m {mount=/run/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+         │  └─ 📁 mount:[90m {mount=/var/run/secrets/kubernetes.io/serviceaccount, readOnly=true, volume=projected}[0m
+         ├─ 💾 resources:[90m {limits=memory:256Mi, requests=cpu:100m memory:128Mi}[0m
+         └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true}[0m
+
+🚀 cronjob: fiskeoye-repo-update [[32mACTIVE[0m][90m {lastSchedule=54s, namespace=applikasjonsplattform, schedule=0 6-23 * * *, suspended=false}[0m
+├─ 🎮 job: fiskeoye-repo-update-29552220 [[32mCOMPLETE[0m][90m {active=0, completions=1, duration=29m, failed=0, parallelism=1, succeeded=1}[0m
+│  └─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc [[32mSUCCEEDED[0m][90m {nodeName=tool-test-01-worker-055ceed2, phase=Succeeded, podIP=10.244.9.165, qosClass=BestEffort, startTime=1d}[0m
+│     ├─ 📜 ciliumnetworkpolicy: fiskeoye[90m {egress=false, ingress=true}[0m
+│     │  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│     │  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
+│     │  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
+│     │  ├─ 🫛 pod: fiskeoye-8699f8f467-fphr6
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-425zs
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-69vv8
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-6h5qf
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-fgknk
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-p8l9b
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-rthpv
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553480-wbvx6
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-54dfs
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dcnc4
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dh8g7
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-kh5hr
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-nmdd7
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-tz447
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553540-xjjxr
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-56zqr
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-5nxtp
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-brt29
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-ccdfv
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-dtvn8
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-q7fp2
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553600-slrh2
+│     │  ├─ 🫛 pod: fiskeoye-repo-update-29553660-cbkp9
+│     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
+│     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
+│     │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
+│     │  └─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
+│     ├─ 🧊 container: kubectl-exec[90m {exitCode=0, reason=Completed, state=Terminated}[0m
+│     │  └─ 🐋 image: bitnami/kubectl:latest
+│     ├─ 🖥️ service: fiskeoye[90m {clusterIP=10.97.68.79, ports=[8080/TCP], selector=[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye], type=ClusterIP}[0m
+│     │  ├─ 📍 endpoints: fiskeoye
+│     │  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│     │  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
+│     │  ├─ 📍 endpointslice: fiskeoye-f5562[90m {addressType=IPv4}[0m
+│     │  │  └─ 🔌 endpoint:[90m {address=10.244.9.91, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=fiskeoye-repo-update-29553660-cbkp9}[0m
+│     │  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│     │  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
+│     │  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m
+│     ├─ 👤 serviceaccount: fiskeoye-cronjob
+│     │  └─ 🔗 rolebinding: fiskeoye-cronjob
+│     └─ 📄 spec
+│        ├─ 🐋 image: bitnami/kubectl:latest[90m {pullPolicy=IfNotPresent}[0m
+│        ├─ 📂 mounts
+│        │  └─ 📁 mount:[90m {mount=/var/run/secrets/kubernetes.io/serviceaccount, readOnly=true, volume=projected}[0m
+│        └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], runAsNonRoot=true, runAsUser=1001, seccompProfile=RuntimeDefault}[0m
+├─ 🎮 job: fiskeoye-repo-update-29553480 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
+├─ 🎮 job: fiskeoye-repo-update-29553540 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
+├─ 🎮 job: fiskeoye-repo-update-29553600 [[31mFAILED[0m][90m {active=0, completions=1, failed=7, parallelism=1, succeeded=0}[0m
+└─ 🎮 job: fiskeoye-repo-update-29553660 [[32mACTIVE[0m][90m {active=1, completions=1, failed=0, parallelism=1, succeeded=0}[0m
+
+🚀 deployment: ad-explore-db [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: ad-explore-db[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-motor}[0m
+│  │  └─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-web}[0m
+│  │  └─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-db
+│  └─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-db
+├─ 🎮 replicaset: ad-explore-db-5cb9cd8b74 [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: ad-explore-db-5cb9cd8b74-pqhk9[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.90}[0m
+│     └─ 🧊 container: app
+│        ├─ 🐋 image: cr.spk.no/docker-hub/neo4j:5.26.20-community-ubi9@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6
+│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
+│        ├─ ✅ readinessprobe: [[32mREADY[0m]
+│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
+├─ 🖥️ service: ad-explore-db-service[90m {clusterIP=10.98.248.132, ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=ad-explore-db app.kubernetes.io/name=ad-explore-db], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: ad-explore-db-service
+│  │  └─ 🔗 subset:[90m {ports=[ad-explore-db-bolt:7687/TCP ad-explore-db-http:7474/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.90, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-db-5cb9cd8b74-pqhk9}[0m
+│  └─ 📍 endpointslice: ad-explore-db-service-672nq[90m {addressType=IPv4, port=7474, portName=ad-explore-db-http, protocol=TCP}[0m
+│     └─ 🔌 endpoint:[90m {address=10.244.9.90, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-db-5cb9cd8b74-pqhk9}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  └─ 💬 env: NEO_DB_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
+   │     └─ 🔒 secret: ad-explore-db-secrets[90m {keys=1, type=Opaque}[0m
+   ├─ 🐋 image: cr.spk.no/docker-hub/neo4j:5.26.20-community-ubi9@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6[90m {pullPolicy=Always}[0m
+   ├─ 💓 livenessprobe:[90m {failureThreshold=40, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  ├─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   │  └─ 📁 mount:[90m {mount=/data, volume=ad-explore-db-data}[0m
+   │     └─ 📀 persistentvolumeclaim: ad-explore-db-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
+   ├─ 📀 persistentvolumeclaim: ad-explore-db-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
+   │  └─ 💿 persistentvolume: pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522[90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}[0m
+   │     ├─ 💽 storageclass: standard[90m {allowVolumeExpansion=true, provisioner=csi.vsphere.vmware.com, reclaimPolicy=Delete, volumeBindingMode=Immediate}[0m
+   │     └─ 💿 volumeattachment: csi-959030a095e12a5c5224b5fe15796d0ad6ae46b1099c05fc09f46e08a6f47359[90m {attached=true, attacher=csi.vsphere.vmware.com, nodeName=tool-test-01-worker-055ceed2, pvName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
+   ├─ 🛡️ podsecuritycontext:[90m {fsGroup=7474, runAsGroup=7474, runAsUser=7474}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ ✅ readinessprobe:[90m {failureThreshold=20, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
+   ├─ 💾 resources:[90m {limits=memory:1Gi, requests=cpu:100m memory:128Mi}[0m
+   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=7474, seccompProfile=RuntimeDefault}[0m
+   └─ ▶️ startupprobe:[90m {failureThreshold=1000, periodSeconds=5, port=7687, type=tcpSocket}[0m
+
+🚀 deployment: ad-explore-motor [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: ad-explore-motor[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-motor
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-motor
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-webservice}[0m
+│  │  └─ 🖥️ service: ad-explore-webservice[90m {clusterIP=10.98.91.218, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice], type=ClusterIP}[0m
+│  └─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-db}[0m
+├─ 🎮 replicaset: ad-explore-motor-5689f8488b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: ad-explore-motor-5689f8488b-7sbmb[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.239}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor:main_20260223_043932
+├─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: ad-explore-motor
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.239, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-motor-5689f8488b-7sbmb}[0m
+│  ├─ 📍 endpointslice: ad-explore-motor-xvjsr[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.239, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-motor-5689f8488b-7sbmb}[0m
+│  └─ 🔄 httproute: ad-explore-motor[90m {paths=[/*], service=ad-explore-motor:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: AD_EXPLORE_WEBSERVICE_URL=http://ad-explore-webservice:8080
+   │  ├─ 💬 env: HOUR_OF_DAY=1
+   │  ├─ 💬 env: LDAP_BIND_SECRET=<SECRET>[90m {key=SA-AD-EXPLORE-MOTOR-PASSWORD}[0m
+   │  │  └─ 🔒 secret: ad-explore-motor-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: LDAP_BIND_USER=Sa-AD-Explore-Motor
+   │  ├─ 💬 env: LOGGING_LEVEL=INFO
+   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
+   │  │  └─ 🔒 secret: ad-explore-motor-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: NEO4J_URL=bolt://ad-explore-db-service:7687
+   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
+   │  ├─ 💬 env: RUN_ONCE=True
+   │  └─ 💬 env: SLETT_ALT_I_DATABASEN_FOER_NY_SCRAPING=True
+   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor:main_20260223_043932[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: ad-explore-web [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: ad-explore-web[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-web
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-web
+│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-db}[0m
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=am.kpt.spk.no}[0m
+├─ 🎮 replicaset: ad-explore-web-598696998b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: ad-explore-web-598696998b-x649v[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.135}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web:main_20260226_100330
+├─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: ad-explore-web
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.10.135, nodeName=tool-test-01-worker-d4215435, targetName=ad-explore-web-598696998b-x649v}[0m
+│  ├─ 📍 endpointslice: ad-explore-web-vb75m[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.10.135, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=ad-explore-web-598696998b-x649v}[0m
+│  └─ 🔄 httproute: ad-explore-web[90m {hostnames=[ad-explore-web.tool-test.los.spk.no ad-explore-web.tool-test.spk.no], paths=[/*], service=ad-explore-web:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: LOG_LEVEL=info
+   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
+   │  │  └─ 🔒 secret: ad-explore-web-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: NEO4J_URI=bolt://ad-explore-db-service:7687
+   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
+   │  ├─ 💬 env: OIDC_CLIENT_ID=ad-explore-web
+   │  ├─ 💬 env: OIDC_CLIENT_SECRET=<SECRET>[90m {key=AD-EXPLORE-WEB-CLIENT-SECRET}[0m
+   │  │  └─ 🔒 secret: ad-explore-web-secrets[90m {keys=2, type=Opaque}[0m
+   │  ├─ 💬 env: OIDC_ISSUER_URL=https://am.kpt.spk.no/am/oauth2/realms/root/realms/intranett
+   │  ├─ 💬 env: OIDC_REDIRECT_URL=https://ad-explore-web.tool-test.spk.no/auth/callback
+   │  └─ 💬 env: REQUIRE_SECURE_CONNECTION=true
+   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web:main_20260226_100330[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: ad-explore-webservice [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: ad-explore-webservice[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-motor}[0m
+│  │  └─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-web}[0m
+│  │  └─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-webservice
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-webservice
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=mdc11.spk.no}[0m
+├─ 🎮 replicaset: ad-explore-webservice-7d9b7b4cd [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: ad-explore-webservice-7d9b7b4cd-tr5ft[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.102}[0m
+│     └─ 🧊 container: app
+│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice:main_20260216_064614
+├─ 🖥️ service: ad-explore-webservice[90m {clusterIP=10.98.91.218, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: ad-explore-webservice
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.102, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-webservice-7d9b7b4cd-tr5ft}[0m
+│  ├─ 📍 endpointslice: ad-explore-webservice-jkmp8[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.102, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-webservice-7d9b7b4cd-tr5ft}[0m
+│  └─ 🔄 httproute: ad-explore-webservice[90m {hostnames=[ad-explore-webservice.tool-test.los.spk.no ad-explore-webservice.tool-test.spk.no], paths=[/*], service=ad-explore-webservice:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  └─ 💬 env: LOGLEVEL=INFO
+   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice:main_20260216_064614[90m {pullPolicy=Always}[0m
+   ├─ 📂 mounts
+   │  └─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: fiskeoye [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=Recreate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: fiskeoye[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
+│  ├─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-425zs
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-69vv8
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-6h5qf
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-fgknk
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-p8l9b
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-rthpv
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553480-wbvx6
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-54dfs
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dcnc4
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-dh8g7
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-kh5hr
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-nmdd7
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-tz447
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553540-xjjxr
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-56zqr
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-5nxtp
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-brt29
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-ccdfv
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-dtvn8
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-q7fp2
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553600-slrh2
+│  ├─ 🫛 pod: fiskeoye-repo-update-29553660-cbkp9
+│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
+│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
+│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
+├─ 🎮 replicaset: fiskeoye-8699f8f467 [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: fiskeoye-8699f8f467-fphr6[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.94}[0m
+│     └─ 🧊 container: app
+│        ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/fiskeoye:main_production
+│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
+│        ├─ ✅ readinessprobe: [[32mREADY[0m]
+│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
+├─ 🖥️ service: fiskeoye[90m {clusterIP=10.97.68.79, ports=[8080/TCP], selector=[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: fiskeoye
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
+│  ├─ 📍 endpointslice: fiskeoye-f5562[90m {addressType=IPv4}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.91, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=fiskeoye-repo-update-29553660-cbkp9}[0m
+│  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
+│  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: CRON_EXPRESSION=0 0 31 2 *
+   │  ├─ 💬 env: EXPOSE_SWARM_SECRETS=false
+   │  └─ 💬 env: GITHUB_PRIVATE_KEY_PATH=/run/secrets/GITHUB-PRIVATE-KEY-CONTENT
+   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/fiskeoye:main_production[90m {pullPolicy=Always}[0m
+   ├─ 💓 livenessprobe:[90m {initialDelaySeconds=30, path=/admin/ping, port=http, type=httpGet}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  ├─ 📁 mount:[90m {mount=/var/run, volume=emptyDir}[0m
+   │  ├─ 📁 mount:[90m {mount=/run/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   │  └─ 📁 mount:[90m {mount=/var/lib/fiskeoye, volume=fiskeoye-data}[0m
+   │     └─ 📀 persistentvolumeclaim: fiskeoye-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
+   ├─ 📀 persistentvolumeclaim: fiskeoye-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
+   │  └─ 💿 persistentvolume: pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2[90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}[0m
+   │     ├─ 💽 storageclass: standard[90m {allowVolumeExpansion=true, provisioner=csi.vsphere.vmware.com, reclaimPolicy=Delete, volumeBindingMode=Immediate}[0m
+   │     └─ 💿 volumeattachment: csi-23c7d7bdc168fbcfe7b4009e822fe2a0f6420ce917262000401398b02b0f4764[90m {attached=true, attacher=csi.vsphere.vmware.com, nodeName=tool-test-01-worker-d4215435, pvName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
+   ├─ 🛡️ podsecuritycontext:[90m {fsGroup=1000, runAsGroup=1000, runAsUser=1000}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ ✅ readinessprobe:[90m {path=/admin/ping, port=http, type=httpGet}[0m
+   ├─ 💾 resources:[90m {limits=memory:1Gi, requests=cpu:250m memory:256Mi}[0m
+   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+   └─ ▶️ startupprobe:[90m {failureThreshold=30, path=/admin/ping, periodSeconds=5, port=http, type=httpGet}[0m
+
+🚀 deployment: github-readonly-proxy [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: github-readonly-proxy[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=github-readonly-proxy
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=github-readonly-proxy
+│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
+│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
+│  └─ 👈 cnp-egress: tofqdn[90m {matchName=raw.githubusercontent.com}[0m
+├─ 🎮 replicaset: github-readonly-proxy-84d98b4dcd [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: github-readonly-proxy-84d98b4dcd-v58bh[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.4}[0m
+│     └─ 🧊 container: app
+│        ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy:main_test
+│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
+│        └─ ✅ readinessprobe: [[32mREADY[0m]
+├─ 🎮 replicaset: github-readonly-proxy-8597fddc7f[90m {current=0, replicas=0}[0m
+├─ 🖥️ service: github-readonly-proxy[90m {clusterIP=10.104.94.201, ports=[8080/TCP], selector=[app.kubernetes.io/instance=github-readonly-proxy app.kubernetes.io/name=github-readonly-proxy], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: github-readonly-proxy
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.9.4, nodeName=tool-test-01-worker-055ceed2, targetName=github-readonly-proxy-84d98b4dcd-v58bh}[0m
+│  ├─ 📍 endpointslice: github-readonly-proxy-d28qk[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.9.4, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=github-readonly-proxy-84d98b4dcd-v58bh}[0m
+│  └─ 🔄 httproute: github-readonly-proxy[90m {hostnames=[github-readonly-proxy.tool-test.los.spk.no github-readonly-proxy.tool-test.spk.no], paths=[/*], service=github-readonly-proxy:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy:main_test[90m {pullPolicy=Always}[0m
+   ├─ 💓 livenessprobe:[90m {path=/healthz, port=http, type=httpGet}[0m
+   ├─ 📂 mounts
+   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   │  └─ 📁 mount:[90m {mount=/run/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ ✅ readinessprobe:[90m {path=/healthz, port=http, type=httpGet}[0m
+   ├─ 💾 resources:[90m {requests=cpu:200m memory:128Mi}[0m
+   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true, seccompProfile=RuntimeDefault}[0m
+
+🚀 deployment: secretgen-web [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
+├─ 📜 ciliumnetworkpolicy: secretgen-web[90m {egress=false, ingress=true}[0m
+│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
+│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=secretgen-web
+│  └─ 🎯 endpointselector: label app.kubernetes.io/name=secretgen-web
+├─ 🎮 replicaset: secretgen-web-5c75675d78[90m {current=0, replicas=0}[0m
+├─ 🎮 replicaset: secretgen-web-7b548b454f [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
+│  └─ 🫛 pod: secretgen-web-7b548b454f-78bns[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.246}[0m
+│     └─ 🧊 container: app
+│        ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web:main_test
+│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
+│        ├─ ✅ readinessprobe: [[32mREADY[0m]
+│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
+├─ 🖥️ service: secretgen-web[90m {clusterIP=10.96.102.146, ports=[8080/TCP], selector=[app.kubernetes.io/instance=secretgen-web app.kubernetes.io/name=secretgen-web], type=ClusterIP}[0m
+│  ├─ 📍 endpoints: secretgen-web
+│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
+│  │     └─ 🔌 address:[90m {ip=10.244.10.246, nodeName=tool-test-01-worker-d4215435, targetName=secretgen-web-7b548b454f-78bns}[0m
+│  ├─ 📍 endpointslice: secretgen-web-44whl[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
+│  │  └─ 🔌 endpoint:[90m {address=10.244.10.246, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=secretgen-web-7b548b454f-78bns}[0m
+│  └─ 🔄 httproute: secretgen-web[90m {hostnames=[secretgen.tool-test.los.spk.no secretgen.tool-test.spk.no secretgen-web.tool-test.los.spk.no secretgen-web.tool-test.spk.no], paths=[/*], service=secretgen-web:8080/TCP (ClusterIP)}[0m
+└─ 📄 spec
+   ├─ 🔤 envars
+   │  ├─ 💬 env: EYAML_PUBLIC_KEY_PUPPET=-----BEGIN CERTIFICATE-----...
+   │  ├─ 💬 env: EYAML_PUBLIC_KEY_SPK_CONFIG_PROD=-----BEGIN CERTIFICATE-----...
+   │  ├─ 💬 env: EYAML_PUBLIC_KEY_SPK_CONFIG_TEST=-----BEGIN CERTIFICATE-----...
+   │  └─ 💬 env: EYAML_PUBLIC_KEY_TERRAFORM_DB=# Replace with actual Terraform DB public key...
+   ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web:main_test[90m {pullPolicy=Always}[0m
+   ├─ 💓 livenessprobe:[90m {path=/, port=http, type=httpGet}[0m
+   ├─ 📂 mounts
+   │  └─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
+   ├─ 🔌 ports
+   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
+   ├─ ✅ readinessprobe:[90m {path=/, port=http, type=httpGet}[0m
+   ├─ 💾 resources:[90m {requests=cpu:200m memory:128Mi}[0m
+   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true, seccompProfile=RuntimeDefault}[0m
+   └─ ▶️ startupprobe:[90m {path=/, port=http, type=httpGet}[0m
+
+📝 configmap: kube-root-ca.crt[90m {keys=1, namespace=applikasjonsplattform}[0m
+
+📝 configmap: spk-trust-bundle[90m {keys=3, namespace=applikasjonsplattform}[0m
+
+🔒 secret: ad-explore-db-secret[90m {keys=1, namespace=applikasjonsplattform, type=Opaque}[0m
+
+🔒 secret: fiskeoye-secrets[90m {keys=1, namespace=applikasjonsplattform, type=Opaque}[0m
+
+👤 serviceaccount: default[90m {namespace=applikasjonsplattform}[0m
+
+📜 certificate: trust-manager [[32mREADY[0m][90m {dnsNames=[trust-manager.cert-manager.svc], expiresIn=79d, namespace=cert-manager, ready=True, readyReason=Ready}[0m

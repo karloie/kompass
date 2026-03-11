@@ -87,11 +87,21 @@ func BuildTrees(graphSet *kube.GraphResponse) {
 	}
 	for i := range graphSet.Graphs {
 		nodeMap := make(map[string]kube.Resource)
-		for key, node := range graphSet.Graphs[i].Nodes {
-			if node != nil {
-				nodeMap[key] = *node
+
+		if len(graphSet.Nodes) > 0 && len(graphSet.Graphs[i].NodeKeys) > 0 {
+			for _, key := range graphSet.Graphs[i].NodeKeys {
+				if node := graphSet.Nodes[key]; node != nil {
+					nodeMap[key] = *node
+				}
+			}
+		} else {
+			for key, node := range graphSet.Graphs[i].Nodes {
+				if node != nil {
+					nodeMap[key] = *node
+				}
 			}
 		}
+
 		graphSet.Graphs[i].Tree = BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, nodeMap)
 	}
 }
