@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/karloie/kompass/pkg/kube"
+	"github.com/karloie/kompass/pkg/mock"
 	"github.com/karloie/kompass/pkg/pipeline"
 )
 
@@ -115,4 +116,59 @@ func main() {
 	} else {
 		printTrees(result, context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
 	}
+}
+
+func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
+	slog.Debug("initializing provider", "provider", map[bool]string{true: "mock", false: "cluster"}[useMock], "requestedContext", contextArg, "requestedNamespace", namespaceArg)
+
+	if useMock {
+		provider := kube.NewMockClient(mock.GenerateMock())
+		if namespaceArg == "" {
+			namespaceArg = "petshop"
+		}
+		provider.SetNamespace(namespaceArg)
+		resolvedContext, _ := provider.GetContext()
+		resolvedNamespace, _ := provider.GetNamespace()
+		configPath, _ := provider.GetConfigPath()
+		slog.Debug("provider initialized", "provider", "mock", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
+		return provider, "mock", namespaceArg, nil
+	}
+
+	client, err := kube.NewClient(contextArg, namespaceArg)
+	if err != nil {
+		slog.Debug("provider initialization failed", "provider", "cluster", "requestedContext", contextArg, "requestedNamespace", namespaceArg, "error", err)
+		return nil, "", "", fmt.Errorf("error connecting to cluster: %w", err)
+	}
+	resolvedContext, _ := client.GetContext()
+	resolvedNamespace, _ := client.GetNamespace()
+	configPath, _ := client.GetConfigPath()
+	slog.Debug("provider initialized", "provider", "cluster", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
+	if contextArg == "" {
+		contextArg, _ = client.GetContext()
+	}
+	return client, contextArg, namespaceArg, nil
+}
+
+func extractStats(provider kube.Kube) map[string]interface{} {
+	if client, ok := provider.(*kube.Client); ok {
+		return client.GetStats()
+	}
+	return nil
+}
+
+func getStats(stats map[string]interface{}) *CacheStats {
+	if stats == nil {
+		return nil
+	}
+	if enabled, _ := stats["enabled"].(bool); !enabled {
+		return nil
+	}
+	calls, _ := stats["calls"].(int64)
+	if calls == 0 {
+		return nil
+	}
+	hits, _ := stats["hits"].(int64)
+	misses, _ := stats["misses"].(int64)
+	hitRate, _ := stats["hitRate"].(float64)
+	return &CacheStats{Calls: calls, Hits: hits, Misses: misses, HitRate: hitRate}
 }

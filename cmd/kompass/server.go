@@ -114,7 +114,7 @@ func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.client.GetCacheStats()); err != nil {
+	if err := json.NewEncoder(w).Encode(s.client.GetStats()); err != nil {
 		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		return
 	}

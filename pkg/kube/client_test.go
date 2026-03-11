@@ -71,7 +71,7 @@ func TestCacheEnabledByDefault(t *testing.T) {
 	if !client.cacheEnabled {
 		t.Error("Cache should be enabled by default")
 	}
-	if !client.GetCacheStats()["enabled"].(bool) {
+	if !client.GetStats()["enabled"].(bool) {
 		t.Error("Cache stats should show enabled")
 	}
 }
@@ -129,7 +129,7 @@ func TestStartStopSync(t *testing.T) {
 		t.Error("Cache should be enabled after StartSync")
 	}
 	time.Sleep(150 * time.Millisecond)
-	if lastSync := client.GetCacheStats()["lastSync"].(time.Time); lastSync.IsZero() {
+	if lastSync := client.GetStats()["lastSync"].(time.Time); lastSync.IsZero() {
 		t.Error("Expected lastSync to be set after sync")
 	}
 	client.StopSync()
@@ -158,7 +158,7 @@ func TestCachedGetReadThrough(t *testing.T) {
 }
 
 func TestCacheStats(t *testing.T) {
-	stats := NewClientWithClientset(fake.NewSimpleClientset(), nil, nil, "test-context", "default").GetCacheStats()
+	stats := NewClientWithClientset(fake.NewSimpleClientset(), nil, nil, "test-context", "default").GetStats()
 	if _, hasEnabled := stats["enabled"]; !hasEnabled {
 		t.Error("Cache stats missing 'enabled'")
 	}
@@ -343,7 +343,7 @@ func TestCacheStatistics(t *testing.T) {
 	client.cacheEnabled = true
 	ctx, opts := context.Background(), metav1.ListOptions{}
 
-	stats := client.GetCacheStats()
+	stats := client.GetStats()
 	if stats["calls"].(int64) != 0 || stats["hits"].(int64) != 0 || stats["misses"].(int64) != 0 {
 		t.Error("Expected all cache stats to be 0 initially")
 	}
@@ -352,7 +352,7 @@ func TestCacheStatistics(t *testing.T) {
 		t.Fatalf("GetPods failed: %v", err)
 	}
 
-	stats = client.GetCacheStats()
+	stats = client.GetStats()
 	if stats["calls"].(int64) != 1 {
 		t.Errorf("Expected 1 cache call, got %d", stats["calls"].(int64))
 	}
@@ -367,7 +367,7 @@ func TestCacheStatistics(t *testing.T) {
 		t.Fatalf("Second GetPods failed: %v", err)
 	}
 
-	stats = client.GetCacheStats()
+	stats = client.GetStats()
 	if stats["calls"].(int64) != 2 {
 		t.Errorf("Expected 2 cache calls, got %d", stats["calls"].(int64))
 	}
@@ -388,7 +388,7 @@ func TestCacheStatistics(t *testing.T) {
 		t.Fatalf("Third GetPods failed: %v", err)
 	}
 
-	stats = client.GetCacheStats()
+	stats = client.GetStats()
 	if stats["calls"].(int64) != 3 {
 		t.Errorf("Expected 3 cache calls, got %d", stats["calls"].(int64))
 	}
@@ -407,7 +407,7 @@ func TestCacheStatisticsInMockMode(t *testing.T) {
 	client := NewMockClient(nil)
 	ctx, opts := context.Background(), metav1.ListOptions{}
 
-	stats := client.GetCacheStats()
+	stats := client.GetStats()
 	if stats["calls"].(int64) != 0 || stats["hits"].(int64) != 0 || stats["misses"].(int64) != 0 {
 		t.Error("Expected all cache stats to be 0 initially")
 	}
@@ -416,7 +416,7 @@ func TestCacheStatisticsInMockMode(t *testing.T) {
 		t.Fatalf("GetPods failed: %v", err)
 	}
 
-	stats = client.GetCacheStats()
+	stats = client.GetStats()
 	if stats["calls"].(int64) != 1 {
 		t.Errorf("Expected 1 cache call, got %d", stats["calls"].(int64))
 	}
@@ -431,7 +431,7 @@ func TestCacheStatisticsInMockMode(t *testing.T) {
 		t.Fatalf("Second GetPods failed: %v", err)
 	}
 
-	stats = client.GetCacheStats()
+	stats = client.GetStats()
 	if stats["calls"].(int64) != 2 {
 		t.Errorf("Expected 2 cache calls, got %d", stats["calls"].(int64))
 	}

@@ -35,13 +35,13 @@ func TestPrintGraphsOutputsValidJSON(t *testing.T) {
 }
 
 func TestGetCacheStatsDisabledOrEmpty(t *testing.T) {
-	if cs := getCacheStats(nil); cs != nil {
+	if cs := getStats(nil); cs != nil {
 		t.Fatalf("expected nil cache stats for nil input")
 	}
-	if cs := getCacheStats(map[string]interface{}{"enabled": false}); cs != nil {
+	if cs := getStats(map[string]interface{}{"enabled": false}); cs != nil {
 		t.Fatalf("expected nil cache stats when disabled")
 	}
-	if cs := getCacheStats(map[string]interface{}{"enabled": true, "calls": int64(0)}); cs != nil {
+	if cs := getStats(map[string]interface{}{"enabled": true, "calls": int64(0)}); cs != nil {
 		t.Fatalf("expected nil cache stats when calls is zero")
 	}
 }
@@ -54,7 +54,7 @@ func TestGetCacheStatsValid(t *testing.T) {
 		"misses":  int64(3),
 		"hitRate": 70.0,
 	}
-	cs := getCacheStats(stats)
+	cs := getStats(stats)
 	if cs == nil {
 		t.Fatal("expected non-nil cache stats")
 	}
