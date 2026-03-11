@@ -213,7 +213,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
 }
 
-func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.ResponseGraph, error) {
+func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Graphs, error) {
 	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
@@ -234,11 +234,11 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	return selectors, namespace, provider, result, nil
 }
 
-func graphOnlyResponse(result *kube.ResponseGraph) *kube.ResponseGraph {
+func graphOnlyResponse(result *kube.Graphs) *kube.Graphs {
 	if result == nil {
 		return nil
 	}
-	out := &kube.ResponseGraph{Nodes: result.Nodes, Graphs: make([]kube.Graph, 0, len(result.Graphs))}
+	out := &kube.Graphs{Nodes: result.Nodes, Graphs: make([]kube.Graph, 0, len(result.Graphs))}
 	for _, g := range result.Graphs {
 		out.Graphs = append(out.Graphs, kube.Graph{ID: g.ID, Edges: g.Edges})
 	}

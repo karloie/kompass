@@ -12,7 +12,7 @@ import (
 )
 
 // InferGraphs builds the graph response and applies tree-oriented root policies.
-func InferGraphs(provider kube.Kube, selectors []string) (*kube.ResponseGraph, error) {
+func InferGraphs(provider kube.Kube, selectors []string) (*kube.Graphs, error) {
 	graphStart := time.Now()
 	slog.Debug("graph generation started", "selectors", selectors)
 
@@ -44,7 +44,7 @@ func InferGraphs(provider kube.Kube, selectors []string) (*kube.ResponseGraph, e
 }
 
 // GraphNodesForGraph resolves node maps from response-level nodes.
-func GraphNodesForGraph(result *kube.ResponseGraph, graph *kube.Graph) map[string]*kube.Resource {
+func GraphNodesForGraph(result *kube.Graphs, graph *kube.Graph) map[string]*kube.Resource {
 	if graph == nil {
 		return nil
 	}

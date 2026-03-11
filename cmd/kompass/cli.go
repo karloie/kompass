@@ -50,7 +50,7 @@ Note: All selectors automatically include inferred/connected resources.
 `)
 }
 
-func printGraphs(result *kube.ResponseGraph, context, namespace, configPath string, selectors []string) {
+func printGraphs(result *kube.Graphs, context, namespace, configPath string, selectors []string) {
 	output := JSONOutput{
 		APIVersion: jsonAPIVersion,
 		Request:    RequestMetadata{context, namespace, configPath, selectors},
@@ -63,7 +63,7 @@ func printGraphs(result *kube.ResponseGraph, context, namespace, configPath stri
 	}
 }
 
-func printTrees(result *kube.ResponseTree, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
+func printTrees(result *kube.Trees, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
 	statsStr := ""
 	if cs := getStats(stats); cs != nil {
 		statsStr = fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate", cs.Calls, cs.Hits, cs.Misses, cs.HitRate)

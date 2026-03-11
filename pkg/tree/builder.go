@@ -81,11 +81,11 @@ func sortChildren(children []*kube.Tree) {
 	})
 }
 
-func BuildResponseTree(graphSet *kube.ResponseGraph) *kube.ResponseTree {
+func BuildResponseTree(graphSet *kube.Graphs) *kube.Trees {
 	if graphSet == nil {
 		return nil
 	}
-	out := &kube.ResponseTree{Nodes: graphSet.Nodes, Trees: make([]*kube.Tree, 0, len(graphSet.Graphs))}
+	out := &kube.Trees{Nodes: graphSet.Nodes, Trees: make([]*kube.Tree, 0, len(graphSet.Graphs))}
 	for i := range graphSet.Graphs {
 		graphNodes := graphNodesForTree(graphSet)
 		treeNode := BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, graphNodes)
@@ -94,7 +94,7 @@ func BuildResponseTree(graphSet *kube.ResponseGraph) *kube.ResponseTree {
 	return out
 }
 
-func graphNodesForTree(graphSet *kube.ResponseGraph) map[string]kube.Resource {
+func graphNodesForTree(graphSet *kube.Graphs) map[string]kube.Resource {
 	nodeMap := make(map[string]kube.Resource)
 	if graphSet != nil && len(graphSet.Nodes) > 0 {
 		for key, node := range graphSet.Nodes {

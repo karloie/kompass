@@ -10,7 +10,7 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 	cronJobID := "cronjob/applikasjonsplattform/appwatch"
 	jobID := "job/applikasjonsplattform/appwatch-29552340"
 
-	resp := &kube.ResponseGraph{
+	resp := &kube.Graphs{
 		Nodes: map[string]*kube.Resource{
 			cronJobID: newRootNode(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil),
 			jobID:     newRootNode(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{{"kind": "CronJob", "name": "appwatch"}}),
@@ -34,7 +34,7 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 	jobID := "job/applikasjonsplattform/manual-job"
 
-	resp := &kube.ResponseGraph{
+	resp := &kube.Graphs{
 		Nodes: map[string]*kube.Resource{
 			jobID: newRootNode(jobID, "job", "manual-job", "applikasjonsplattform", nil),
 		},

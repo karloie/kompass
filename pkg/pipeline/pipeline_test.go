@@ -37,7 +37,7 @@ func TestGraphNodesForGraph_UsesResponseNodes(t *testing.T) {
 	podA := &kube.Resource{Key: "pod/default/a", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "a", "namespace": "default"}}}
 	podB := &kube.Resource{Key: "pod/default/b", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "b", "namespace": "default"}}}
 
-	resp := &kube.ResponseGraph{
+	resp := &kube.Graphs{
 		Nodes: map[string]*kube.Resource{
 			"pod/default/a":       podA,
 			"pod/default/b":       podB,
@@ -61,7 +61,7 @@ func TestGraphNodesForGraph_UsesResponseNodes(t *testing.T) {
 }
 
 func TestGraphNodesForGraph_ReturnsNilWithoutResponseNodes(t *testing.T) {
-	resp := &kube.ResponseGraph{Graphs: []kube.Graph{{ID: "pod/default/a"}}}
+	resp := &kube.Graphs{Graphs: []kube.Graph{{ID: "pod/default/a"}}}
 
 	nodes := GraphNodesForGraph(resp, &resp.Graphs[0])
 	if nodes != nil {
@@ -70,14 +70,14 @@ func TestGraphNodesForGraph_ReturnsNilWithoutResponseNodes(t *testing.T) {
 }
 
 func TestGraphNodesForGraph_NilGraph(t *testing.T) {
-	resp := &kube.ResponseGraph{}
+	resp := &kube.Graphs{}
 	if nodes := GraphNodesForGraph(resp, nil); nodes != nil {
 		t.Fatalf("expected nil nodes for nil graph input, got %#v", nodes)
 	}
 }
 
 func TestGraphNodesForGraph_UsesAllResponseNodes(t *testing.T) {
-	resp := &kube.ResponseGraph{
+	resp := &kube.Graphs{
 		Nodes: map[string]*kube.Resource{
 			"pod/default/a":           {Key: "pod/default/a", Type: "pod"},
 			"service/default/missing": {Key: "service/default/missing", Type: "service"},

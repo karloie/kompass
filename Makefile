@@ -24,6 +24,7 @@ build-release: LDFLAGS := $(VERSION_LDFLAGS)
 build-release: build
 
 test: build
+	@go clean -testcache
 	@go test ./...
 
 cover: build

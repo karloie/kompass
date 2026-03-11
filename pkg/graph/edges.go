@@ -103,7 +103,7 @@ func findWorkloadRoot(key string, keyType string, nodeMap map[string]kube.Resour
 	return ""
 }
 
-func InferGraphs(provider kube.Kube, req kube.Request) (*kube.ResponseGraph, error) {
+func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Graphs, error) {
 	selectors := req.Selectors()
 	defaultNamespace := req.DefaultNamespace()
 
@@ -220,7 +220,7 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.ResponseGraph, err
 	return buildGraphs(keys, edges, nodeMap), nil
 }
 
-func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.ResponseGraph {
+func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Graphs {
 	neighbors := make(map[string][]string)
 	for _, e := range edges {
 		if e.Source != "" && e.Target != "" {
@@ -417,7 +417,7 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 		responseNodes[n.Key] = &nCopy
 	}
 
-	return &kube.ResponseGraph{Graphs: graphs, Nodes: responseNodes}
+	return &kube.Graphs{Graphs: graphs, Nodes: responseNodes}
 }
 
 func buildGraph(id string, visited map[string]bool, _ map[string]bool, _ map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {

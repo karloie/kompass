@@ -85,19 +85,19 @@ type Request struct {
 	CRDSelector []CRDSelector `json:"crdSelector"`
 }
 
-type ResponseGraph struct {
+type Graphs struct {
 	Nodes  map[string]*Resource `json:"nodes,omitempty"`
 	Graphs []Graph              `json:"graphs"`
-}
-
-type ResponseTree struct {
-	Nodes map[string]*Resource `json:"nodes,omitempty"`
-	Trees []*Tree              `json:"trees"`
 }
 
 type Graph struct {
 	ID    string         `json:"id"`
 	Edges []ResourceEdge `json:"edges,omitempty"`
+}
+
+type Trees struct {
+	Nodes map[string]*Resource `json:"nodes,omitempty"`
+	Trees []*Tree              `json:"trees"`
 }
 
 type Tree struct {

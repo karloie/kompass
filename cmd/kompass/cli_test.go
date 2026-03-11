@@ -20,7 +20,7 @@ func TestPrintHelpIncludesDebugFlag(t *testing.T) {
 }
 
 func TestPrintGraphsOutputsValidJSON(t *testing.T) {
-	result := &kube.ResponseGraph{}
+	result := &kube.Graphs{}
 	out := captureStdout(t, func() {
 		printGraphs(result, "ctx-a", "ns-a", "mock", []string{"*/ns-a/*"})
 	})

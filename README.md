@@ -218,11 +218,6 @@ kompass --debug '*/petshop/*'
 - **JSON Tree** - Tree-oriented JSON (`/tree`)
 - **Text Tree** - ASCII tree rendering (`/tree/text`)
 
-### JSON Contract Notes
-
-- Responses provide a shared `response.nodes` map and graph/tree structures reference that shared node data.
-- `response.trees` contains tree nodes directly (no extra wrapper objects).
-
 ### REST API
 
 Endpoints accept query parameters:

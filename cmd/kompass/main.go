@@ -29,21 +29,21 @@ type CacheStats struct {
 }
 
 type JSONOutput struct {
-	APIVersion string              `json:"apiVersion"`
-	Request    RequestMetadata     `json:"request"`
-	Response   *kube.ResponseGraph `json:"response"`
+	APIVersion string          `json:"apiVersion"`
+	Request    RequestMetadata `json:"request"`
+	Response   *kube.Graphs    `json:"response"`
 }
 
 type JSONOutputGraph struct {
-	APIVersion string              `json:"apiVersion"`
-	Request    RequestMetadata     `json:"request"`
-	Response   *kube.ResponseGraph `json:"response"`
+	APIVersion string          `json:"apiVersion"`
+	Request    RequestMetadata `json:"request"`
+	Response   *kube.Graphs    `json:"response"`
 }
 
 type JSONOutputTree struct {
-	APIVersion string             `json:"apiVersion"`
-	Request    RequestMetadata    `json:"request"`
-	Response   *kube.ResponseTree `json:"response"`
+	APIVersion string          `json:"apiVersion"`
+	Request    RequestMetadata `json:"request"`
+	Response   *kube.Trees     `json:"response"`
 }
 
 type RequestMetadata struct {
