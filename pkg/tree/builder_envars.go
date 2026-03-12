@@ -8,9 +8,9 @@ import (
 )
 
 func buildEnvarsNode(containerKey string, namespace string, envVars []any, containerSpec map[string]any, nodeMap map[string]kube.Resource) *kube.Tree {
-	envarsKey := containerKey + "/envars"
+	envarsKey := containerKey + "/environment"
 
-	envarsNode := NewTree(envarsKey, "envars", nil)
+	envarsNode := NewTree(envarsKey, "environment", nil)
 
 	for idx, ev := range envVars {
 		if envMap, ok := ev.(map[string]any); ok {

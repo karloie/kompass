@@ -159,6 +159,7 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 
 	callCount := map[string]int{}
 	loadedCertNS := []string{}
+	loadedIssuerNS := []string{}
 	mk := func(key, typ, ns, name string) kube.Resource {
 		return kube.Resource{Key: key, Type: typ, Resource: map[string]any{"metadata": map[string]any{"namespace": ns, "name": name}}}
 	}
@@ -187,7 +188,23 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 				callCount["certificate"]++
 				loadedCertNS = append(loadedCertNS, ns)
 				if ns == "extra-ns" {
-					return []kube.Resource{mk("certificate/extra-ns/web-cert", "certificate", "extra-ns", "web-cert")}, nil
+					cert := mk("certificate/extra-ns/web-cert", "certificate", "extra-ns", "web-cert")
+					certMap, _ := cert.Resource.(map[string]any)
+					certMap["spec"] = map[string]any{
+						"issuerRef": map[string]any{"kind": "Issuer", "name": "shared-issuer"},
+					}
+					cert.Resource = certMap
+					return []kube.Resource{cert}, nil
+				}
+				return nil, nil
+			},
+		},
+		"issuer": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["issuer"]++
+				loadedIssuerNS = append(loadedIssuerNS, ns)
+				if ns == "extra-ns" {
+					return []kube.Resource{mk("issuer/extra-ns/shared-issuer", "issuer", "extra-ns", "shared-issuer")}, nil
 				}
 				return nil, nil
 			},
@@ -215,13 +232,23 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 	if callCount["certificate"] == 0 || callCount["clusterissuer"] == 0 {
 		t.Fatalf("expected cert/clusterissuer inferred loaders to run, calls=%#v", callCount)
 	}
+	if callCount["issuer"] == 0 {
+		t.Fatalf("expected issuer inferred loader to run, calls=%#v", callCount)
+	}
 	sort.Strings(loadedCertNS)
 	if len(loadedCertNS) == 0 || loadedCertNS[0] != "extra-ns" {
 		t.Fatalf("expected certificate loader to include extra-ns, loaded=%#v", loadedCertNS)
 	}
+	sort.Strings(loadedIssuerNS)
+	if len(loadedIssuerNS) == 0 || loadedIssuerNS[0] != "extra-ns" {
+		t.Fatalf("expected issuer loader to include extra-ns, loaded=%#v", loadedIssuerNS)
+	}
 
 	if _, ok := resp.Nodes["certificate/extra-ns/web-cert"]; !ok {
 		t.Fatalf("expected inferred certificate node in response")
+	}
+	if _, ok := resp.Nodes["issuer/extra-ns/shared-issuer"]; !ok {
+		t.Fatalf("expected inferred issuer node in response")
 	}
 	foundPodGraph := false
 	for _, g := range resp.Graphs {

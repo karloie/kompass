@@ -142,6 +142,7 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Graphs, error) {
 	}
 
 	if hasRoutesOrIngress {
+		loadedExtraCertNamespaces := make(map[string]bool)
 		if certTask, ok := ResourceTypes["certificate"]; ok && certTask.Loader != nil {
 			certNamespaces := []string{"management", "cert-manager", "gateway-system", "istio-system"}
 			if envNs := os.Getenv("KOMPASS_CERT_NAMESPACES"); envNs != "" {
@@ -151,7 +152,20 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Graphs, error) {
 				if ns = strings.TrimSpace(ns); ns == "" || namespaces[ns] {
 					continue
 				}
+				loadedExtraCertNamespaces[ns] = true
 				if resources, err := certTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+					for _, r := range resources {
+						if _, exists := nodeMap[r.Key]; !exists {
+							nodeMap[r.Key] = r
+						}
+					}
+				}
+			}
+		}
+
+		if issuerTask, ok := ResourceTypes["issuer"]; ok && issuerTask.Loader != nil {
+			for ns := range loadedExtraCertNamespaces {
+				if resources, err := issuerTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r

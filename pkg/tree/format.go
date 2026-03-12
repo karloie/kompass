@@ -278,34 +278,51 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 
 		if nodeType != "livenessprobe" && nodeType != "readinessprobe" && nodeType != "startupprobe" {
 			statusUpper := strings.ToUpper(status)
-
-			goodStatuses := map[string]bool{
-				"RUNNING":   true,
-				"SUCCEEDED": true,
-				"COMPLETE":  true,
-				"ACTIVE":    true,
-				"AVAILABLE": true,
-				"BOUND":     true,
-				"READY":     true,
-			}
-			suspiciousStatuses := map[string]bool{
-				"SCHEDULED": true,
-				"PENDING":   true,
-				"UNKNOWN":   true,
-				"SUSPENDED": true,
-			}
-
-			if !plain {
-				if goodStatuses[statusUpper] {
-					display += " [" + colorGreen + statusUpper + colorReset + "]"
-				} else if suspiciousStatuses[statusUpper] {
-					display += " [" + colorYellow + statusUpper + colorReset + "]"
+			if nodeType == "certificate" {
+				if !plain {
+					switch {
+					case strings.HasPrefix(statusUpper, "EXPIRES IN "):
+						display += " [" + colorGreen + statusUpper + colorReset + "]"
+					case strings.HasPrefix(statusUpper, "EXPIRES TODAY"):
+						display += " [" + colorYellow + statusUpper + colorReset + "]"
+					case strings.HasPrefix(statusUpper, "EXPIRED"):
+						display += " [" + colorRed + statusUpper + colorReset + "]"
+					default:
+						display += " [" + colorRed + statusUpper + colorReset + "]"
+					}
 				} else {
-
-					display += " [" + colorRed + statusUpper + colorReset + "]"
+					display += " [" + statusUpper + "]"
 				}
 			} else {
-				display += " [" + statusUpper + "]"
+
+				goodStatuses := map[string]bool{
+					"RUNNING":   true,
+					"SUCCEEDED": true,
+					"COMPLETE":  true,
+					"ACTIVE":    true,
+					"AVAILABLE": true,
+					"BOUND":     true,
+					"READY":     true,
+				}
+				suspiciousStatuses := map[string]bool{
+					"SCHEDULED": true,
+					"PENDING":   true,
+					"UNKNOWN":   true,
+					"SUSPENDED": true,
+				}
+
+				if !plain {
+					if goodStatuses[statusUpper] {
+						display += " [" + colorGreen + statusUpper + colorReset + "]"
+					} else if suspiciousStatuses[statusUpper] {
+						display += " [" + colorYellow + statusUpper + colorReset + "]"
+					} else {
+
+						display += " [" + colorRed + statusUpper + colorReset + "]"
+					}
+				} else {
+					display += " [" + statusUpper + "]"
+				}
 			}
 		}
 	}

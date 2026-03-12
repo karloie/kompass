@@ -74,6 +74,7 @@ var ResourceTypes = func() map[string]ResourceType {
 		"enabledefaultdeny":          {"🚫", nil, nil, nil},
 		"endpoint":                   {"🔌", nil, nil, nil},
 		"endpointselector":           {"🎯", nil, nil, nil},
+		"environment":                {"🔤", nil, nil, nil},
 		"env":                        {"💬", nil, nil, nil},
 		"envars":                     {"🔤", nil, nil, nil},
 		"envfrom-configmap":          {"📝", nil, nil, nil},
