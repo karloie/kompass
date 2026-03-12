@@ -5,6 +5,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/karloie/kompass.svg)](https://pkg.go.dev/github.com/karloie/kompass)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/karloie/kompass)](go.mod)
+[![Homebrew Version](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkarloie%2Fhomebrew-tap%2Frefs%2Fheads%2Fmain%2FFormula%2Fkompass.rb&search=version%20%22(%3F%3Cversion%3E%5B%5E%22%5D%2B)%22&replace=%24%3Cversion%3E&label=homebrew)](https://github.com/karloie/homebrew-tap)
 [![Docker Pulls](https://img.shields.io/docker/pulls/karloie/kompass)](https://hub.docker.com/r/karloie/kompass)
 
 Kompass helps you learn Kubernetes by visualizing Kubernetes resource relationships. Query with patterns, get directed graphs showing how pods, services, deployments, and 30+ resource types connect in real clusters.
