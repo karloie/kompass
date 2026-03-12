@@ -119,8 +119,16 @@ func init() {
 		{Type: "ingress", Field: "tls", Path: "$.spec.tls", Format: "hasTLS"},
 
 		{Type: "issuer", Field: "namespace", Path: "$.metadata.namespace", Format: "string"},
+		{Type: "issuer", Field: "age", Path: "$.metadata.creationTimestamp", Format: "age"},
+		{Type: "issuer", Field: "status", Path: "$.status.conditions", Format: "issuerStatus"},
+		{Type: "issuer", Field: "readyReason", Path: "$.status.conditions", Format: "issuerReadyReason"},
+		{Type: "issuer", Field: "type", Path: "$.spec", Format: "issuerType"},
 		{Type: "issuer", Field: "issuerConfig", Path: "$.spec", Format: "issuerConfig"},
 
+		{Type: "clusterissuer", Field: "age", Path: "$.metadata.creationTimestamp", Format: "age"},
+		{Type: "clusterissuer", Field: "status", Path: "$.status.conditions", Format: "issuerStatus"},
+		{Type: "clusterissuer", Field: "readyReason", Path: "$.status.conditions", Format: "issuerReadyReason"},
+		{Type: "clusterissuer", Field: "type", Path: "$.spec", Format: "issuerType"},
 		{Type: "clusterissuer", Field: "issuerConfig", Path: "$.spec", Format: "issuerConfig"},
 
 		{Type: "persistentvolume", Field: "capacity", Path: "$.spec.capacity.storage", Format: "string"},
@@ -350,6 +358,15 @@ func formatMetadataValue(value any, format string, fullResource map[string]any, 
 
 	case "issuerConfig":
 		return formatIssuerConfig(value)
+
+	case "issuerStatus":
+		return formatIssuerStatus(value)
+
+	case "issuerReadyReason":
+		return formatIssuerReadyReason(value)
+
+	case "issuerType":
+		return formatIssuerType(value)
 
 	case "nodeInfo":
 		return formatNodeInfo(value)
@@ -632,10 +649,12 @@ func formatCertExpiry(value any, fullResource map[string]any) any {
 	}
 
 	result := make(map[string]any)
+	days := int(daysUntilExpiry)
 
 	if daysUntilExpiry < 0 {
 
 		daysExpired := int(-daysUntilExpiry)
+		result["expiresIn"] = fmt.Sprintf("-%dd", daysExpired)
 		if daysExpired == 0 {
 			result["status"] = "Expired Today"
 		} else if daysExpired == 1 {
@@ -645,7 +664,7 @@ func formatCertExpiry(value any, fullResource map[string]any) any {
 		}
 	} else if daysUntilExpiry < 30 {
 
-		days := int(daysUntilExpiry)
+		result["expiresIn"] = fmt.Sprintf("%dd", days)
 		if days == 0 {
 			result["status"] = "Expires Today"
 		} else if days == 1 {
@@ -655,12 +674,14 @@ func formatCertExpiry(value any, fullResource map[string]any) any {
 		}
 	} else {
 
-		days := int(daysUntilExpiry)
 		result["expiresIn"] = fmt.Sprintf("%dd", days)
+		result["status"] = fmt.Sprintf("Expires In %dd", days)
 	}
 
 	if ready != "" && ready != "True" {
-		if _, hasStatus := result["status"]; !hasStatus {
+		if statusText, hasStatus := result["status"].(string); hasStatus && statusText != "" {
+			result["status"] = "NotReady, " + statusText
+		} else {
 			result["status"] = "NotReady"
 		}
 	}
@@ -1080,6 +1101,79 @@ func formatIssuerConfig(value any) any {
 	if len(result) > 0 {
 		return result
 	}
+	return nil
+}
+
+func formatIssuerStatus(value any) any {
+	conditions, ok := value.([]any)
+	if !ok || len(conditions) == 0 {
+		return nil
+	}
+
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]any)
+		if !ok {
+			continue
+		}
+		if condType, _ := condMap["type"].(string); condType != "Ready" {
+			continue
+		}
+		status, _ := condMap["status"].(string)
+		switch status {
+		case "True":
+			return "Ready"
+		case "False":
+			return "NotReady"
+		case "Unknown":
+			return "Unknown"
+		default:
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func formatIssuerReadyReason(value any) any {
+	conditions, ok := value.([]any)
+	if !ok || len(conditions) == 0 {
+		return nil
+	}
+
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]any)
+		if !ok {
+			continue
+		}
+		if condType, _ := condMap["type"].(string); condType != "Ready" {
+			continue
+		}
+		reason, _ := condMap["reason"].(string)
+		if reason != "" {
+			return reason
+		}
+		return nil
+	}
+
+	return nil
+}
+
+func formatIssuerType(value any) any {
+	spec, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	types := []string{"acme", "ca", "vault", "selfSigned", "venafi"}
+	for _, t := range types {
+		if _, exists := spec[t]; exists {
+			if t == "selfSigned" {
+				return "self-signed"
+			}
+			return t
+		}
+	}
+
 	return nil
 }
 

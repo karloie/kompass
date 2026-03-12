@@ -7,7 +7,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func expandResourceFromVolume(parentKey, namespace string, volume map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func expandResourceFromVolume(parentKey, namespace string, volume map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	volumeSources := []struct {
 		field   string
 		nameKey string
@@ -31,8 +31,8 @@ func expandResourceFromVolume(parentKey, namespace string, volume map[string]any
 	return nil
 }
 
-func expandVolumesAsResources(parentKey, namespace string, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	nodes := make([]*kube.GraphTree, 0)
+func expandVolumesAsResources(parentKey, namespace string, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	nodes := make([]*kube.Tree, 0)
 	for _, vol := range volumes {
 		if volMap, ok := vol.(map[string]any); ok {
 			if node := expandResourceFromVolume(parentKey, namespace, volMap, graphChildren, state, nodeMap); node != nil {
@@ -43,7 +43,7 @@ func expandVolumesAsResources(parentKey, namespace string, volumes []any, graphC
 	return nodes
 }
 
-func buildPodTemplateChildren(templateKey string, namespace string, templateSpec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildPodTemplateChildren(templateKey string, namespace string, templateSpec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	if templateSpec == nil {
 		return nil
 	}
@@ -74,7 +74,7 @@ func buildPodTemplateChildren(templateKey string, namespace string, templateSpec
 	return builder.Build()
 }
 
-func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.GraphTree {
+func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Tree {
 	metadata := graph.M(pod.AsMap()).Map("metadata").Raw()
 	status := graph.M(pod.AsMap()).Map("status").Raw()
 	spec := graph.M(pod.AsMap()).Map("spec").Raw()
@@ -105,11 +105,11 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 		}
 	}
 
-	podNode := &kube.GraphTree{
+	podNode := &kube.Tree{
 		Key:      podKey,
 		Type:     "pod",
 		Meta:     nodeMetadata,
-		Children: []*kube.GraphTree{},
+		Children: []*kube.Tree{},
 	}
 
 	containerStatuses := make(map[string]map[string]any)
@@ -133,10 +133,10 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 					containerStatus := containerStatuses[containerName]
 
 					containerKey := fmt.Sprintf("%s/container/%d", podKey, idx)
-					containerNode := NewGraphTree(containerKey, "container", map[string]any{"name": containerName})
+					containerNode := NewTree(containerKey, "container", map[string]any{"name": containerName})
 
 					if image, ok := containerMap["image"].(string); ok {
-						imageNode := NewGraphTree(containerKey+"/image", "image", map[string]any{"name": image})
+						imageNode := NewTree(containerKey+"/image", "image", map[string]any{"name": image})
 						containerNode.Children = append(containerNode.Children, imageNode)
 					}
 
@@ -152,7 +152,7 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 									probeStatus = "unknown"
 								}
 							}
-							livenessNode := NewGraphTree(containerKey+"/livenessprobe", "livenessprobe", map[string]any{"status": probeStatus})
+							livenessNode := NewTree(containerKey+"/livenessprobe", "livenessprobe", map[string]any{"status": probeStatus})
 							containerNode.Children = append(containerNode.Children, livenessNode)
 						}
 
@@ -161,7 +161,7 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 							if ready, ok := containerStatus["ready"].(bool); ok && ready {
 								probeStatus = "ready"
 							}
-							readinessNode := NewGraphTree(containerKey+"/readinessprobe", "readinessprobe", map[string]any{"status": probeStatus})
+							readinessNode := NewTree(containerKey+"/readinessprobe", "readinessprobe", map[string]any{"status": probeStatus})
 							containerNode.Children = append(containerNode.Children, readinessNode)
 						}
 
@@ -170,7 +170,7 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 							if started, ok := containerStatus["started"].(bool); ok && started {
 								probeStatus = "started"
 							}
-							startupNode := NewGraphTree(containerKey+"/startupprobe", "startupprobe", map[string]any{"status": probeStatus})
+							startupNode := NewTree(containerKey+"/startupprobe", "startupprobe", map[string]any{"status": probeStatus})
 							containerNode.Children = append(containerNode.Children, startupNode)
 						}
 					}
@@ -184,7 +184,7 @@ func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Gr
 	return podNode
 }
 
-func buildSimplifiedPodNode(podKey string, pod kube.Resource) *kube.GraphTree {
+func buildSimplifiedPodNode(podKey string, pod kube.Resource) *kube.Tree {
 	metadata := graph.M(pod.AsMap()).Map("metadata").Raw()
 	status := graph.M(pod.AsMap()).Map("status").Raw()
 	spec := graph.M(pod.AsMap()).Map("spec").Raw()
@@ -215,15 +215,15 @@ func buildSimplifiedPodNode(podKey string, pod kube.Resource) *kube.GraphTree {
 		}
 	}
 
-	return &kube.GraphTree{
+	return &kube.Tree{
 		Key:      podKey,
 		Type:     "pod",
 		Meta:     nodeMetadata,
-		Children: []*kube.GraphTree{},
+		Children: []*kube.Tree{},
 	}
 }
 
-func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	spec := graph.M(pod.AsMap()).Map("spec").Raw()
 	metadata := graph.M(pod.AsMap()).Map("metadata").Raw()
 	status := graph.M(pod.AsMap()).Map("status").Raw()
@@ -235,7 +235,7 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 
 	builder := NewChildrenBuilder()
 	specKey := podKey + "/spec"
-	specNode := NewGraphTree(specKey, "spec", map[string]any{})
+	specNode := NewTree(specKey, "spec", map[string]any{})
 	specBuilder := NewChildrenBuilder()
 	containers, _ := spec["containers"].([]any)
 	volumes, _ := spec["volumes"].([]any)
@@ -266,7 +266,7 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 	return builder.Build()
 }
 
-func buildRuntimeContainerChildren(podKey string, spec map[string]any, status map[string]any) []*kube.GraphTree {
+func buildRuntimeContainerChildren(podKey string, spec map[string]any, status map[string]any) []*kube.Tree {
 	if spec == nil {
 		return nil
 	}
@@ -284,7 +284,7 @@ func buildRuntimeContainerChildren(podKey string, spec map[string]any, status ma
 		}
 	}
 
-	runtimeChildren := make([]*kube.GraphTree, 0)
+	runtimeChildren := make([]*kube.Tree, 0)
 	if containers, ok := spec["containers"].([]any); ok {
 		for idx, c := range containers {
 			containerMap, ok := c.(map[string]any)
@@ -323,9 +323,9 @@ func buildRuntimeContainerChildren(podKey string, spec map[string]any, status ma
 				}
 			}
 
-			containerNode := NewGraphTree(containerKey, "container", metadata)
+			containerNode := NewTree(containerKey, "container", metadata)
 			if image, ok := containerMap["image"].(string); ok {
-				containerNode.Children = append(containerNode.Children, NewGraphTree(containerKey+"/image", "image", map[string]any{"name": image}))
+				containerNode.Children = append(containerNode.Children, NewTree(containerKey+"/image", "image", map[string]any{"name": image}))
 			}
 			runtimeChildren = append(runtimeChildren, containerNode)
 		}
@@ -334,16 +334,16 @@ func buildRuntimeContainerChildren(podKey string, spec map[string]any, status ma
 	return runtimeChildren
 }
 
-func buildContainerChildren(parentKey string, namespace string, idx int, containerSpec map[string]any, containerStatus map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func buildContainerChildren(parentKey string, namespace string, idx int, containerSpec map[string]any, containerStatus map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	containerKey := fmt.Sprintf("%s/container/%d", parentKey, idx)
-	var children []*kube.GraphTree
+	var children []*kube.Tree
 
 	if image, ok := containerSpec["image"].(string); ok {
 		imageMetadata := map[string]any{"name": image}
 		if pullPolicy, ok := containerSpec["imagePullPolicy"].(string); ok && pullPolicy != "" {
 			imageMetadata["pullPolicy"] = pullPolicy
 		}
-		imageNode := NewGraphTree(containerKey+"/image", "image", imageMetadata)
+		imageNode := NewTree(containerKey+"/image", "image", imageMetadata)
 		children = append(children, imageNode)
 	}
 
@@ -406,7 +406,7 @@ func buildContainerChildren(parentKey string, namespace string, idx int, contain
 	return children
 }
 
-func buildContainerNode(podKey string, namespace string, idx int, containerSpec map[string]any, containerStatus map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.GraphTree {
+func buildContainerNode(podKey string, namespace string, idx int, containerSpec map[string]any, containerStatus map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	containerName, _ := containerSpec["name"].(string)
 	containerKey := fmt.Sprintf("%s/container/%d", podKey, idx)
 
@@ -478,14 +478,14 @@ func buildContainerNode(podKey string, namespace string, idx int, containerSpec 
 		}
 	}
 
-	containerNode := NewGraphTree(containerKey, "container", metadata)
+	containerNode := NewTree(containerKey, "container", metadata)
 
 	containerNode.Children = buildContainerChildren(podKey, namespace, idx, containerSpec, containerStatus, volumes, graphChildren, state, nodeMap)
 
 	return containerNode
 }
 
-func buildSecurityContextNode(containerKey string, securityContext map[string]any) *kube.GraphTree {
+func buildSecurityContextNode(containerKey string, securityContext map[string]any) *kube.Tree {
 	securityContextKey := containerKey + "/securityContext"
 	metadata := map[string]any{}
 
@@ -581,10 +581,10 @@ func buildSecurityContextNode(containerKey string, securityContext map[string]an
 		return nil
 	}
 
-	return NewGraphTree(securityContextKey, "securitycontext", metadata)
+	return NewTree(securityContextKey, "securitycontext", metadata)
 }
 
-func buildPodSecurityContextNode(podKey string, securityContext map[string]any) *kube.GraphTree {
+func buildPodSecurityContextNode(podKey string, securityContext map[string]any) *kube.Tree {
 	securityContextKey := podKey + "/securityContext"
 	metadata := map[string]any{}
 
@@ -676,13 +676,13 @@ func buildPodSecurityContextNode(podKey string, securityContext map[string]any) 
 		return nil
 	}
 
-	return NewGraphTree(securityContextKey, "podsecuritycontext", metadata)
+	return NewTree(securityContextKey, "podsecuritycontext", metadata)
 }
 
-func buildPortsNode(containerKey string, ports []any) *kube.GraphTree {
+func buildPortsNode(containerKey string, ports []any) *kube.Tree {
 	portsKey := containerKey + "/ports"
 
-	portsNode := NewGraphTree(portsKey, "ports", nil)
+	portsNode := NewTree(portsKey, "ports", nil)
 
 	for idx, p := range ports {
 		if portMap, ok := p.(map[string]any); ok {
@@ -705,7 +705,7 @@ func buildPortsNode(containerKey string, ports []any) *kube.GraphTree {
 				metadata["hostPort"] = hostPort
 			}
 
-			portNode := NewGraphTree(portKey, "port", metadata)
+			portNode := NewTree(portKey, "port", metadata)
 			portsNode.Children = append(portsNode.Children, portNode)
 		}
 	}
@@ -713,7 +713,7 @@ func buildPortsNode(containerKey string, ports []any) *kube.GraphTree {
 	return portsNode
 }
 
-func buildResourcesNode(containerKey string, resources map[string]any) *kube.GraphTree {
+func buildResourcesNode(containerKey string, resources map[string]any) *kube.Tree {
 	resourcesKey := containerKey + "/resources"
 
 	metadata := map[string]any{}
@@ -746,10 +746,10 @@ func buildResourcesNode(containerKey string, resources map[string]any) *kube.Gra
 		return nil
 	}
 
-	return NewGraphTree(resourcesKey, "resources", metadata)
+	return NewTree(resourcesKey, "resources", metadata)
 }
 
-func buildProbeNode(containerKey string, probeType string, probe map[string]any, containerStatus map[string]any) *kube.GraphTree {
+func buildProbeNode(containerKey string, probeType string, probe map[string]any, containerStatus map[string]any) *kube.Tree {
 	probeKey := containerKey + "/" + probeType
 
 	metadata := map[string]any{}
@@ -864,5 +864,5 @@ func buildProbeNode(containerKey string, probeType string, probe map[string]any,
 		return nil
 	}
 
-	return NewGraphTree(probeKey, probeType, metadata)
+	return NewTree(probeKey, probeType, metadata)
 }

@@ -114,7 +114,7 @@ func inferReplicaSet(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map
 								podLabels := podMeta.Map("labels")
 								if podLabels != nil {
 									strippedPodLabels := stripLabelKey(podLabels.Raw(), "pod-template-hash")
-									if matchesLabels(strippedSelector, strippedPodLabels) {
+									if matchesLabels(strippedSelector, map[string]any{"labels": strippedPodLabels}) {
 										addEdge(edges, n.Key, key, "selector-match")
 									}
 								}

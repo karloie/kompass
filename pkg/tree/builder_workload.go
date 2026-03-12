@@ -7,7 +7,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func appendHoistedChildren(children []*kube.GraphTree, hoistedKeys map[string]bool, targetType string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func appendHoistedChildren(children []*kube.Tree, hoistedKeys map[string]bool, targetType string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	for hoistedKey := range hoistedKeys {
 		if getTypeFromKey(hoistedKey, nodeMap) != targetType {
 			continue
@@ -62,7 +62,7 @@ func collectHoistedWorkloadKeys(podKeys []string, namespace string, podLabels ma
 	return hoistedKeys
 }
 
-func appendReplicasetChildren(children []*kube.GraphTree, workloadKey string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func appendReplicasetChildren(children []*kube.Tree, workloadKey string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	for _, rsKey := range childKeysOfType(workloadKey, "replicaset", graphChildren, nodeMap) {
 		rsNode := buildTreeNode(rsKey, graphChildren, state, nodeMap)
 		if rsNode != nil {
@@ -87,8 +87,8 @@ func isReplicaSetOwnedByDeployment(metadata map[string]any) bool {
 	return false
 }
 
-func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 
 	metadata := graph.M(workload.AsMap()).Map("metadata").Raw()
 	spec := graph.M(workload.AsMap()).Map("spec").Raw()
@@ -107,7 +107,7 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	if workload.Type == "deployment" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode := NewGraphTree(specKey, "spec", map[string]any{})
+			specNode := NewTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
@@ -115,7 +115,7 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	} else if workload.Type == "daemonset" || workload.Type == "statefulset" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode := NewGraphTree(specKey, "spec", map[string]any{})
+			specNode := NewTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
@@ -138,8 +138,8 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	return children
 }
 
-func buildReplicaSetChildren(rsKey string, rs kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildReplicaSetChildren(rsKey string, rs kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 
 	metadata := graph.M(rs.AsMap()).Map("metadata").Raw()
 	spec := graph.M(rs.AsMap()).Map("spec").Raw()
@@ -159,7 +159,7 @@ func buildReplicaSetChildren(rsKey string, rs kube.Resource, graphChildren map[s
 
 	for _, podKey := range podKeys {
 		if podRes, exists := nodeMap[podKey]; exists {
-			var podNode *kube.GraphTree
+			var podNode *kube.Tree
 			if ownedByDeployment {
 				podNode = buildPodWithSimplifiedContainers(podKey, podRes)
 			} else {
@@ -177,8 +177,8 @@ func buildReplicaSetChildren(rsKey string, rs kube.Resource, graphChildren map[s
 	return children
 }
 
-func buildJobChildren(jobKey string, job kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
-	children := []*kube.GraphTree{}
+func buildJobChildren(jobKey string, job kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
 	children = appendFilteredGraphChildren(children, jobKey, jobFilteredChildTypes, graphChildren, state, nodeMap)
 	sortChildren(children)
 	return children

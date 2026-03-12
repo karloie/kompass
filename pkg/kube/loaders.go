@@ -315,7 +315,7 @@ func LoadNetworkPolicy(provider Kube, namespace string, ctx context.Context, opt
 func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
-		return nil, nil
+		return []Resource{}, nil
 	}
 	cnps, err := cp.GetCiliumNetworkPolicies(namespace, ctx, opts)
 	if err != nil {
@@ -342,7 +342,7 @@ func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Contex
 func LoadCiliumClusterwideNetworkPolicy(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
-		return nil, nil
+		return []Resource{}, nil
 	}
 	ccnps, err := cp.GetCiliumClusterwideNetworkPolicies(ctx, opts)
 	if err != nil {
@@ -471,7 +471,7 @@ func conditionBasedLoad(resourceType string, providerCheck func(Kube) (any, bool
 	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		p, ok := providerCheck(provider)
 		if !ok {
-			return nil, nil
+			return []Resource{}, nil
 		}
 		items, err := getter(p, namespace, ctx, opts)
 		if err != nil {

@@ -80,29 +80,31 @@ type CRDSelector struct {
 	Namespace string
 }
 
-type GraphRequest struct {
+type Request struct {
 	KeySelector string        `json:"keySelector"`
 	CRDSelector []CRDSelector `json:"crdSelector"`
 }
 
-type GraphResponse struct {
-	Graphs []Graph              `json:"graphs"`
+type Graphs struct {
 	Nodes  map[string]*Resource `json:"nodes,omitempty"`
+	Graphs []Graph              `json:"graphs"`
 }
 
 type Graph struct {
-	ID       string               `json:"id"`
-	Edges    []ResourceEdge       `json:"edges"`
-	Nodes    map[string]*Resource `json:"-"`
-	NodeKeys []string             `json:"nodeKeys,omitempty"`
-	Tree     *GraphTree           `json:"tree"`
+	ID    string         `json:"id"`
+	Edges []ResourceEdge `json:"edges,omitempty"`
 }
 
-type GraphTree struct {
+type Trees struct {
+	Nodes map[string]*Resource `json:"nodes,omitempty"`
+	Trees []*Tree              `json:"trees"`
+}
+
+type Tree struct {
 	Key      string         `json:"key"`
 	Type     string         `json:"type"`
 	Meta     map[string]any `json:"metadata"`
-	Children []*GraphTree   `json:"children"`
+	Children []*Tree        `json:"children"`
 }
 
 type Resource struct {

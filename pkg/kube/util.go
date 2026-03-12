@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func trimVerboseMetadata(obj map[string]any) {
 	}
 }
 
-func (r GraphRequest) Selectors() []string {
+func (r Request) Selectors() []string {
 	if r.KeySelector == "" {
 		return nil
 	}
@@ -62,7 +63,7 @@ func (r GraphRequest) Selectors() []string {
 	return selectors
 }
 
-func (r GraphRequest) DefaultNamespace() string {
+func (r Request) DefaultNamespace() string {
 	selectors := r.Selectors()
 	if len(selectors) == 0 {
 		return ""
@@ -89,34 +90,45 @@ func derefSlice[T any](in []*T) []T {
 }
 
 func mockList[M any, L any](config MockConfig, method string, empty L, items []M, wrap func([]M) L) (L, error) {
+	slog.Debug("provider mock call", "method", method, "items", len(items))
 	if config.AllError {
+		slog.Debug("provider mock call failed", "method", method, "error", "mock error")
 		return empty, fmt.Errorf("mock error for %s", method)
 	}
 	if config.AllEmpty {
+		slog.Debug("provider mock call returned empty", "method", method, "reason", "all_empty")
 		return empty, nil
 	}
 	if mb, ok := config.Methods[method]; ok {
 		if mb.ReturnError {
+			slog.Debug("provider mock call failed", "method", method, "error", mb.ErrorMessage)
 			if mb.ErrorMessage == "" {
 				return empty, fmt.Errorf("mock error for %s", method)
 			}
 			return empty, fmt.Errorf("%s", mb.ErrorMessage)
 		}
 		if mb.ReturnEmpty {
+			slog.Debug("provider mock call returned empty", "method", method, "reason", "method_override")
 			return empty, nil
 		}
 	}
+	slog.Debug("provider mock call succeeded", "method", method, "items", len(items))
 	return wrap(items), nil
 }
 
 func mockMapList(config MockConfig, method string, items []map[string]any) ([]map[string]any, error) {
+	slog.Debug("provider mock call", "method", method, "items", len(items))
 	if config.AllError {
+		slog.Debug("provider mock call failed", "method", method, "error", "mock error")
 		return []map[string]any{}, fmt.Errorf("mock error for %s", method)
 	}
+	slog.Debug("provider mock call succeeded", "method", method, "items", len(items))
 	return items, nil
 }
 
 func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionResource, namespace string, namespaced bool, ctx context.Context, opts metav1.ListOptions) ([]map[string]any, error) {
+	start := time.Now()
+	slog.Debug("provider cluster call", "resource", gvr.Resource, "group", gvr.Group, "version", gvr.Version, "namespace", namespace, "selector", opts.LabelSelector)
 	var (
 		list *unstructured.UnstructuredList
 		err  error
@@ -129,7 +141,7 @@ func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionRes
 	}
 
 	if err != nil {
-
+		slog.Debug("provider cluster call failed", "resource", gvr.Resource, "namespace", namespace, "selector", opts.LabelSelector, "duration", time.Since(start).String(), "error", err)
 		return []map[string]any{}, nil
 	}
 
@@ -138,6 +150,7 @@ func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionRes
 		trimVerboseMetadata(item.Object)
 		result = append(result, item.Object)
 	}
+	slog.Debug("provider cluster call succeeded", "resource", gvr.Resource, "namespace", namespace, "selector", opts.LabelSelector, "items", len(result), "duration", time.Since(start).String())
 	return result, nil
 }
 
@@ -155,6 +168,7 @@ func getCacheKey(resourceType, namespace string, opts metav1.ListOptions) string
 func cachedGet[T any](c *Client, resourceType, namespace string, opts metav1.ListOptions, loadFunc func() (T, error)) (T, error) {
 	var empty T
 	if !c.cacheEnabled {
+		slog.Debug("provider call", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", resourceType, "namespace", namespace, "selector", opts.LabelSelector, "cached", false)
 		return retryWithBackoff(c, loadFunc)
 	}
 
@@ -169,6 +183,7 @@ func cachedGet[T any](c *Client, resourceType, namespace string, opts metav1.Lis
 			c.cacheMutex.Lock()
 			c.cacheHits++
 			c.cacheMutex.Unlock()
+			slog.Debug("provider cache hit", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", resourceType, "namespace", namespace, "selector", opts.LabelSelector)
 			return val, nil
 		}
 	}
@@ -177,11 +192,15 @@ func cachedGet[T any](c *Client, resourceType, namespace string, opts metav1.Lis
 	c.cacheMisses++
 	c.cacheMutex.Unlock()
 
+	start := time.Now()
+	slog.Debug("provider call", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", resourceType, "namespace", namespace, "selector", opts.LabelSelector, "cached", true)
 	result, err := retryWithBackoff(c, loadFunc)
 	if err != nil {
+		slog.Debug("provider call failed", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", resourceType, "namespace", namespace, "selector", opts.LabelSelector, "duration", time.Since(start).String(), "error", err)
 		return empty, err
 	}
 	c.cache.set(key, result, c.cacheTTL)
+	slog.Debug("provider call succeeded", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", resourceType, "namespace", namespace, "selector", opts.LabelSelector, "duration", time.Since(start).String())
 	return result, nil
 }
 

@@ -480,6 +480,10 @@ func addGatewayResources(model *kube.InMemoryModel) {
 				"long-lived.bunny.mock.no",
 			},
 			"secretName": "long-lived-cert-secret",
+			"issuerRef": map[string]any{
+				"kind": "Issuer",
+				"name": "management-ca",
+			},
 		},
 		"status": map[string]any{
 			"notAfter": time.Now().Add(60 * 24 * time.Hour).Format(time.RFC3339),
@@ -490,6 +494,21 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"reason":  "Ready",
 					"message": "Certificate is up to date and has not expired",
 				},
+			},
+		},
+	})
+
+	model.Issuers = append(model.Issuers, map[string]any{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Issuer",
+		"metadata": map[string]any{
+			"name":      "management-ca",
+			"namespace": "management",
+			"uid":       "d3e3f3a3-6789-abcd-ef01-23456789abcd",
+		},
+		"spec": map[string]any{
+			"ca": map[string]any{
+				"secretName": "management-ca-keypair",
 			},
 		},
 	})

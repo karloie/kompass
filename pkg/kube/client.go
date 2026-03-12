@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"log/slog"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -176,18 +177,23 @@ func (c *Client) GetEventsForObject(namespace string, ctx context.Context, opts 
 }
 
 func (c *Client) GetPodLogs(namespace, name string) (string, error) {
+	slog.Debug("provider call", "provider", map[bool]string{true: "mock", false: "cluster"}[c.mockMode], "resource", "podlogs", "namespace", namespace, "name", name)
 	if c.mockMode {
 		key := namespace + "/" + name
 		if logs, ok := c.mockModel.PodLogs[key]; ok {
+			slog.Debug("provider call succeeded", "provider", "mock", "resource", "podlogs", "namespace", namespace, "name", name, "bytes", len(logs))
 			return logs, nil
 		}
+		slog.Debug("provider call succeeded", "provider", "mock", "resource", "podlogs", "namespace", namespace, "name", name, "bytes", 0)
 		return "", nil
 	}
 	req := c.clientset.CoreV1().Pods(namespace).GetLogs(name, &corev1.PodLogOptions{})
 	logs, err := req.DoRaw(context.Background())
 	if err != nil {
+		slog.Debug("provider call failed", "provider", "cluster", "resource", "podlogs", "namespace", namespace, "name", name, "error", err)
 		return "", err
 	}
+	slog.Debug("provider call succeeded", "provider", "cluster", "resource", "podlogs", "namespace", namespace, "name", name, "bytes", len(logs))
 	return string(logs), nil
 }
 

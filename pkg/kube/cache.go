@@ -82,7 +82,7 @@ func (c *Client) ClearCache() {
 	}
 }
 
-func (c *Client) GetCacheStats() map[string]interface{} {
+func (c *Client) GetStats() map[string]interface{} {
 	c.lastSyncMutex.RLock()
 	lastSyncTime := c.lastSyncTime
 	c.lastSyncMutex.RUnlock()

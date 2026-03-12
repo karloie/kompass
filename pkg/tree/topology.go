@@ -6,7 +6,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func appendGraphChildren(parentKey string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func appendGraphChildren(parentKey string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	builder := NewChildrenBuilder()
 	for _, childKey := range graphChildren[parentKey] {
 		if state.CanTraverse(childKey) {
@@ -26,7 +26,7 @@ func childKeysOfType(parentKey string, childType string, graphChildren map[strin
 	return keys
 }
 
-func appendFilteredGraphChildren(children []*kube.GraphTree, parentKey string, excludedTypes map[string]bool, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.GraphTree {
+func appendFilteredGraphChildren(children []*kube.Tree, parentKey string, excludedTypes map[string]bool, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	for _, childKey := range graphChildren[parentKey] {
 		if !state.CanTraverse(childKey) {
 			continue

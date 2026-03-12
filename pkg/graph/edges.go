@@ -103,7 +103,7 @@ func findWorkloadRoot(key string, keyType string, nodeMap map[string]kube.Resour
 	return ""
 }
 
-func InferGraphs(provider kube.Kube, req kube.GraphRequest) (*kube.GraphResponse, error) {
+func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Graphs, error) {
 	selectors := req.Selectors()
 	defaultNamespace := req.DefaultNamespace()
 
@@ -142,6 +142,7 @@ func InferGraphs(provider kube.Kube, req kube.GraphRequest) (*kube.GraphResponse
 	}
 
 	if hasRoutesOrIngress {
+		loadedExtraCertNamespaces := make(map[string]bool)
 		if certTask, ok := ResourceTypes["certificate"]; ok && certTask.Loader != nil {
 			certNamespaces := []string{"management", "cert-manager", "gateway-system", "istio-system"}
 			if envNs := os.Getenv("KOMPASS_CERT_NAMESPACES"); envNs != "" {
@@ -151,7 +152,20 @@ func InferGraphs(provider kube.Kube, req kube.GraphRequest) (*kube.GraphResponse
 				if ns = strings.TrimSpace(ns); ns == "" || namespaces[ns] {
 					continue
 				}
+				loadedExtraCertNamespaces[ns] = true
 				if resources, err := certTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+					for _, r := range resources {
+						if _, exists := nodeMap[r.Key]; !exists {
+							nodeMap[r.Key] = r
+						}
+					}
+				}
+			}
+		}
+
+		if issuerTask, ok := ResourceTypes["issuer"]; ok && issuerTask.Loader != nil {
+			for ns := range loadedExtraCertNamespaces {
+				if resources, err := issuerTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r
@@ -220,7 +234,7 @@ func InferGraphs(provider kube.Kube, req kube.GraphRequest) (*kube.GraphResponse
 	return buildGraphs(keys, edges, nodeMap), nil
 }
 
-func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.GraphResponse {
+func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Graphs {
 	neighbors := make(map[string][]string)
 	for _, e := range edges {
 		if e.Source != "" && e.Target != "" {
@@ -417,15 +431,11 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 		responseNodes[n.Key] = &nCopy
 	}
 
-	return &kube.GraphResponse{Graphs: graphs, Nodes: responseNodes}
+	return &kube.Graphs{Graphs: graphs, Nodes: responseNodes}
 }
 
 func buildGraph(id string, visited map[string]bool, _ map[string]bool, _ map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {
-	graph := kube.Graph{ID: id, NodeKeys: make([]string, 0, len(visited))}
-	for key := range visited {
-		graph.NodeKeys = append(graph.NodeKeys, key)
-	}
-	sort.Strings(graph.NodeKeys)
+	graph := kube.Graph{ID: id}
 
 	for _, e := range edges {
 		if visited[e.Source] && visited[e.Target] {

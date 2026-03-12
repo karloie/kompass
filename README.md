@@ -117,7 +117,8 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 | `--namespace <name>` | `-n` | Namespace |
 | `--mock` | | Use mock data |
 | `--json` | | JSON output |
-| `--plain` | | Plain output |
+| `--plain` | | Plain output without ANSI colors |
+| `--debug` | `-d` | Enable debug logging |
 | `--service [addr]` | | Start server (`:8080`) |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
@@ -206,12 +207,16 @@ kompass --service --namespace production --context prod
 
 # Using mock data
 kompass --service --mock
+
+# Enable debug logging
+kompass --debug '*/petshop/*'
 ```
 
 ### Available Output Formats
 
-- **Text** - ASCII tree (`/tree`)
-- **JSON** - Raw graph data (`/graph`)
+- **JSON Graph** - Graph-oriented JSON (`/graph`)
+- **JSON Tree** - Tree-oriented JSON (`/tree`)
+- **Text Tree** - ASCII tree rendering (`/tree/text`)
 
 ### REST API
 
@@ -232,8 +237,11 @@ curl "http://localhost:8080/graph?selector=deployment/myapp/frontend&namespace=d
 # JSON graph in mock mode
 curl "http://localhost:8080/graph?mock=mock&selector=*/petshop/*"
 
-# ASCII tree
+# JSON tree
 curl "http://localhost:8080/tree?namespace=production&selector=pod/production/myapp"
+
+# ASCII tree
+curl "http://localhost:8080/tree/text?namespace=production&selector=pod/production/myapp"
 
 # Health check
 curl "http://localhost:8080/healthz"  # Liveness
