@@ -15,7 +15,8 @@ func printHelp() {
 Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
-  --service [addr]         Start web server (format: :port or host:port, default :8080)
+	--service [addr]         Start web server (or TUI dashboard with --tui)
+  --tui                    Start interactive terminal UI
   --json                   JSON output
   --mock <name>            Mock provider (mock)
   --plain                  Plain output without ANSI colors

@@ -270,7 +270,7 @@ make test
 ### Coverage Report
 
 ```bash
-make cover
+make coverage
 ```
 
 ### Running Locally

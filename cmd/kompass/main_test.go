@@ -98,6 +98,29 @@ func TestMainDebugFlagHonored(t *testing.T) {
 	}
 }
 
+func TestResolveExecutionMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		tui     bool
+		service bool
+		want    executionMode
+	}{
+		{name: "cli", tui: false, service: false, want: modeCLI},
+		{name: "service", tui: false, service: true, want: modeService},
+		{name: "tui selector", tui: true, service: false, want: modeTUISelector},
+		{name: "service and tui compatible", tui: true, service: true, want: modeTUIDashboard},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveExecutionMode(tc.tui, tc.service)
+			if got != tc.want {
+				t.Fatalf("resolveExecutionMode(%t, %t)=%v, want %v", tc.tui, tc.service, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMainServiceStartsServer(t *testing.T) {
 	port := freePort(t)
 	res, cmd, cancel := runHelperBackground(t, "--mock", "--debug", "--service", fmt.Sprintf(":%d", port))

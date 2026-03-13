@@ -11,6 +11,7 @@ import (
 	"github.com/karloie/kompass/pkg/mock"
 	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
+	"github.com/karloie/kompass/pkg/tui"
 )
 
 var (
@@ -57,6 +58,15 @@ type serviceFlag struct {
 	set  bool
 	addr string
 }
+
+type executionMode int
+
+const (
+	modeCLI executionMode = iota
+	modeService
+	modeTUISelector
+	modeTUIDashboard
+)
 
 func (s *serviceFlag) String() string {
 	if s == nil {
@@ -108,6 +118,7 @@ func main() {
 	debugArg := flag.Bool("debug", false, "Enable debug logging")
 	jsonArg := flag.Bool("json", false, "JSON output")
 	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
+	tuiArg := flag.Bool("tui", false, "Start interactive terminal UI")
 	serviceArg := &serviceFlag{}
 	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
@@ -135,7 +146,15 @@ func main() {
 		os.Exit(0)
 	}
 	selectors := flag.Args()
-	if serviceArg.set {
+
+	switch resolveExecutionMode(*tuiArg, serviceArg.set) {
+	case modeTUIDashboard:
+		if err := tui.Run(tui.Options{Mode: tui.ModeServerDashboard, OutputJSON: *jsonArg, Plain: *plainArg}); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	case modeService:
 		addr := serviceArg.addr
 		if addr == "" {
 			addr = ":8080"
@@ -170,11 +189,40 @@ func main() {
 	}
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)
 
+	if resolveExecutionMode(*tuiArg, serviceArg.set) == modeTUISelector {
+		selectorResult := tree.BuildResponseTree(result)
+		if err := tui.Run(tui.Options{
+			Mode:       tui.ModeSelector,
+			Trees:      selectorResult,
+			Context:    context_,
+			Namespace:  namespace_,
+			OutputJSON: *jsonArg,
+			Plain:      *plainArg,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
 	} else {
 		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
 	}
+}
+
+func resolveExecutionMode(tuiEnabled, serviceEnabled bool) executionMode {
+	if tuiEnabled && serviceEnabled {
+		return modeTUIDashboard
+	}
+	if serviceEnabled {
+		return modeService
+	}
+	if tuiEnabled {
+		return modeTUISelector
+	}
+	return modeCLI
 }
 
 func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
