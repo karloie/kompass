@@ -482,7 +482,7 @@ func TestBuildPodChildren_EnvSecretStoreMetadataAndSecretStoreLeaves(t *testing.
 					map[string]any{
 						"name": "app",
 						"env": []any{
-							map[string]any{"name": "NEO_DB_PASSWORD", "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": "petshop-db-secrets", "key": "PBS-DATABASE-PASSWORD"}}},
+							map[string]any{"name": "NEO_DB_PASSWORD", "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": "petshop-db-secrets", "key": "PSB-DATABASE-PASSWORD"}}},
 						},
 					},
 				},
@@ -572,7 +572,7 @@ func TestBuildPodChildren_EnvSecretStoreMetadataAndSecretStoreLeaves(t *testing.
 					if value, _ := secretChild.Meta["value"].(string); value != "<SECRET>" {
 						continue
 					}
-					if key, _ := secretChild.Meta["key"].(string); key != "PBS-DATABASE-PASSWORD" {
+					if key, _ := secretChild.Meta["key"].(string); key != "PSB-DATABASE-PASSWORD" {
 						continue
 					}
 					foundEnvUsageUnderSyncedSecret = true

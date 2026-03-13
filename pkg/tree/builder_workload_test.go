@@ -43,7 +43,7 @@ func TestBuildCronJobChildren_ExpandsFocusJobAndKeepsPodLeavesForHistory(t *test
 			Resource: map[string]any{
 				"metadata": map[string]any{"name": "fiskeoye-repo-update-29552220-nz92p", "namespace": "applikasjonsplattform"},
 				"status":   map[string]any{"phase": "Succeeded", "podIP": "10.244.9.131"},
-				"spec":     map[string]any{"nodeName": "tool-test-01-worker-055ceed2"},
+				"spec":     map[string]any{"nodeName": "test-01-worker-055ceed2"},
 			},
 		},
 		activePodKey: {
@@ -53,7 +53,7 @@ func TestBuildCronJobChildren_ExpandsFocusJobAndKeepsPodLeavesForHistory(t *test
 				"metadata": map[string]any{"name": "fiskeoye-repo-update-29555460-fzd8m", "namespace": "applikasjonsplattform"},
 				"status":   map[string]any{"phase": "Running", "podIP": "10.244.9.25"},
 				"spec": map[string]any{
-					"nodeName": "tool-test-01-worker-055ceed2",
+					"nodeName": "test-01-worker-055ceed2",
 					"containers": []any{
 						map[string]any{"name": "kubectl-exec", "image": "bitnami/kubectl:latest"},
 					},
