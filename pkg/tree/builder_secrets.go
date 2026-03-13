@@ -17,6 +17,18 @@ func newSecretReferenceNode(nodeMap map[string]kube.Resource, namespace, secretN
 	return NewTree(secretKey, "secret", nil)
 }
 
+func secretProviderClassResourceKey(namespace, name string) string {
+	return BuildResourceKeyRef("secretproviderclass", namespace, name)
+}
+
+func newSecretProviderClassReferenceNode(nodeMap map[string]kube.Resource, namespace, name string) *kube.Tree {
+	key := secretProviderClassResourceKey(namespace, name)
+	if _, exists := nodeMap[key]; !exists {
+		return nil
+	}
+	return NewTree(key, "secretproviderclass", nil)
+}
+
 func lookupSecretDataValue(nodeMap map[string]kube.Resource, namespace, secretName, key string) (string, bool) {
 	secretKey := secretResourceKey(namespace, secretName)
 	secretResource, exists := nodeMap[secretKey]

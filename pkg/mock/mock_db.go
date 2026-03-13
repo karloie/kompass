@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"time"
+
 	kube "github.com/karloie/kompass/pkg/kube"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +23,9 @@ func addDBApp(model *kube.InMemoryModel) {
 	podUID := types.UID("a3a5cea1-2b55-41de-8612-842f1bb9c7e7")
 	podName := "petshop-db-5cb9cd8b74-pqhk9"
 	podIP := "10.244.9.90"
+	problemPodUID := types.UID("be9d2b21-3d77-4566-8f81-2f535f4dbf32")
+	problemPodName := "petshop-db-5cb9cd8b74-qx7m2"
+	problemPodIP := "10.244.9.91"
 	serviceUID := types.UID("e29025e1-ad63-4ed8-99d6-5e57c44400f4")
 	serviceName := "petshop-db-service"
 	pvcUID := types.UID("dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522")
@@ -72,19 +77,7 @@ func addDBApp(model *kube.InMemoryModel) {
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			"PETSHOP-DATABASE-PASSWORD": []byte("R1NYZ0xYMVI1WUlhbTNvOG5OaEQ1OWlUY0xia0Za"),
-		},
-	})
-
-	model.Secrets = append(model.Secrets, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "petshop-db-secret",
-			Namespace: namespace,
-			UID:       "ce19789a-c10f-45b1-a0ad-856586b6e8cf",
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"password": []byte("dGVzdC1wYXNzd29yZC0xMjM="),
+			"PBS-DATABASE-PASSWORD": []byte("R1NYZ0xYMVI1WUlhbTNvOG5OaEQ1OWlUY0xia0Za"),
 		},
 	})
 
@@ -103,7 +96,7 @@ func addDBApp(model *kube.InMemoryModel) {
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: "petshop-db-secrets",
 						},
-						Key: "PETSHOP-DATABASE-PASSWORD",
+						Key: "PBS-DATABASE-PASSWORD",
 					},
 				},
 			},
@@ -178,7 +171,7 @@ func addDBApp(model *kube.InMemoryModel) {
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To(int32(1)),
+			Replicas: ptr.To(int32(2)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app.kubernetes.io/instance": "petshop-db",
@@ -191,8 +184,11 @@ func addDBApp(model *kube.InMemoryModel) {
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: "petshop-db",
-					SecurityContext:    podSecurityContext,
-					Containers:         []corev1.Container{containerSpec},
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{Name: "docker-registry-credentials"},
+					},
+					SecurityContext: podSecurityContext,
+					Containers:      []corev1.Container{containerSpec},
 					Volumes: []corev1.Volume{
 						{
 							Name: "tmp",
@@ -203,13 +199,13 @@ func addDBApp(model *kube.InMemoryModel) {
 							},
 						},
 						{
-							Name: "tlosappplatt",
+							Name: "petshopvault",
 							VolumeSource: corev1.VolumeSource{
 								CSI: &corev1.CSIVolumeSource{
 									Driver:   "secrets-store.csi.k8s.io",
 									ReadOnly: ptr.To(true),
 									VolumeAttributes: map[string]string{
-										"secretProviderClass": "petshop-db-tlosappplatt",
+										"secretProviderClass": "petshop-db-vault",
 									},
 								},
 							},
@@ -227,11 +223,11 @@ func addDBApp(model *kube.InMemoryModel) {
 			},
 		},
 		Status: appsv1.DeploymentStatus{
-			Replicas:            1,
-			UpdatedReplicas:     1,
+			Replicas:            2,
+			UpdatedReplicas:     2,
 			ReadyReplicas:       1,
 			AvailableReplicas:   1,
-			UnavailableReplicas: 0,
+			UnavailableReplicas: 1,
 			Conditions: []appsv1.DeploymentCondition{
 				{
 					Type:   appsv1.DeploymentAvailable,
@@ -265,7 +261,7 @@ func addDBApp(model *kube.InMemoryModel) {
 			},
 		},
 		Spec: appsv1.ReplicaSetSpec{
-			Replicas: ptr.To(int32(1)),
+			Replicas: ptr.To(int32(2)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app.kubernetes.io/instance": "petshop-db",
@@ -279,8 +275,11 @@ func addDBApp(model *kube.InMemoryModel) {
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: "petshop-db",
-					SecurityContext:    podSecurityContext,
-					Containers:         []corev1.Container{containerSpec},
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{Name: "docker-registry-credentials"},
+					},
+					SecurityContext: podSecurityContext,
+					Containers:      []corev1.Container{containerSpec},
 					Volumes: []corev1.Volume{
 						{
 							Name: "tmp",
@@ -291,13 +290,13 @@ func addDBApp(model *kube.InMemoryModel) {
 							},
 						},
 						{
-							Name: "tlosappplatt",
+							Name: "petshopvault",
 							VolumeSource: corev1.VolumeSource{
 								CSI: &corev1.CSIVolumeSource{
 									Driver:   "secrets-store.csi.k8s.io",
 									ReadOnly: ptr.To(true),
 									VolumeAttributes: map[string]string{
-										"secretProviderClass": "petshop-db-tlosappplatt",
+										"secretProviderClass": "petshop-db-vault",
 									},
 								},
 							},
@@ -315,7 +314,7 @@ func addDBApp(model *kube.InMemoryModel) {
 			},
 		},
 		Status: appsv1.ReplicaSetStatus{
-			Replicas:          1,
+			Replicas:          2,
 			ReadyReplicas:     1,
 			AvailableReplicas: 1,
 		},
@@ -324,7 +323,7 @@ func addDBApp(model *kube.InMemoryModel) {
 	containerSpecWithMounts := containerSpec
 	containerSpecWithMounts.VolumeMounts = []corev1.VolumeMount{
 		{Name: "tmp", MountPath: "/tmp"},
-		{Name: "tlosappplatt", MountPath: "/mnt/secrets", ReadOnly: true},
+		{Name: "petshopvault", MountPath: "/mnt/secrets", ReadOnly: true},
 		{Name: "petshop-db-data", MountPath: "/data"},
 	}
 
@@ -346,10 +345,13 @@ func addDBApp(model *kube.InMemoryModel) {
 			},
 		},
 		Spec: corev1.PodSpec{
-			NodeName:           "bunny-01-worker-055ceed2",
+			NodeName:           "psb-01-worker-055ceed2",
 			ServiceAccountName: "petshop-db",
-			SecurityContext:    podSecurityContext,
-			Containers:         []corev1.Container{containerSpecWithMounts},
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{Name: "docker-registry-credentials"},
+			},
+			SecurityContext: podSecurityContext,
+			Containers:      []corev1.Container{containerSpecWithMounts},
 			Volumes: []corev1.Volume{
 				{
 					Name: "tmp",
@@ -360,13 +362,13 @@ func addDBApp(model *kube.InMemoryModel) {
 					},
 				},
 				{
-					Name: "tlosappplatt",
+					Name: "petshopvault",
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:   "secrets-store.csi.k8s.io",
 							ReadOnly: ptr.To(true),
 							VolumeAttributes: map[string]string{
-								"secretProviderClass": "petshop-db-tlosappplatt",
+								"secretProviderClass": "petshop-db-vault",
 							},
 						},
 					},
@@ -387,10 +389,106 @@ func addDBApp(model *kube.InMemoryModel) {
 			PodIPs: []corev1.PodIP{
 				{IP: podIP},
 			},
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:    "app",
+					Ready:   true,
+					Started: ptr.To(true),
+					Image:   "docker-hub/neo4j:5.26.20-community-ubi9",
+					ImageID: "docker-hub/neo4j@sha256:mock-petshop-db",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Date(2026, time.March, 12, 10, 0, 0, 0, time.UTC))},
+					},
+				},
+			},
 			Conditions: []corev1.PodCondition{
 				{
 					Type:   corev1.PodReady,
 					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	})
+
+	model.Pods = append(model.Pods, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      problemPodName,
+			Namespace: namespace,
+			UID:       problemPodUID,
+			Labels:    labelsWithHash,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "apps/v1",
+					Kind:               "ReplicaSet",
+					Name:               replicaSetName,
+					UID:                replicaSetUID,
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:           "psb-01-worker-055ceed2",
+			ServiceAccountName: "petshop-db",
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{Name: "docker-registry-credentials"},
+			},
+			SecurityContext: podSecurityContext,
+			Containers:      []corev1.Container{containerSpecWithMounts},
+			Volumes: []corev1.Volume{
+				{
+					Name: "tmp",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{
+							Medium: corev1.StorageMediumMemory,
+						},
+					},
+				},
+				{
+					Name: "petshopvault",
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							Driver:   "secrets-store.csi.k8s.io",
+							ReadOnly: ptr.To(true),
+							VolumeAttributes: map[string]string{
+								"secretProviderClass": "petshop-db-vault",
+							},
+						},
+					},
+				},
+				{
+					Name: "petshop-db-data",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "petshop-db-data",
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			PodIP: problemPodIP,
+			PodIPs: []corev1.PodIP{
+				{IP: problemPodIP},
+			},
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:         "app",
+					Ready:        false,
+					Started:      ptr.To(false),
+					RestartCount: 6,
+					Image:        "docker-hub/neo4j:5.26.20-community-ubi9",
+					ImageID:      "docker-hub/neo4j@sha256:mock-petshop-db-bad",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"},
+					},
+				},
+			},
+			Conditions: []corev1.PodCondition{
+				{
+					Type:   corev1.PodReady,
+					Status: corev1.ConditionFalse,
 				},
 			},
 		},
@@ -471,7 +569,7 @@ func addDBApp(model *kube.InMemoryModel) {
 		},
 		Spec: storagev1.VolumeAttachmentSpec{
 			Attacher: "pd.csi.storage.gke.io",
-			NodeName: "bunny-01-worker-055ceed2",
+			NodeName: "psb-01-worker-055ceed2",
 			Source: storagev1.VolumeAttachmentSource{
 				PersistentVolumeName: ptr.To(pvName),
 			},
@@ -525,12 +623,24 @@ func addDBApp(model *kube.InMemoryModel) {
 				Addresses: []corev1.EndpointAddress{
 					{
 						IP:       podIP,
-						NodeName: ptr.To("bunny-01-worker-055ceed2"),
+						NodeName: ptr.To("psb-01-worker-055ceed2"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Name:      podName,
 							Namespace: namespace,
 							UID:       podUID,
+						},
+					},
+				},
+				NotReadyAddresses: []corev1.EndpointAddress{
+					{
+						IP:       problemPodIP,
+						NodeName: ptr.To("psb-01-worker-055ceed2"),
+						TargetRef: &corev1.ObjectReference{
+							Kind:      "Pod",
+							Name:      problemPodName,
+							Namespace: namespace,
+							UID:       problemPodUID,
 						},
 					},
 				},
@@ -571,12 +681,27 @@ func addDBApp(model *kube.InMemoryModel) {
 					Serving:     ptr.To(true),
 					Terminating: ptr.To(false),
 				},
-				NodeName: ptr.To("bunny-01-worker-055ceed2"),
+				NodeName: ptr.To("psb-01-worker-055ceed2"),
 				TargetRef: &corev1.ObjectReference{
 					Kind:      "Pod",
 					Name:      podName,
 					Namespace: namespace,
 					UID:       podUID,
+				},
+			},
+			{
+				Addresses: []string{problemPodIP},
+				Conditions: discoveryv1.EndpointConditions{
+					Ready:       ptr.To(false),
+					Serving:     ptr.To(false),
+					Terminating: ptr.To(false),
+				},
+				NodeName: ptr.To("psb-01-worker-055ceed2"),
+				TargetRef: &corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      problemPodName,
+					Namespace: namespace,
+					UID:       problemPodUID,
 				},
 			},
 		},
@@ -594,39 +719,4 @@ func addDBApp(model *kube.InMemoryModel) {
 		},
 	})
 
-	model.Secrets = append(model.Secrets, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "petshop-motor-secret",
-			Namespace: namespace,
-			UID:       "motor-orphan-uuid-123",
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"SA-PETSHOP-MOTOR-PASSWORD": []byte("b3JwaGFuZWQtbW90b3Itc2VjcmV0"),
-		},
-	})
-
-	model.Secrets = append(model.Secrets, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "petshop-web-secret",
-			Namespace: namespace,
-			UID:       "web-orphan-uuid-456",
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"PETSHOP-WEB-CLIENT-SECRET": []byte("b3JwaGFuZWQtd2ViLXNlY3JldA=="),
-		},
-	})
-
-	model.Secrets = append(model.Secrets, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "petshop-webservice-secret",
-			Namespace: namespace,
-			UID:       "webservice-orphan-uuid-789",
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"API_KEY": []byte("b3JwaGFuZWQtd2Vic2VydmljZS1zZWNyZXQ="),
-		},
-	})
 }

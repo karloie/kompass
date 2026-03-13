@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"time"
+
 	kube "github.com/karloie/kompass/pkg/kube"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -104,6 +106,18 @@ func addZookeeperStatefulSet(model *kube.InMemoryModel) {
 			Status: corev1.PodStatus{
 				Phase: corev1.PodRunning,
 				PodIP: "10.244.10." + string(rune('1'+i)),
+				ContainerStatuses: []corev1.ContainerStatus{
+					{
+						Name:    "zookeeper",
+						Ready:   true,
+						Started: ptr.To(true),
+						Image:   "docker-hub/zookeeper:3.8.3",
+						ImageID: "docker-hub/zookeeper:3.8.3@sha256:mock-zookeeper-" + string(rune('0'+i)),
+						State: corev1.ContainerState{
+							Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Date(2026, time.March, 12, 10, 0, 0, 0, time.UTC))},
+						},
+					},
+				},
 			},
 		}
 		model.Pods = append(model.Pods, pod)

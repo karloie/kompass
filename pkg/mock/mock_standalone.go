@@ -128,7 +128,7 @@ func addStandaloneResources(model *kube.InMemoryModel) {
 	minAvailable := intstr.FromInt(2)
 	model.PodDisruptionBudgets = append(model.PodDisruptionBudgets, &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "petshop-motor-pdb",
+			Name:      "petshop-tennant-pdb",
 			Namespace: "petshop",
 			UID:       "pdb-motor-uuid",
 		},
@@ -136,7 +136,7 @@ func addStandaloneResources(model *kube.InMemoryModel) {
 			MinAvailable: &minAvailable,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app.kubernetes.io/name": "petshop-motor",
+					"app.kubernetes.io/name": "petshop-tennant",
 				},
 			},
 		},

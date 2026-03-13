@@ -45,6 +45,10 @@ func init() {
 		{Type: "secret", Field: "type", Path: "$.type", Format: "string", Condition: "notEmpty"},
 		{Type: "secret", Field: "keys", Path: "$", Format: "secretKeys"},
 
+		{Type: "secretproviderclass", Field: "namespace", Path: "$.metadata.namespace", Format: "string"},
+		{Type: "secretproviderclass", Field: "provider", Path: "$.spec.provider", Format: "string", Condition: "notEmpty"},
+		{Type: "secretproviderclass", Field: "secretObjects", Path: "$.spec.secretObjects", Format: "secretObjectCount", Condition: "notEmpty"},
+
 		{Type: "configmap", Field: "namespace", Path: "$.metadata.namespace", Format: "string"},
 		{Type: "configmap", Field: "keys", Path: "$", Format: "configMapKeys"},
 
@@ -301,6 +305,9 @@ func formatMetadataValue(value any, format string, fullResource map[string]any, 
 
 	case "secretKeys":
 		return countSecretKeys(fullResource)
+
+	case "secretObjectCount":
+		return countSecretObjects(value)
 
 	case "configMapKeys":
 		return countConfigMapKeys(fullResource)
@@ -590,6 +597,17 @@ func countConfigMapKeys(fullResource map[string]any) any {
 		return count
 	}
 	return nil
+}
+
+func countSecretObjects(value any) any {
+	secretObjects, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	if len(secretObjects) == 0 {
+		return nil
+	}
+	return len(secretObjects)
 }
 
 func formatCertConditions(value any) any {

@@ -102,6 +102,90 @@ func FilterOwnedJobRoots(result *kube.Graphs) {
 	result.Graphs = filtered
 }
 
+// FilterOwnedSecretRoots removes Secret graph roots when their owning workload is also a graph root.
+func FilterOwnedSecretRoots(result *kube.Graphs) {
+	if result == nil || len(result.Graphs) < 2 {
+		return
+	}
+
+	rootIDs := make(map[string]bool, len(result.Graphs))
+	for _, g := range result.Graphs {
+		rootIDs[g.ID] = true
+	}
+
+	filtered := make([]kube.Graph, 0, len(result.Graphs))
+	for _, g := range result.Graphs {
+		if ParseResourceKeyRef(g.ID).Type != "secret" {
+			filtered = append(filtered, g)
+			continue
+		}
+
+		rootNode := rootNodeForGraph(result, &g)
+		if rootNode == nil {
+			filtered = append(filtered, g)
+			continue
+		}
+
+		namespace, ownerRefs := ownerRefsFromResource(rootNode)
+		removeSecretRoot := false
+		for _, owner := range ownerRefs {
+			ownerKind := strings.ToLower(stringMapValue(owner, "kind"))
+			ownerName := stringMapValue(owner, "name")
+			if ownerKind == "" || ownerName == "" {
+				continue
+			}
+
+			if ownerOrAncestorIsRoot(ownerKind, namespace, ownerName, rootIDs, result.Nodes, map[string]bool{}) {
+				removeSecretRoot = true
+				break
+			}
+		}
+
+		if removeSecretRoot {
+			continue
+		}
+
+		filtered = append(filtered, g)
+	}
+
+	result.Graphs = filtered
+}
+
+func ownerOrAncestorIsRoot(ownerType, namespace, ownerName string, rootIDs map[string]bool, nodes map[string]*kube.Resource, visited map[string]bool) bool {
+	ownerKey := BuildResourceKeyRef(ownerType, namespace, ownerName)
+	if rootIDs[ownerKey] {
+		return true
+	}
+
+	if visited[ownerKey] {
+		return false
+	}
+	visited[ownerKey] = true
+
+	ownerNode, ok := nodes[ownerKey]
+	if !ok || ownerNode == nil {
+		return false
+	}
+
+	ownerNamespace, ownerRefs := ownerRefsFromResource(ownerNode)
+	if ownerNamespace == "" {
+		ownerNamespace = namespace
+	}
+
+	for _, ref := range ownerRefs {
+		nextType := strings.ToLower(stringMapValue(ref, "kind"))
+		nextName := stringMapValue(ref, "name")
+		if nextType == "" || nextName == "" {
+			continue
+		}
+		if ownerOrAncestorIsRoot(nextType, ownerNamespace, nextName, rootIDs, nodes, visited) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func rootNodeForGraph(result *kube.Graphs, g *kube.Graph) *kube.Resource {
 	if result != nil && result.Nodes != nil {
 		if node := result.Nodes[g.ID]; node != nil {

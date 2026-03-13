@@ -50,10 +50,6 @@ func (rc *resourceCache) size() int {
 	return len(rc.entries)
 }
 
-func (c *Client) getCacheKey(resourceType, namespace string, opts metav1.ListOptions) string {
-	return getCacheKey(resourceType, namespace, opts)
-}
-
 func (c *Client) StartSync(interval time.Duration, namespaces []string) error {
 	if c.mockMode {
 		return nil

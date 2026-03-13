@@ -628,3 +628,14 @@ func (c *Client) GetClusterIssuers(ctx context.Context, opts metav1.ListOptions)
 		Resource: "clusterissuers",
 	}, "", false, ctx, opts)
 }
+
+func (c *Client) GetSecretProviderClasses(namespace string, ctx context.Context, opts metav1.ListOptions) ([]map[string]any, error) {
+	if c.mockMode {
+		return mockMapList(c.mockConfig, "GetSecretProviderClasses", c.mockModel.SecretProviderClasses)
+	}
+	return listDynamicResourceObjects(c.dynamicClient, schema.GroupVersionResource{
+		Group:    "secrets-store.csi.x-k8s.io",
+		Version:  "v1",
+		Resource: "secretproviderclasses",
+	}, namespace, true, ctx, opts)
+}

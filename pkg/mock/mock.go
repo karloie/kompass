@@ -34,6 +34,11 @@ func GenerateMock() *kube.InMemoryModel {
 	addMotorApp(model)
 	addWebApp(model)
 	addWebServiceApp(model)
+	addMotorCronWorkloads(model)
+	addNodeAgentDaemonSet(model)
+	addLedgerStatefulSet(model)
+	addCoverageSignalResources(model)
+	addSecretProviderClasses(model)
 
 	addKafkaApp(model)
 
@@ -42,4 +47,65 @@ func GenerateMock() *kube.InMemoryModel {
 	addStandaloneResources(model)
 
 	return model
+}
+
+func addSecretProviderClasses(model *kube.InMemoryModel) {
+	model.SecretProviderClasses = append(model.SecretProviderClasses,
+		map[string]any{
+			"apiVersion": "secrets-store.csi.x-k8s.io/v1",
+			"kind":       "SecretProviderClass",
+			"metadata": map[string]any{
+				"name":      "petshop-tennant-petshopvault",
+				"namespace": "petshop",
+			},
+			"spec": map[string]any{
+				"provider": "azure",
+				"secretObjects": []any{
+					map[string]any{"secretName": "petshop-tennant-secrets"},
+				},
+			},
+		},
+		map[string]any{
+			"apiVersion": "secrets-store.csi.x-k8s.io/v1",
+			"kind":       "SecretProviderClass",
+			"metadata": map[string]any{
+				"name":      "petshop-frontend-girls-petshopvault",
+				"namespace": "petshop",
+			},
+			"spec": map[string]any{
+				"provider": "azure",
+				"secretObjects": []any{
+					map[string]any{"secretName": "petshop-frontend-girls-secrets"},
+				},
+			},
+		},
+		map[string]any{
+			"apiVersion": "secrets-store.csi.x-k8s.io/v1",
+			"kind":       "SecretProviderClass",
+			"metadata": map[string]any{
+				"name":      "petshop-db-vault",
+				"namespace": "petshop",
+			},
+			"spec": map[string]any{
+				"provider": "azure",
+				"secretObjects": []any{
+					map[string]any{"secretName": "petshop-db-secrets"},
+				},
+			},
+		},
+		map[string]any{
+			"apiVersion": "secrets-store.csi.x-k8s.io/v1",
+			"kind":       "SecretProviderClass",
+			"metadata": map[string]any{
+				"name":      "petshop-kafka-petshopvault",
+				"namespace": "petshop",
+			},
+			"spec": map[string]any{
+				"provider": "azure",
+				"secretObjects": []any{
+					map[string]any{"secretName": "petshop-kafka-secrets"},
+				},
+			},
+		},
+	)
 }

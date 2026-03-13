@@ -13,12 +13,14 @@ var childBuilders map[string]ChildBuilder
 
 func init() {
 	childBuilders = map[string]ChildBuilder{
-		"cronjob":               buildWorkloadChildren,
+		"cronjob":               buildCronJobChildren,
 		"deployment":            buildWorkloadChildren,
 		"statefulset":           buildWorkloadChildren,
 		"daemonset":             buildWorkloadChildren,
 		"job":                   buildJobChildren,
 		"replicaset":            buildReplicaSetChildren,
+		"service":               buildServiceChildren,
+		"serviceaccount":        buildServiceAccountChildren,
 		"pod":                   buildPodChildren,
 		"endpoints":             buildEndpointsChildren,
 		"endpointslice":         buildEndpointSliceChildren,
@@ -43,13 +45,6 @@ func NewChildrenBuilder() *ChildrenBuilder {
 func (cb *ChildrenBuilder) Add(node *kube.Tree) *ChildrenBuilder {
 	if node != nil {
 		cb.children = append(cb.children, node)
-	}
-	return cb
-}
-
-func (cb *ChildrenBuilder) AddAll(nodes ...*kube.Tree) *ChildrenBuilder {
-	for _, node := range nodes {
-		cb.Add(node)
 	}
 	return cb
 }

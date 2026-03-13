@@ -36,12 +36,12 @@ Shorthand (auto-expanded to 3-part format):
 
 Examples:
   kompass                                      # All pods in current namespace
-  kompass */petshop/*            # All resources in petshop
+  kompass */petshop/*                          # All resources in petshop
   kompass pod/default/nginx                    # Specific pod + related resources
   kompass */prod/api-*                         # All api-* resources in prod
   kompass deployment/kube-system/coredns       # Specific deployment
   kompass --mock                               # Mock mode: all pods
-  kompass --mock '*/petshop/*'   # Mock: all in namespace
+  kompass --mock '*/petshop/*'                 # Mock: all in namespace
   kompass --service                            # Start web server on :8080
   kompass --service :9090                      # Start web server on :9090
 

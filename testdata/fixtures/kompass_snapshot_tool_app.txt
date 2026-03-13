@@ -1,332 +1,348 @@
 🌍 Context: tool-test-01, Namespace: applikasjonsplattform, Selectors: [], Config: /home/spk.no/koi/.kube/config, Cache: 31 calls | 0 hits | 31 misses | 0.0% hit rate
 
-🚀 cronjob: fiskeoye-repo-update [[33mSCHEDULED[0m][90m {lastSchedule=39m, namespace=applikasjonsplattform, schedule=0 6-23 * * *, suspended=false}[0m
-└─ 🎮 job: fiskeoye-repo-update-29552220 [[32mCOMPLETE[0m][90m {active=0, completions=1, duration=29m, failed=0, parallelism=1, succeeded=1}[0m
-   └─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc [[32mSUCCEEDED[0m][90m {nodeName=tool-test-01-worker-055ceed2, phase=Succeeded, podIP=10.244.9.165, qosClass=BestEffort, startTime=2d}[0m
-      ├─ 📜 ciliumnetworkpolicy: fiskeoye[90m {egress=false, ingress=true}[0m
-      │  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-      │  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
-      │  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
-      │  ├─ 🫛 pod: fiskeoye-8699f8f467-fphr6
-      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
-      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
-      │  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
-      │  └─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
-      ├─ 🧊 container: kubectl-exec[90m {exitCode=0, reason=Completed, state=Terminated}[0m
-      │  └─ 🐋 image: bitnami/kubectl:latest
-      ├─ 🖥️ service: fiskeoye[90m {clusterIP=10.97.68.79, ports=[8080/TCP], selector=[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye], type=ClusterIP}[0m
-      │  ├─ 📍 endpoints: fiskeoye
-      │  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-      │  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
-      │  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-      │  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
-      │  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m
-      ├─ 👤 serviceaccount: fiskeoye-cronjob
-      │  └─ 🔗 rolebinding: fiskeoye-cronjob
-      └─ 📄 spec
-         ├─ 🐋 image: bitnami/kubectl:latest[90m {pullPolicy=IfNotPresent}[0m
+🚀 deployment ad-explore-db [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy ad-explore-db {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-motor[0m}
+│  │  └─ 🤝 service ad-explore-motor {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.105.81.198[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 👉 cnp-ingress fromendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-web[0m}
+│  │  └─ 🤝 service ad-explore-web {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.107.82.121[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=ad-explore-db
+│  └─ 🎯 endpointselector label app.kubernetes.io/name=ad-explore-db
+├─ 🧩 replicaset ad-explore-db-5cb9cd8b74 [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod ad-explore-db-5cb9cd8b74-pqhk9 [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.90[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m, [32mLIVENESS=PASSING[0m, [32mREADINESS=READY[0m, [32mSTARTUP=STARTED[0m]
+│        ├─ 🐋 image cr.spk.no/docker-hub/neo4j@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m, [2m[90mlimits[0m[37m=[0m[1m[90mmemory:1Gi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+├─ 🤝 service ad-explore-db-service {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.98.248.132[0m, [2m[90mports[0m[37m=[0m[1m[90m[7474/TCP 7687/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-db app.kubernetes.io/name=ad-explore-db][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints ad-explore-db-service
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[ad-explore-db-bolt:7687/TCP ad-explore-db-http:7474/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.90[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-db-5cb9cd8b74-pqhk9[0m}
+│  └─ 📍 endpointslice ad-explore-db-service-672nq {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m7474[0m, [2m[90mportName[0m[37m=[0m[1m[90mad-explore-db-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│     └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.90[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-db-5cb9cd8b74-pqhk9[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  └─ 💬 [37mNEO_DB_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mad-explore-db-tlosappplatt[0m}
+   ├─ 🐋 image cr.spk.no/docker-hub/neo4j:5.26.20-community-ubi9@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6 {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 💓 livenessprobe {[2m[90mfailureThreshold[0m[37m=[0m[1m[90m40[0m, [2m[90mperiodSeconds[0m[37m=[0m[1m[90m5[0m, [2m[90mport[0m[37m=[0m[1m[90m7687[0m, [2m[90mtimeoutSeconds[0m[37m=[0m[1m[90m10[0m, [2m[90mtype[0m[37m=[0m[1m[90mtcpSocket[0m}
+   ├─ 📂 mounts
+   │  ├─ 📁 /data {[2m[90mvolume[0m[37m=[0m[1m[90mad-explore-db-data[0m}
+   │  ├─ 📁 /mnt/secrets {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-db-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m}
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   ├─ 🛡️ podsecuritycontext {[2m[90mfsGroup[0m[37m=[0m[1m[90m7474[0m, [2m[90mrunAsGroup[0m[37m=[0m[1m[90m7474[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m7474[0m}
+   ├─ 🔌 ports
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ ✅ readinessprobe {[2m[90mfailureThreshold[0m[37m=[0m[1m[90m20[0m, [2m[90mperiodSeconds[0m[37m=[0m[1m[90m5[0m, [2m[90mport[0m[37m=[0m[1m[90m7687[0m, [2m[90mtimeoutSeconds[0m[37m=[0m[1m[90m10[0m, [2m[90mtype[0m[37m=[0m[1m[90mtcpSocket[0m}
+   ├─ 🔧 resources {[2m[90mlimits[0m[37m=[0m[1m[90mmemory:1Gi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-db-tlosappplatt[0m}
+   │     ├─ 🔏 provider config ad-explore-db-tlosappplatt {[2m[90mprovider[0m[37m=[0m[1m[90mazure[0m, [2m[90msecretObjects[0m[37m=[0m[1m[90m1[0m}
+   │     ├─ 🔒 synced secret ad-explore-db-secrets {[2m[90mkeys[0m[37m=[0m[1m[90m1[0m, [2m[90mtype[0m[37m=[0m[1m[90mOpaque[0m}
+   │     │  └─ 💬 [37mNEO_DB_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m}
+   │     └─ 📁 mounted in container /mnt/secrets {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90mmode[0m[37m=[0m[1m[90mcsi[0m, [2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-db-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90mtlosappplatt[0m}
+   ├─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mfalse[0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m7474[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+   ├─ ▶️ startupprobe {[2m[90mfailureThreshold[0m[37m=[0m[1m[90m1000[0m, [2m[90mperiodSeconds[0m[37m=[0m[1m[90m5[0m, [2m[90mport[0m[37m=[0m[1m[90m7687[0m, [2m[90mtype[0m[37m=[0m[1m[90mtcpSocket[0m}
+   └─ 💾 storage
+      └─ 📀 claim ad-explore-db-data [[32mBOUND[0m] {[2m[90maccessModes[0m[37m=[0m[1m[90m[ReadWriteOnce][0m, [2m[90mcapacity[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mphase[0m[37m=[0m[1m[90mBound[0m, [2m[90mstorage[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mstorageClass[0m[37m=[0m[1m[90mstandard[0m, [2m[90mvolumeName[0m[37m=[0m[1m[90mpvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522[0m}
+         ├─ 📁 mounted in container /data {[2m[90mmode[0m[37m=[0m[1m[90mvolume[0m, [2m[90mvolume[0m[37m=[0m[1m[90mad-explore-db-data[0m}
+         └─ 💿 backing volume pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522 {[2m[90maccessModes[0m[37m=[0m[1m[90m[ReadWriteOnce][0m, [2m[90mcapacity[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mphase[0m[37m=[0m[1m[90mBound[0m, [2m[90mreclaimPolicy[0m[37m=[0m[1m[90mDelete[0m, [2m[90mstorageClass[0m[37m=[0m[1m[90mstandard[0m, [2m[90mvolumeMode[0m[37m=[0m[1m[90mFilesystem[0m}
+            ├─ 🗂️ storage class standard {[2m[90mallowVolumeExpansion[0m[37m=[0m[1m[90mtrue[0m, [2m[90mprovisioner[0m[37m=[0m[1m[90mcsi.vsphere.vmware.com[0m, [2m[90mreclaimPolicy[0m[37m=[0m[1m[90mDelete[0m, [2m[90mvolumeBindingMode[0m[37m=[0m[1m[90mImmediate[0m}
+            └─ 📎 attachment csi-959030a095e12a5c5224b5fe15796d0ad6ae46b1099c05fc09f46e08a6f47359 {[2m[90mattached[0m[37m=[0m[1m[90mtrue[0m, [2m[90mattacher[0m[37m=[0m[1m[90mcsi.vsphere.vmware.com[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpvName[0m[37m=[0m[1m[90mpvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522[0m}
+
+🚀 deployment ad-explore-motor [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy ad-explore-motor {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=ad-explore-motor
+│  ├─ 🎯 endpointselector label app.kubernetes.io/name=ad-explore-motor
+│  ├─ 👈 cnp-egress toendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-webservice[0m}
+│  │  └─ 🤝 service ad-explore-webservice {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.98.91.218[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  └─ 👈 cnp-egress toendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-db[0m}
+├─ 🧩 replicaset ad-explore-motor-5689f8488b [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod ad-explore-motor-5689f8488b-7sbmb [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.239[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m] {[2m[90mrestarts[0m[37m=[0m[1m[90m763[0m}
+│        ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor@sha256:5cb9e9b177cc5fc8d6c3182ee3cee98703feb88212809183d65e86c5af765dcf
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m, [2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+├─ 🤝 service ad-explore-motor {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.105.81.198[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints ad-explore-motor
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.239[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-motor-5689f8488b-7sbmb[0m}
+│  ├─ 📍 endpointslice ad-explore-motor-xvjsr {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.239[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-motor-5689f8488b-7sbmb[0m}
+│  └─ 🔄 httproute ad-explore-motor {[2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mad-explore-motor:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  ├─ 💬 [37mAD_EXPLORE_WEBSERVICE_URL[0m[90m=[0mhttp://ad-explore-webservice:8080
+   │  ├─ 💬 [37mHOUR_OF_DAY[0m[90m=[0m1
+   │  ├─ 💬 [37mLDAP_BIND_SECRET[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mSA-AD-EXPLORE-MOTOR-PASSWORD[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mad-explore-motor-tlosappplatt[0m}
+   │  ├─ 💬 [37mLDAP_BIND_USER[0m[90m=[0mSa-AD-Explore-Motor
+   │  ├─ 💬 [37mLOGGING_LEVEL[0m[90m=[0mINFO
+   │  ├─ 💬 [37mNEO4J_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mad-explore-motor-tlosappplatt[0m}
+   │  ├─ 💬 [37mNEO4J_URL[0m[90m=[0mbolt://ad-explore-db-service:7687
+   │  ├─ 💬 [37mNEO4J_USERNAME[0m[90m=[0mneo4j
+   │  ├─ 💬 [37mRUN_ONCE[0m[90m=[0mTrue
+   │  └─ 💬 [37mSLETT_ALT_I_DATABASEN_FOER_NY_SCRAPING[0m[90m=[0mTrue
+   ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor:main_20260223_043932 {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 📂 mounts
+   │  ├─ 📁 /mnt/secrets {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-motor-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m}
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   ├─ 🔌 ports
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ 🔧 resources {[2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-motor-tlosappplatt[0m}
+   │     ├─ 🔏 provider config ad-explore-motor-tlosappplatt {[2m[90mprovider[0m[37m=[0m[1m[90mazure[0m, [2m[90msecretObjects[0m[37m=[0m[1m[90m1[0m}
+   │     ├─ 🔒 synced secret ad-explore-motor-secrets {[2m[90mkeys[0m[37m=[0m[1m[90m2[0m, [2m[90mtype[0m[37m=[0m[1m[90mOpaque[0m}
+   │     │  ├─ 💬 [37mLDAP_BIND_SECRET[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mSA-AD-EXPLORE-MOTOR-PASSWORD[0m}
+   │     │  └─ 💬 [37mNEO4J_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m}
+   │     └─ 📁 mounted in container /mnt/secrets {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90mmode[0m[37m=[0m[1m[90mcsi[0m, [2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-motor-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90mtlosappplatt[0m}
+   └─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mfalse[0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1000[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+
+🚀 deployment ad-explore-web [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy ad-explore-web {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=ad-explore-web
+│  ├─ 🎯 endpointselector label app.kubernetes.io/name=ad-explore-web
+│  ├─ 👈 cnp-egress toendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-db[0m}
+│  └─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mam.kpt.spk.no[0m}
+├─ 🧩 replicaset ad-explore-web-598696998b [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod ad-explore-web-598696998b-x649v [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.92[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.10.135[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m]
+│        ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web@sha256:c2db864987fbbbf77eaf66705b89db325de135f38be054f834391a2b2ff62c5f
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m, [2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+├─ 🤝 service ad-explore-web {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.107.82.121[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints ad-explore-web
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.10.135[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-web-598696998b-x649v[0m}
+│  ├─ 📍 endpointslice ad-explore-web-vb75m {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.10.135[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-web-598696998b-x649v[0m}
+│  └─ 🔄 httproute ad-explore-web {[2m[90mhostnames[0m[37m=[0m[1m[90m[ad-explore-web.tool-test.los.spk.no ad-explore-web.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mad-explore-web:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  ├─ 💬 [37mLOG_LEVEL[0m[90m=[0minfo
+   │  ├─ 💬 [37mNEO4J_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mad-explore-web-tlosappplatt[0m}
+   │  ├─ 💬 [37mNEO4J_URI[0m[90m=[0mbolt://ad-explore-db-service:7687
+   │  ├─ 💬 [37mNEO4J_USERNAME[0m[90m=[0mneo4j
+   │  ├─ 💬 [37mOIDC_CLIENT_ID[0m[90m=[0mad-explore-web
+   │  ├─ 💬 [37mOIDC_CLIENT_SECRET[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-WEB-CLIENT-SECRET[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mad-explore-web-tlosappplatt[0m}
+   │  ├─ 💬 [37mOIDC_ISSUER_URL[0m[90m=[0mhttps://am.kpt.spk.no/am/oauth2/realms/root/realms/intranett
+   │  ├─ 💬 [37mOIDC_REDIRECT_URL[0m[90m=[0mhttps://ad-explore-web.tool-test.spk.no/auth/callback
+   │  └─ 💬 [37mREQUIRE_SECURE_CONNECTION[0m[90m=[0mtrue
+   ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web:main_20260226_100330 {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 📂 mounts
+   │  ├─ 📁 /mnt/secrets {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-web-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m}
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   ├─ 🔌 ports
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ 🔧 resources {[2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-web-tlosappplatt[0m}
+   │     ├─ 🔏 provider config ad-explore-web-tlosappplatt {[2m[90mprovider[0m[37m=[0m[1m[90mazure[0m, [2m[90msecretObjects[0m[37m=[0m[1m[90m1[0m}
+   │     ├─ 🔒 synced secret ad-explore-web-secrets {[2m[90mkeys[0m[37m=[0m[1m[90m2[0m, [2m[90mtype[0m[37m=[0m[1m[90mOpaque[0m}
+   │     │  ├─ 💬 [37mNEO4J_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-DATABASE-PASSWORD[0m}
+   │     │  └─ 💬 [37mOIDC_CLIENT_SECRET[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mAD-EXPLORE-WEB-CLIENT-SECRET[0m}
+   │     └─ 📁 mounted in container /mnt/secrets {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90mmode[0m[37m=[0m[1m[90mcsi[0m, [2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mad-explore-web-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90mtlosappplatt[0m}
+   └─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mfalse[0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1000[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+
+🚀 deployment ad-explore-webservice [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy ad-explore-webservice {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-motor[0m}
+│  │  └─ 🤝 service ad-explore-motor {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.105.81.198[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 👉 cnp-ingress fromendpoint {[2m[90mmatchLabels[0m[37m=[0m[1m[90mapp.kubernetes.io/name:ad-explore-web[0m}
+│  │  └─ 🤝 service ad-explore-web {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.107.82.121[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=ad-explore-webservice
+│  ├─ 🎯 endpointselector label app.kubernetes.io/name=ad-explore-webservice
+│  └─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mmdc11.spk.no[0m}
+├─ 🧩 replicaset ad-explore-webservice-7d9b7b4cd [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod ad-explore-webservice-7d9b7b4cd-tr5ft [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.102[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m]
+│        ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice@sha256:b07f276f691dcda6d5fbf3057ba0a293b93d06f191c3df493c8eb26496e9a7d9
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m, [2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+├─ 🤝 service ad-explore-webservice {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.98.91.218[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints ad-explore-webservice
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.102[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-webservice-7d9b7b4cd-tr5ft[0m}
+│  ├─ 📍 endpointslice ad-explore-webservice-jkmp8 {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.102[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mad-explore-webservice-7d9b7b4cd-tr5ft[0m}
+│  └─ 🔄 httproute ad-explore-webservice {[2m[90mhostnames[0m[37m=[0m[1m[90m[ad-explore-webservice.tool-test.los.spk.no ad-explore-webservice.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mad-explore-webservice:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  └─ 💬 [37mLOGLEVEL[0m[90m=[0mINFO
+   ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice:main_20260216_064614 {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 📂 mounts
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   ├─ 🔌 ports
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ 🔧 resources {[2m[90mlimits[0m[37m=[0m[1m[90mmemory:512Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:128Mi[0m}
+   └─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mfalse[0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1000[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+
+🚀 deployment fiskeoye [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRecreate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy fiskeoye {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=fiskeoye
+│  ├─ 🎯 endpointselector label app.kubernetes.io/name=fiskeoye
+│  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgithub.com[0m}
+│  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mapi.github.com[0m}
+│  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgit.spk.no[0m}
+│  └─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgit.test.spk.no[0m}
+├─ 🧩 replicaset fiskeoye-ccfc7549 [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod fiskeoye-ccfc7549-z4r5h [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.92[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.10.117[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m, [32mLIVENESS=PASSING[0m, [32mREADINESS=READY[0m, [32mSTARTUP=STARTED[0m]
+│        ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/fiskeoye@sha256:50e67aeb6f8dbccd9140a1df43204695d84d1d732d640f8afbe1c11f3fe7fb0c
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:100m memory:256Mi[0m, [2m[90mlimits[0m[37m=[0m[1m[90mmemory:1Gi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:256Mi[0m}
+├─ 🤝 service fiskeoye {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.100.180.48[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints fiskeoye
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.10.117[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mfiskeoye-ccfc7549-z4r5h[0m}
+│  ├─ 📍 endpointslice fiskeoye-4mz7g {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.10.117[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mfiskeoye-ccfc7549-z4r5h[0m}
+│  └─ 🔄 httproute fiskeoye {[2m[90mhostnames[0m[37m=[0m[1m[90m[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mfiskeoye:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  ├─ 💬 [37mCRON_EXPRESSION[0m[90m=[0m0 0 31 2 *
+   │  ├─ 💬 [37mEXPOSE_SWARM_SECRETS[0m[90m=[0mfalse
+   │  └─ 💬 [37mGITHUB_PRIVATE_KEY_PATH[0m[90m=[0m/run/secrets/FISKEOYE-GITHUB-PRIVATE-KEY {[2m[90msecretName[0m[37m=[0m[1m[90mFISKEOYE-GITHUB-PRIVATE-KEY[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mfiskeoye-tlosappplatt[0m}
+   ├─ 🐋 image cr.spk.no/swarm/statens-pensjonskasse/fiskeoye:main_production {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 💓 livenessprobe {[2m[90minitialDelaySeconds[0m[37m=[0m[1m[90m30[0m, [2m[90mpath[0m[37m=[0m[1m[90m/admin/ping[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
+   ├─ 📂 mounts
+   │  ├─ 📁 /run/secrets {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mfiskeoye-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m}
+   │  ├─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   │  ├─ 📁 /var/lib/fiskeoye {[2m[90mvolume[0m[37m=[0m[1m[90mfiskeoye-data[0m}
+   │  └─ 📁 /var/run {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
+   ├─ 🛡️ podsecuritycontext {[2m[90mfsGroup[0m[37m=[0m[1m[90m1000[0m, [2m[90mrunAsGroup[0m[37m=[0m[1m[90m1000[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1000[0m}
+   ├─ 🔌 ports
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ ✅ readinessprobe {[2m[90mpath[0m[37m=[0m[1m[90m/admin/ping[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
+   ├─ 🔧 resources {[2m[90mlimits[0m[37m=[0m[1m[90mmemory:1Gi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:100m memory:256Mi[0m}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mfiskeoye-tlosappplatt[0m}
+   │     ├─ 🔏 provider config fiskeoye-tlosappplatt {[2m[90mprovider[0m[37m=[0m[1m[90mazure[0m, [2m[90msecretObjects[0m[37m=[0m[1m[90m1[0m}
+   │     ├─ 🔒 synced secret fiskeoye-secrets {[2m[90mkeys[0m[37m=[0m[1m[90m1[0m, [2m[90mtype[0m[37m=[0m[1m[90mOpaque[0m}
+   │     └─ 📁 mounted in container /run/secrets {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90mmode[0m[37m=[0m[1m[90mcsi[0m, [2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mfiskeoye-tlosappplatt[0m, [2m[90mvolume[0m[37m=[0m[1m[90mtlosappplatt[0m}
+   ├─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mfalse[0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1000[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+   ├─ ▶️ startupprobe {[2m[90mfailureThreshold[0m[37m=[0m[1m[90m30[0m, [2m[90mpath[0m[37m=[0m[1m[90m/admin/ping[0m, [2m[90mperiodSeconds[0m[37m=[0m[1m[90m5[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
+   └─ 💾 storage
+      └─ 📀 claim fiskeoye-data [[32mBOUND[0m] {[2m[90maccessModes[0m[37m=[0m[1m[90m[ReadWriteOnce][0m, [2m[90mcapacity[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mphase[0m[37m=[0m[1m[90mBound[0m, [2m[90mstorage[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mstorageClass[0m[37m=[0m[1m[90mstandard[0m, [2m[90mvolumeName[0m[37m=[0m[1m[90mpvc-e884d28b-5440-4fe0-9bfe-079da5231315[0m}
+         ├─ 📁 mounted in container /var/lib/fiskeoye {[2m[90mmode[0m[37m=[0m[1m[90mvolume[0m, [2m[90mvolume[0m[37m=[0m[1m[90mfiskeoye-data[0m}
+         └─ 💿 backing volume pvc-e884d28b-5440-4fe0-9bfe-079da5231315 {[2m[90maccessModes[0m[37m=[0m[1m[90m[ReadWriteOnce][0m, [2m[90mcapacity[0m[37m=[0m[1m[90m15Gi[0m, [2m[90mphase[0m[37m=[0m[1m[90mBound[0m, [2m[90mreclaimPolicy[0m[37m=[0m[1m[90mDelete[0m, [2m[90mstorageClass[0m[37m=[0m[1m[90mstandard[0m, [2m[90mvolumeMode[0m[37m=[0m[1m[90mFilesystem[0m}
+            ├─ 🗂️ storage class standard {[2m[90mallowVolumeExpansion[0m[37m=[0m[1m[90mtrue[0m, [2m[90mprovisioner[0m[37m=[0m[1m[90mcsi.vsphere.vmware.com[0m, [2m[90mreclaimPolicy[0m[37m=[0m[1m[90mDelete[0m, [2m[90mvolumeBindingMode[0m[37m=[0m[1m[90mImmediate[0m}
+            └─ 📎 attachment csi-884aba608dae13c7d223022d78d3cfdb8758636266e3284342b5f3a829b03696 {[2m[90mattached[0m[37m=[0m[1m[90mtrue[0m, [2m[90mattacher[0m[37m=[0m[1m[90mcsi.vsphere.vmware.com[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mpvName[0m[37m=[0m[1m[90mpvc-e884d28b-5440-4fe0-9bfe-079da5231315[0m}
+
+📆 cronjob fiskeoye-repo-update [[33mSCHEDULED[0m] {[2m[90mlastSchedule[0m[37m=[0m[1m[90m29m[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mschedule[0m[37m=[0m[1m[90m0 6-23 * * *[0m, [2m[90msuspended[0m[37m=[0m[1m[90mfalse[0m}
+├─ 🔧 job fiskeoye-repo-update-29557020 [[32mCOMPLETE[0m] {[2m[90mactive[0m[37m=[0m[1m[90m0[0m, [2m[90mcompletions[0m[37m=[0m[1m[90m1[0m, [2m[90mduration[0m[37m=[0m[1m[90m29m[0m, [2m[90mfailed[0m[37m=[0m[1m[90m0[0m, [2m[90mparallelism[0m[37m=[0m[1m[90m1[0m, [2m[90msucceeded[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod fiskeoye-repo-update-29557020-zvh5p [[32mSUCCEEDED[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.197[0m}
+├─ 🔧 job fiskeoye-repo-update-29557080 [[32mCOMPLETE[0m] {[2m[90mactive[0m[37m=[0m[1m[90m0[0m, [2m[90mcompletions[0m[37m=[0m[1m[90m1[0m, [2m[90mduration[0m[37m=[0m[1m[90m28m[0m, [2m[90mfailed[0m[37m=[0m[1m[90m0[0m, [2m[90mparallelism[0m[37m=[0m[1m[90m1[0m, [2m[90msucceeded[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod fiskeoye-repo-update-29557080-jmsxr [[32mSUCCEEDED[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.100[0m}
+└─ 🔧 job fiskeoye-repo-update-29557140 [[32mCOMPLETE[0m] {[2m[90mactive[0m[37m=[0m[1m[90m0[0m, [2m[90mcompletions[0m[37m=[0m[1m[90m1[0m, [2m[90mduration[0m[37m=[0m[1m[90m29m[0m, [2m[90mfailed[0m[37m=[0m[1m[90m0[0m, [2m[90mparallelism[0m[37m=[0m[1m[90m1[0m, [2m[90msucceeded[0m[37m=[0m[1m[90m1[0m}
+   └─ 🫛 pod fiskeoye-repo-update-29557140-f9mxb [[32mSUCCEEDED[0m] {[2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.228[0m, [2m[90mqosClass[0m[37m=[0m[1m[90mBestEffort[0m, [2m[90mstartTime[0m[37m=[0m[1m[90m29m[0m}
+      ├─ 🕸 ciliumnetworkpolicy fiskeoye {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+      │  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+      │  ├─ 🎯 endpointselector label app.kubernetes.io/instance=fiskeoye
+      │  ├─ 🎯 endpointselector label app.kubernetes.io/name=fiskeoye
+      │  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgithub.com[0m}
+      │  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mapi.github.com[0m}
+      │  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgit.spk.no[0m}
+      │  └─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgit.test.spk.no[0m}
+      ├─ 🧊 container kubectl-exec [[31mTERMINATED[0m] {[2m[90mexitCode[0m[37m=[0m[1m[90m0[0m, [2m[90mreason[0m[37m=[0m[1m[90mCompleted[0m}
+      │  └─ 🐋 image docker.io/bitnami/kubectl@sha256:6e2cdb22d6ab7264ea198c717f555e30536b54029d26c8781b9f25f78951b564
+      ├─ 🤝 service fiskeoye {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.100.180.48[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+      │  ├─ 📍 endpoints fiskeoye
+      │  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+      │  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.10.117[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mfiskeoye-ccfc7549-z4r5h[0m}
+      │  ├─ 📍 endpointslice fiskeoye-4mz7g {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+      │  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.10.117[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mfiskeoye-ccfc7549-z4r5h[0m}
+      │  └─ 🔄 httproute fiskeoye {[2m[90mhostnames[0m[37m=[0m[1m[90m[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mfiskeoye:8080/TCP (ClusterIP)[0m}
+      ├─ 👤 serviceaccount fiskeoye-cronjob
+      │  └─ 🔗 rolebinding fiskeoye-cronjob
+      │     └─ 🎫 role fiskeoye-cronjob
+      └─ 📑 spec
+         ├─ ⚙️ configmaps
+         │  └─ ⚙ source configmap kube-root-ca.crt {[2m[90mkeys[0m[37m=[0m[1m[90m1[0m}
+         │     └─ 📁 mounted as files /var/run/secrets/kubernetes.io/serviceaccount {[2m[90mitems[0m[37m=[0m[1m[90mca.crt->ca.crt[0m, [2m[90mmode[0m[37m=[0m[1m[90mprojected[0m, [2m[90mvolume[0m[37m=[0m[1m[90mkube-api-access-xkcdr[0m}
+         ├─ 🐋 image bitnami/kubectl:latest {[2m[90mpullPolicy[0m[37m=[0m[1m[90mIfNotPresent[0m}
          ├─ 📂 mounts
-         │  └─ 📁 mount:[90m {mount=/var/run/secrets/kubernetes.io/serviceaccount, readOnly=true, volume=projected}[0m
-         └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], runAsNonRoot=true, runAsUser=1001, seccompProfile=RuntimeDefault}[0m
+         │  └─ 📁 /var/run/secrets/kubernetes.io/serviceaccount {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90mvolume[0m[37m=[0m[1m[90mprojected[0m}
+         └─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mrunAsNonRoot[0m[37m=[0m[1m[90mtrue[0m, [2m[90mrunAsUser[0m[37m=[0m[1m[90m1001[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
 
-🚀 deployment: ad-explore-db [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: ad-explore-db[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-motor}[0m
-│  │  └─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
-│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-web}[0m
-│  │  └─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-db
-│  └─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-db
-├─ 🎮 replicaset: ad-explore-db-5cb9cd8b74 [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: ad-explore-db-5cb9cd8b74-pqhk9[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.90}[0m
-│     └─ 🧊 container: app
-│        ├─ 🐋 image: cr.spk.no/docker-hub/neo4j:5.26.20-community-ubi9@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6
-│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
-│        ├─ ✅ readinessprobe: [[32mREADY[0m]
-│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
-├─ 🖥️ service: ad-explore-db-service[90m {clusterIP=10.98.248.132, ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=ad-explore-db app.kubernetes.io/name=ad-explore-db], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: ad-explore-db-service
-│  │  └─ 🔗 subset:[90m {ports=[ad-explore-db-bolt:7687/TCP ad-explore-db-http:7474/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.9.90, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-db-5cb9cd8b74-pqhk9}[0m
-│  └─ 📍 endpointslice: ad-explore-db-service-672nq[90m {addressType=IPv4, port=7474, portName=ad-explore-db-http, protocol=TCP}[0m
-│     └─ 🔌 endpoint:[90m {address=10.244.9.90, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-db-5cb9cd8b74-pqhk9}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  └─ 💬 env: NEO_DB_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
-   │     └─ 🔒 secret: ad-explore-db-secrets[90m {keys=1, type=Opaque}[0m
-   ├─ 🐋 image: cr.spk.no/docker-hub/neo4j:5.26.20-community-ubi9@sha256:7732d5d6269b516a646a9531200f2a34060ed0cecdd7da643efec9d5b694f2f6[90m {pullPolicy=Always}[0m
-   ├─ 💓 livenessprobe:[90m {failureThreshold=40, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
+🚀 deployment github-readonly-proxy [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy github-readonly-proxy {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=github-readonly-proxy
+│  ├─ 🎯 endpointselector label app.kubernetes.io/name=github-readonly-proxy
+│  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mapi.github.com[0m}
+│  ├─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mgithub.com[0m}
+│  └─ 👈 cnp-egress tofqdn {[2m[90mmatchName[0m[37m=[0m[1m[90mraw.githubusercontent.com[0m}
+├─ 🧩 replicaset github-readonly-proxy-84d98b4dcd [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod github-readonly-proxy-84d98b4dcd-v58bh [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.88[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.9.4[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m, [32mLIVENESS=PASSING[0m, [32mREADINESS=READY[0m]
+│        ├─ 🐋 image cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy@sha256:397e01dd61e90d5c4a827739f8386a6da1f04d1eb0591a59f945794176d1b720
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m}
+├─ 🧩 replicaset github-readonly-proxy-8597fddc7f {[2m[90mcurrent[0m[37m=[0m[1m[90m0[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m0[0m}
+├─ 🤝 service github-readonly-proxy {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.104.94.201[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=github-readonly-proxy app.kubernetes.io/name=github-readonly-proxy][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints github-readonly-proxy
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.4[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mgithub-readonly-proxy-84d98b4dcd-v58bh[0m}
+│  ├─ 📍 endpointslice github-readonly-proxy-d28qk {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.4[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mgithub-readonly-proxy-84d98b4dcd-v58bh[0m}
+│  └─ 🔄 httproute github-readonly-proxy {[2m[90mhostnames[0m[37m=[0m[1m[90m[github-readonly-proxy.tool-test.los.spk.no github-readonly-proxy.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mgithub-readonly-proxy:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ 🐋 image cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy:main_test {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 💓 livenessprobe {[2m[90mpath[0m[37m=[0m[1m[90m/healthz[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
    ├─ 📂 mounts
-   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   │  ├─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
-   │  └─ 📁 mount:[90m {mount=/data, volume=ad-explore-db-data}[0m
-   │     └─ 📀 persistentvolumeclaim: ad-explore-db-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
-   ├─ 📀 persistentvolumeclaim: ad-explore-db-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
-   │  └─ 💿 persistentvolume: pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522[90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}[0m
-   │     ├─ 💽 storageclass: standard[90m {allowVolumeExpansion=true, provisioner=csi.vsphere.vmware.com, reclaimPolicy=Delete, volumeBindingMode=Immediate}[0m
-   │     └─ 💿 volumeattachment: csi-959030a095e12a5c5224b5fe15796d0ad6ae46b1099c05fc09f46e08a6f47359[90m {attached=true, attacher=csi.vsphere.vmware.com, nodeName=tool-test-01-worker-055ceed2, pvName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}[0m
-   ├─ 🛡️ podsecuritycontext:[90m {fsGroup=7474, runAsGroup=7474, runAsUser=7474}[0m
+   │  ├─ 📁 /run/secrets {[2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mgithub-readonly-proxy-tlosgithubreadonlyproxy[0m, [2m[90mvolume[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m}
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
    ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ ✅ readinessprobe:[90m {failureThreshold=20, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}[0m
-   ├─ 💾 resources:[90m {limits=memory:1Gi, requests=cpu:100m memory:128Mi}[0m
-   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=7474, seccompProfile=RuntimeDefault}[0m
-   └─ ▶️ startupprobe:[90m {failureThreshold=1000, periodSeconds=5, port=7687, type=tcpSocket}[0m
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ ✅ readinessprobe {[2m[90mpath[0m[37m=[0m[1m[90m/healthz[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
+   ├─ 🔧 resources {[2m[90mrequests[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mgithub-readonly-proxy-tlosgithubreadonlyproxy[0m}
+   │     ├─ 🔏 provider config github-readonly-proxy-tlosgithubreadonlyproxy {[2m[90mprovider[0m[37m=[0m[1m[90mazure[0m}
+   │     └─ 📁 mounted in container /run/secrets {[2m[90mdriver[0m[37m=[0m[1m[90msecrets-store.csi.k8s.io[0m, [2m[90mmode[0m[37m=[0m[1m[90mcsi[0m, [2m[90mreadOnly[0m[37m=[0m[1m[90mtrue[0m, [2m[90msecretProviderClass[0m[37m=[0m[1m[90mgithub-readonly-proxy-tlosgithubreadonlyproxy[0m, [2m[90mvolume[0m[37m=[0m[1m[90mtlosgithubreadonlyproxy[0m}
+   └─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mtrue[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
 
-🚀 deployment: ad-explore-motor [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: ad-explore-motor[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-motor
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-motor
-│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-webservice}[0m
-│  │  └─ 🖥️ service: ad-explore-webservice[90m {clusterIP=10.98.91.218, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice], type=ClusterIP}[0m
-│  └─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-db}[0m
-├─ 🎮 replicaset: ad-explore-motor-5689f8488b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: ad-explore-motor-5689f8488b-7sbmb[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.239}[0m
-│     └─ 🧊 container: app
-│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor:main_20260223_043932
-├─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: ad-explore-motor
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.9.239, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-motor-5689f8488b-7sbmb}[0m
-│  ├─ 📍 endpointslice: ad-explore-motor-xvjsr[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.9.239, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-motor-5689f8488b-7sbmb}[0m
-│  └─ 🔄 httproute: ad-explore-motor[90m {paths=[/*], service=ad-explore-motor:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  ├─ 💬 env: AD_EXPLORE_WEBSERVICE_URL=http://ad-explore-webservice:8080
-   │  ├─ 💬 env: HOUR_OF_DAY=1
-   │  ├─ 💬 env: LDAP_BIND_SECRET=<SECRET>[90m {key=SA-AD-EXPLORE-MOTOR-PASSWORD}[0m
-   │  │  └─ 🔒 secret: ad-explore-motor-secrets[90m {keys=2, type=Opaque}[0m
-   │  ├─ 💬 env: LDAP_BIND_USER=Sa-AD-Explore-Motor
-   │  ├─ 💬 env: LOGGING_LEVEL=INFO
-   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
-   │  │  └─ 🔒 secret: ad-explore-motor-secrets[90m {keys=2, type=Opaque}[0m
-   │  ├─ 💬 env: NEO4J_URL=bolt://ad-explore-db-service:7687
-   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
-   │  ├─ 💬 env: RUN_ONCE=True
-   │  └─ 💬 env: SLETT_ALT_I_DATABASEN_FOER_NY_SCRAPING=True
-   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-motor:main_20260223_043932[90m {pullPolicy=Always}[0m
+🚀 deployment secretgen-web [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
+├─ 🕸 ciliumnetworkpolicy secretgen-web {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}
+│  ├─ 👉 cnp-ingress fromentities {[2m[90mentities[0m[37m=[0m[1m[90m[cluster][0m}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=secretgen-web
+│  └─ 🎯 endpointselector label app.kubernetes.io/name=secretgen-web
+├─ 🧩 replicaset secretgen-web-5c75675d78 {[2m[90mcurrent[0m[37m=[0m[1m[90m0[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m0[0m}
+├─ 🧩 replicaset secretgen-web-7b548b454f [[32mREADY[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m}
+│  └─ 🫛 pod secretgen-web-7b548b454f-78bns [[32mRUNNING[0m] {[2m[90mhostIP[0m[37m=[0m[1m[90m10.200.80.92[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mpodIP[0m[37m=[0m[1m[90m10.244.10.246[0m}
+│     └─ 🧊 container app [[32mRUNNING[0m, [32mLIVENESS=PASSING[0m, [32mREADINESS=READY[0m, [32mSTARTUP=STARTED[0m]
+│        ├─ 🐋 image cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web@sha256:791b01c5a4a126e811294be106b0f09ad2df3608e256ca1ae07d21ae593cb4f4
+│        └─ 🔧 resources {[2m[90mallocated[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m, [2m[90mrequests[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m}
+├─ 🤝 service secretgen-web {[2m[90mclusterIP[0m[37m=[0m[1m[90m10.96.102.146[0m, [2m[90mports[0m[37m=[0m[1m[90m[8080/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=secretgen-web app.kubernetes.io/name=secretgen-web][0m, [2m[90mtype[0m[37m=[0m[1m[90mClusterIP[0m}
+│  ├─ 📍 endpoints secretgen-web
+│  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[http:8080/TCP][0m}
+│  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.10.246[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mtargetName[0m[37m=[0m[1m[90msecretgen-web-7b548b454f-78bns[0m}
+│  ├─ 📍 endpointslice secretgen-web-44whl {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mhttp[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+│  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.10.246[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mtool-test-01-worker-d4215435[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90msecretgen-web-7b548b454f-78bns[0m}
+│  └─ 🔄 httproute secretgen-web {[2m[90mhostnames[0m[37m=[0m[1m[90m[secretgen.tool-test.los.spk.no secretgen.tool-test.spk.no secretgen-web.tool-test.los.spk.no secretgen-web.tool-test.spk.no][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90msecretgen-web:8080/TCP (ClusterIP)[0m}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  ├─ 💬 [37mEYAML_PUBLIC_KEY_PUPPET[0m[90m=[0m-----BEGIN CERTIFICATE-----...
+   │  ├─ 💬 [37mEYAML_PUBLIC_KEY_SPK_CONFIG_PROD[0m[90m=[0m-----BEGIN CERTIFICATE-----...
+   │  ├─ 💬 [37mEYAML_PUBLIC_KEY_SPK_CONFIG_TEST[0m[90m=[0m-----BEGIN CERTIFICATE-----...
+   │  └─ 💬 [37mEYAML_PUBLIC_KEY_TERRAFORM_DB[0m[90m=[0m# Replace with actual Terraform DB public key...
+   ├─ 🐋 image cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web:main_test {[2m[90mpullPolicy[0m[37m=[0m[1m[90mAlways[0m}
+   ├─ 💓 livenessprobe {[2m[90mpath[0m[37m=[0m[1m[90m/[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
    ├─ 📂 mounts
-   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
+   │  └─ 📁 /tmp {[2m[90mvolume[0m[37m=[0m[1m[90memptyDir[0m}
    ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
-   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+   │  └─ ⇄ port http {[2m[90mcontainerPort[0m[37m=[0m[1m[90m8080[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
+   ├─ ✅ readinessprobe {[2m[90mpath[0m[37m=[0m[1m[90m/[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
+   ├─ 🔧 resources {[2m[90mrequests[0m[37m=[0m[1m[90mcpu:200m memory:128Mi[0m}
+   ├─ 🛡️ securitycontext {[2m[90mallowPrivilegeEscalation[0m[37m=[0m[1m[90mfalse[0m, [2m[90mcapabilitiesDrop[0m[37m=[0m[1m[90m[ALL][0m, [2m[90mreadOnlyRootFilesystem[0m[37m=[0m[1m[90mtrue[0m, [2m[90mseccompProfile[0m[37m=[0m[1m[90mRuntimeDefault[0m}
+   └─ ▶️ startupprobe {[2m[90mpath[0m[37m=[0m[1m[90m/[0m, [2m[90mport[0m[37m=[0m[1m[90mhttp[0m, [2m[90mtype[0m[37m=[0m[1m[90mhttpGet[0m}
 
-🚀 deployment: ad-explore-web [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: ad-explore-web[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-web
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-web
-│  ├─ 👈 cnp-egress: toendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-db}[0m
-│  └─ 👈 cnp-egress: tofqdn[90m {matchName=am.kpt.spk.no}[0m
-├─ 🎮 replicaset: ad-explore-web-598696998b [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: ad-explore-web-598696998b-x649v[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.135}[0m
-│     └─ 🧊 container: app
-│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web:main_20260226_100330
-├─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: ad-explore-web
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.10.135, nodeName=tool-test-01-worker-d4215435, targetName=ad-explore-web-598696998b-x649v}[0m
-│  ├─ 📍 endpointslice: ad-explore-web-vb75m[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.10.135, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=ad-explore-web-598696998b-x649v}[0m
-│  └─ 🔄 httproute: ad-explore-web[90m {hostnames=[ad-explore-web.tool-test.los.spk.no ad-explore-web.tool-test.spk.no], paths=[/*], service=ad-explore-web:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  ├─ 💬 env: LOG_LEVEL=info
-   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET>[90m {key=AD-EXPLORE-DATABASE-PASSWORD}[0m
-   │  │  └─ 🔒 secret: ad-explore-web-secrets[90m {keys=2, type=Opaque}[0m
-   │  ├─ 💬 env: NEO4J_URI=bolt://ad-explore-db-service:7687
-   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
-   │  ├─ 💬 env: OIDC_CLIENT_ID=ad-explore-web
-   │  ├─ 💬 env: OIDC_CLIENT_SECRET=<SECRET>[90m {key=AD-EXPLORE-WEB-CLIENT-SECRET}[0m
-   │  │  └─ 🔒 secret: ad-explore-web-secrets[90m {keys=2, type=Opaque}[0m
-   │  ├─ 💬 env: OIDC_ISSUER_URL=https://am.kpt.spk.no/am/oauth2/realms/root/realms/intranett
-   │  ├─ 💬 env: OIDC_REDIRECT_URL=https://ad-explore-web.tool-test.spk.no/auth/callback
-   │  └─ 💬 env: REQUIRE_SECURE_CONNECTION=true
-   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-web:main_20260226_100330[90m {pullPolicy=Always}[0m
-   ├─ 📂 mounts
-   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   │  └─ 📁 mount:[90m {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
-   ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
-   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+🔒 secret ad-explore-db-secret {[2m[90mkeys[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m, [2m[90mtype[0m[37m=[0m[1m[90mOpaque[0m}
 
-🚀 deployment: ad-explore-webservice [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: ad-explore-webservice[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-motor}[0m
-│  │  └─ 🖥️ service: ad-explore-motor[90m {clusterIP=10.105.81.198, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-motor app.kubernetes.io/name=ad-explore-motor], type=ClusterIP}[0m
-│  ├─ 👉 cnp-ingress: fromendpoint[90m {matchLabels=app.kubernetes.io/name:ad-explore-web}[0m
-│  │  └─ 🖥️ service: ad-explore-web[90m {clusterIP=10.107.82.121, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-web app.kubernetes.io/name=ad-explore-web], type=ClusterIP}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=ad-explore-webservice
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=ad-explore-webservice
-│  └─ 👈 cnp-egress: tofqdn[90m {matchName=mdc11.spk.no}[0m
-├─ 🎮 replicaset: ad-explore-webservice-7d9b7b4cd [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: ad-explore-webservice-7d9b7b4cd-tr5ft[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.102}[0m
-│     └─ 🧊 container: app
-│        └─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice:main_20260216_064614
-├─ 🖥️ service: ad-explore-webservice[90m {clusterIP=10.98.91.218, ports=[8080/TCP], selector=[app.kubernetes.io/instance=ad-explore-webservice app.kubernetes.io/name=ad-explore-webservice], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: ad-explore-webservice
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.9.102, nodeName=tool-test-01-worker-055ceed2, targetName=ad-explore-webservice-7d9b7b4cd-tr5ft}[0m
-│  ├─ 📍 endpointslice: ad-explore-webservice-jkmp8[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.9.102, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=ad-explore-webservice-7d9b7b4cd-tr5ft}[0m
-│  └─ 🔄 httproute: ad-explore-webservice[90m {hostnames=[ad-explore-webservice.tool-test.los.spk.no ad-explore-webservice.tool-test.spk.no], paths=[/*], service=ad-explore-webservice:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  └─ 💬 env: LOGLEVEL=INFO
-   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/ad-explore-webservice:main_20260216_064614[90m {pullPolicy=Always}[0m
-   ├─ 📂 mounts
-   │  └─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ 💾 resources:[90m {limits=memory:512Mi, requests=cpu:100m memory:128Mi}[0m
-   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
+👤 serviceaccount default {[2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m}
 
-🚀 deployment: fiskeoye [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=Recreate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: fiskeoye[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=fiskeoye
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=fiskeoye
-│  ├─ 🫛 pod: fiskeoye-repo-update-29552220-lq8lc
-│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
-│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
-│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=git.spk.no}[0m
-│  └─ 👈 cnp-egress: tofqdn[90m {matchName=git.test.spk.no}[0m
-├─ 🎮 replicaset: fiskeoye-8699f8f467 [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: fiskeoye-8699f8f467-fphr6[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.94}[0m
-│     └─ 🧊 container: app
-│        ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/fiskeoye:main_production
-│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
-│        ├─ ✅ readinessprobe: [[32mREADY[0m]
-│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
-├─ 🖥️ service: fiskeoye[90m {clusterIP=10.97.68.79, ports=[8080/TCP], selector=[app.kubernetes.io/instance=fiskeoye app.kubernetes.io/name=fiskeoye], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: fiskeoye
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.10.94, nodeName=tool-test-01-worker-d4215435, targetName=fiskeoye-8699f8f467-fphr6}[0m
-│  ├─ 📍 endpointslice: fiskeoye-vxzv5[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.10.94, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=fiskeoye-8699f8f467-fphr6}[0m
-│  └─ 🔄 httproute: fiskeoye[90m {hostnames=[fiskeoye.tool-test.los.spk.no fiskeoye.tool-test.spk.no], paths=[/*], service=fiskeoye:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  ├─ 💬 env: CRON_EXPRESSION=0 0 31 2 *
-   │  ├─ 💬 env: EXPOSE_SWARM_SECRETS=false
-   │  └─ 💬 env: GITHUB_PRIVATE_KEY_PATH=/run/secrets/GITHUB-PRIVATE-KEY-CONTENT
-   ├─ 🐋 image: cr.spk.no/swarm/statens-pensjonskasse/fiskeoye:main_production[90m {pullPolicy=Always}[0m
-   ├─ 💓 livenessprobe:[90m {initialDelaySeconds=30, path=/admin/ping, port=http, type=httpGet}[0m
-   ├─ 📂 mounts
-   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   │  ├─ 📁 mount:[90m {mount=/var/run, volume=emptyDir}[0m
-   │  ├─ 📁 mount:[90m {mount=/run/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
-   │  └─ 📁 mount:[90m {mount=/var/lib/fiskeoye, volume=fiskeoye-data}[0m
-   │     └─ 📀 persistentvolumeclaim: fiskeoye-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
-   ├─ 📀 persistentvolumeclaim: fiskeoye-data [[32mBOUND[0m][90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, storage=15Gi, storageClass=standard, volumeName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
-   │  └─ 💿 persistentvolume: pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2[90m {accessModes=[ReadWriteOnce], capacity=15Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}[0m
-   │     ├─ 💽 storageclass: standard[90m {allowVolumeExpansion=true, provisioner=csi.vsphere.vmware.com, reclaimPolicy=Delete, volumeBindingMode=Immediate}[0m
-   │     └─ 💿 volumeattachment: csi-23c7d7bdc168fbcfe7b4009e822fe2a0f6420ce917262000401398b02b0f4764[90m {attached=true, attacher=csi.vsphere.vmware.com, nodeName=tool-test-01-worker-d4215435, pvName=pvc-e7b41855-f7cc-49a1-8c36-b2b693ded1e2}[0m
-   ├─ 🛡️ podsecuritycontext:[90m {fsGroup=1000, runAsGroup=1000, runAsUser=1000}[0m
-   ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ ✅ readinessprobe:[90m {path=/admin/ping, port=http, type=httpGet}[0m
-   ├─ 💾 resources:[90m {limits=memory:1Gi, requests=cpu:250m memory:256Mi}[0m
-   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}[0m
-   └─ ▶️ startupprobe:[90m {failureThreshold=30, path=/admin/ping, periodSeconds=5, port=http, type=httpGet}[0m
+⚙ configmap kube-root-ca.crt {[2m[90mkeys[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m}
 
-🚀 deployment: github-readonly-proxy [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: github-readonly-proxy[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=github-readonly-proxy
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=github-readonly-proxy
-│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=api.github.com}[0m
-│  ├─ 👈 cnp-egress: tofqdn[90m {matchName=github.com}[0m
-│  └─ 👈 cnp-egress: tofqdn[90m {matchName=raw.githubusercontent.com}[0m
-├─ 🎮 replicaset: github-readonly-proxy-84d98b4dcd [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: github-readonly-proxy-84d98b4dcd-v58bh[90m {hostIP=10.200.80.88, nodeName=tool-test-01-worker-055ceed2, phase=Running, podIP=10.244.9.4}[0m
-│     └─ 🧊 container: app
-│        ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy:main_test
-│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
-│        └─ ✅ readinessprobe: [[32mREADY[0m]
-├─ 🎮 replicaset: github-readonly-proxy-8597fddc7f[90m {current=0, replicas=0}[0m
-├─ 🖥️ service: github-readonly-proxy[90m {clusterIP=10.104.94.201, ports=[8080/TCP], selector=[app.kubernetes.io/instance=github-readonly-proxy app.kubernetes.io/name=github-readonly-proxy], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: github-readonly-proxy
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.9.4, nodeName=tool-test-01-worker-055ceed2, targetName=github-readonly-proxy-84d98b4dcd-v58bh}[0m
-│  ├─ 📍 endpointslice: github-readonly-proxy-d28qk[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.9.4, nodeName=tool-test-01-worker-055ceed2, ready=true, serving=true, targetName=github-readonly-proxy-84d98b4dcd-v58bh}[0m
-│  └─ 🔄 httproute: github-readonly-proxy[90m {hostnames=[github-readonly-proxy.tool-test.los.spk.no github-readonly-proxy.tool-test.spk.no], paths=[/*], service=github-readonly-proxy:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/github-readonly-proxy:main_test[90m {pullPolicy=Always}[0m
-   ├─ 💓 livenessprobe:[90m {path=/healthz, port=http, type=httpGet}[0m
-   ├─ 📂 mounts
-   │  ├─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   │  └─ 📁 mount:[90m {mount=/run/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}[0m
-   ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ ✅ readinessprobe:[90m {path=/healthz, port=http, type=httpGet}[0m
-   ├─ 💾 resources:[90m {requests=cpu:200m memory:128Mi}[0m
-   └─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true, seccompProfile=RuntimeDefault}[0m
+⚙ configmap spk-trust-bundle {[2m[90mkeys[0m[37m=[0m[1m[90m3[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mapplikasjonsplattform[0m}
 
-🚀 deployment: secretgen-web [[32mAVAILABLE[0m][90m {available=1, current=1, namespace=applikasjonsplattform, ready=1, replicas=1, strategy=RollingUpdate, updated=1}[0m
-├─ 📜 ciliumnetworkpolicy: secretgen-web[90m {egress=false, ingress=true}[0m
-│  ├─ 👉 cnp-ingress: fromentities[90m {entities=[cluster]}[0m
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=secretgen-web
-│  └─ 🎯 endpointselector: label app.kubernetes.io/name=secretgen-web
-├─ 🎮 replicaset: secretgen-web-5c75675d78[90m {current=0, replicas=0}[0m
-├─ 🎮 replicaset: secretgen-web-7b548b454f [[32mREADY[0m][90m {available=1, current=1, ready=1, replicas=1}[0m
-│  └─ 🫛 pod: secretgen-web-7b548b454f-78bns[90m {hostIP=10.200.80.92, nodeName=tool-test-01-worker-d4215435, phase=Running, podIP=10.244.10.246}[0m
-│     └─ 🧊 container: app
-│        ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web:main_test
-│        ├─ 💓 livenessprobe: [[32mPASSING[0m]
-│        ├─ ✅ readinessprobe: [[32mREADY[0m]
-│        └─ ▶️ startupprobe: [[32mSTARTED[0m]
-├─ 🖥️ service: secretgen-web[90m {clusterIP=10.96.102.146, ports=[8080/TCP], selector=[app.kubernetes.io/instance=secretgen-web app.kubernetes.io/name=secretgen-web], type=ClusterIP}[0m
-│  ├─ 📍 endpoints: secretgen-web
-│  │  └─ 🔗 subset:[90m {ports=[http:8080/TCP]}[0m
-│  │     └─ 🔌 address:[90m {ip=10.244.10.246, nodeName=tool-test-01-worker-d4215435, targetName=secretgen-web-7b548b454f-78bns}[0m
-│  ├─ 📍 endpointslice: secretgen-web-44whl[90m {addressType=IPv4, port=8080, portName=http, protocol=TCP}[0m
-│  │  └─ 🔌 endpoint:[90m {address=10.244.10.246, nodeName=tool-test-01-worker-d4215435, ready=true, serving=true, targetName=secretgen-web-7b548b454f-78bns}[0m
-│  └─ 🔄 httproute: secretgen-web[90m {hostnames=[secretgen.tool-test.los.spk.no secretgen.tool-test.spk.no secretgen-web.tool-test.los.spk.no secretgen-web.tool-test.spk.no], paths=[/*], service=secretgen-web:8080/TCP (ClusterIP)}[0m
-└─ 📄 spec
-   ├─ 🔤 environment
-   │  ├─ 💬 env: EYAML_PUBLIC_KEY_PUPPET=-----BEGIN CERTIFICATE-----...
-   │  ├─ 💬 env: EYAML_PUBLIC_KEY_SPK_CONFIG_PROD=-----BEGIN CERTIFICATE-----...
-   │  ├─ 💬 env: EYAML_PUBLIC_KEY_SPK_CONFIG_TEST=-----BEGIN CERTIFICATE-----...
-   │  └─ 💬 env: EYAML_PUBLIC_KEY_TERRAFORM_DB=# Replace with actual Terraform DB public key...
-   ├─ 🐋 image: cr.spk.no/ghcr/statens-pensjonskasse/secretgen-web:main_test[90m {pullPolicy=Always}[0m
-   ├─ 💓 livenessprobe:[90m {path=/, port=http, type=httpGet}[0m
-   ├─ 📂 mounts
-   │  └─ 📁 mount:[90m {mount=/tmp, volume=emptyDir}[0m
-   ├─ 🔌 ports
-   │  └─ ⇄ port: http[90m {containerPort=8080, protocol=TCP}[0m
-   ├─ ✅ readinessprobe:[90m {path=/, port=http, type=httpGet}[0m
-   ├─ 💾 resources:[90m {requests=cpu:200m memory:128Mi}[0m
-   ├─ 🛡️ securitycontext:[90m {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=true, seccompProfile=RuntimeDefault}[0m
-   └─ ▶️ startupprobe:[90m {path=/, port=http, type=httpGet}[0m
-
-📜 ciliumnetworkpolicy: appwatch[90m {namespace=applikasjonsplattform}[0m
-├─ 🎯 endpointselector: label app.kubernetes.io/name=appwatch
-├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.prod.spk.no}[0m
-├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.test.spk.no}[0m
-├─ 👈 cnp-egress: tofqdn[90m {matchName=dashboard.utv.spk.no}[0m
-└─ 👈 cnp-egress: tofqdn[90m {matchPattern=*.slack.com}[0m
-
-📝 configmap: kube-root-ca.crt[90m {keys=1, namespace=applikasjonsplattform}[0m
-
-📝 configmap: spk-trust-bundle[90m {keys=3, namespace=applikasjonsplattform}[0m
-
-🔒 secret: ad-explore-db-secret[90m {keys=1, namespace=applikasjonsplattform, type=Opaque}[0m
-
-🔒 secret: fiskeoye-secrets[90m {keys=1, namespace=applikasjonsplattform, type=Opaque}[0m
-
-👤 serviceaccount: appwatch[90m {namespace=applikasjonsplattform}[0m
-└─ 🔗 clusterrolebinding: appwatch-reader-binding
-
-👤 serviceaccount: default[90m {namespace=applikasjonsplattform}[0m
-
-📜 certificate: trust-manager [[32mEXPIRES IN 78D[0m][90m {dnsNames=[trust-manager.cert-manager.svc], expiresIn=78d, namespace=cert-manager, ready=True, readyReason=Ready}[0m
-└─ 🔑 issuer: trust-manager [[32mREADY[0m][90m {age=251d, readyReason=IsReady, type=self-signed}[0m
+📜 certificate trust-manager [[32mEXPIRES IN 77D[0m] {[2m[90mdnsNames[0m[37m=[0m[1m[90m[trust-manager.cert-manager.svc][0m, [2m[90mnamespace[0m[37m=[0m[1m[90mcert-manager[0m, [2m[90mready[0m[37m=[0m[1m[90mTrue[0m, [2m[90mreadyReason[0m[37m=[0m[1m[90mReady[0m}
+└─ 🔑 issuer trust-manager [[32mREADY[0m] {[2m[90mage[0m[37m=[0m[1m[90m252d[0m, [2m[90mreadyReason[0m[37m=[0m[1m[90mIsReady[0m, [2m[90mtype[0m[37m=[0m[1m[90mself-signed[0m}

@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"time"
+
 	kube "github.com/karloie/kompass/pkg/kube"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,7 +33,7 @@ type appSpec struct {
 func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 	namespace := "petshop"
 	replicaSetName := spec.name + "-" + spec.rsHash
-	podName := replicaSetName + "-xxxxx"
+	podName := replicaSetName + "-tr5ft"
 
 	deploymentUID := types.UID("dep-" + spec.podUID[:8])
 	replicaSetUID := types.UID("rs-" + spec.podUID[:8])
@@ -180,10 +182,22 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 				},
 			},
 		},
-		Spec: buildAppPodSpec(spec, "bunny-01-worker-055ceed2"),
+		Spec: buildAppPodSpec(spec, "psb-01-worker-055ceed2"),
 		Status: corev1.PodStatus{
 			Phase: corev1.PodRunning,
 			PodIP: spec.podIP,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:    "app",
+					Ready:   true,
+					Started: ptr.To(true),
+					Image:   spec.image,
+					ImageID: spec.image + "@sha256:mock-" + spec.rsHash,
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Date(2026, time.March, 12, 10, 0, 0, 0, time.UTC))},
+					},
+				},
+			},
 			Conditions: []corev1.PodCondition{
 				{
 					Type:   corev1.PodReady,
@@ -226,7 +240,7 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 		Subsets: []corev1.EndpointSubset{
 			{
 				Addresses: []corev1.EndpointAddress{
-					{IP: spec.podIP, NodeName: ptr.To("bunny-01-worker-055ceed2"), TargetRef: &corev1.ObjectReference{
+					{IP: spec.podIP, NodeName: ptr.To("psb-01-worker-055ceed2"), TargetRef: &corev1.ObjectReference{
 						Kind:      "Pod",
 						Name:      podName,
 						Namespace: namespace,
@@ -269,7 +283,7 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 					Serving:     ptr.To(true),
 					Terminating: ptr.To(false),
 				},
-				NodeName: ptr.To("bunny-01-worker-055ceed2"),
+				NodeName: ptr.To("psb-01-worker-055ceed2"),
 				TargetRef: &corev1.ObjectReference{
 					Kind:      "Pod",
 					Name:      podName,
@@ -338,12 +352,15 @@ func buildAppContainer(spec appSpec) corev1.Container {
 func buildAppPodSpec(spec appSpec, nodeName string) corev1.PodSpec {
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: spec.name,
-		Containers:         []corev1.Container{buildAppContainer(spec)},
-		Volumes:            spec.volumes,
-		HostNetwork:        spec.hostNetwork,
-		DNSPolicy:          getDNSPolicy(spec.dnsPolicy, spec.hostNetwork),
-		Hostname:           spec.hostname,
-		Subdomain:          spec.subdomain,
+		ImagePullSecrets: []corev1.LocalObjectReference{
+			{Name: "docker-registry-credentials"},
+		},
+		Containers:  []corev1.Container{buildAppContainer(spec)},
+		Volumes:     spec.volumes,
+		HostNetwork: spec.hostNetwork,
+		DNSPolicy:   getDNSPolicy(spec.dnsPolicy, spec.hostNetwork),
+		Hostname:    spec.hostname,
+		Subdomain:   spec.subdomain,
 	}
 	if nodeName != "" {
 		podSpec.NodeName = nodeName

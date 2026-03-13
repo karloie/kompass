@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
@@ -20,6 +21,20 @@ func buildMountsNode(containerKey string, namespace string, volumeMounts []any, 
 			}
 		}
 	}
+
+	sort.Slice(mountsNode.Children, func(i, j int) bool {
+		mountI, _ := mountsNode.Children[i].Meta["mount"].(string)
+		mountJ, _ := mountsNode.Children[j].Meta["mount"].(string)
+		if mountI != mountJ {
+			return mountI < mountJ
+		}
+		volumeI, _ := mountsNode.Children[i].Meta["volume"].(string)
+		volumeJ, _ := mountsNode.Children[j].Meta["volume"].(string)
+		if volumeI != volumeJ {
+			return volumeI < volumeJ
+		}
+		return mountsNode.Children[i].Key < mountsNode.Children[j].Key
+	})
 
 	return mountsNode
 }
@@ -50,10 +65,8 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 		}
 	}
 
-	var referencedResource *kube.Tree
-
 	if volumeDef != nil {
-		volumeType, volumeSource, resourceKey := extractVolumeInfo(volumeDef, namespace)
+		volumeType, volumeSource, _ := extractVolumeInfo(volumeDef, namespace)
 
 		if volumeSource != "" {
 			metadata["volume"] = volumeSource
@@ -65,9 +78,18 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 			metadata["volumeType"] = volumeType
 		}
 
-		if volumeType == "secret" || volumeType == "configmap" || volumeType == "persistentvolumeclaim" {
-			if resource, exists := nodeMap[resourceKey]; exists {
-				referencedResource = NewTree(resourceKey, resource.Type, map[string]any{})
+		if volumeType == "csi" {
+			if csi, ok := graph.M(volumeDef).MapOk("csi"); ok {
+				if nps, ok := csi.Raw()["nodePublishSecretRef"].(map[string]any); ok {
+					if secretName, ok := nps["name"].(string); ok && secretName != "" {
+						metadata["nodePublishSecretRef"] = secretName
+					}
+				}
+				if attrs, ok := csi.Raw()["volumeAttributes"].(map[string]any); ok {
+					if spc, ok := attrs["secretProviderClass"].(string); ok && spc != "" {
+						metadata["secretProviderClass"] = spc
+					}
+				}
 			}
 		}
 	} else {
@@ -76,11 +98,69 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 
 	mountNode := NewTree(mountKey, "mount", metadata)
 
-	if referencedResource != nil {
-		mountNode.Children = append(mountNode.Children, referencedResource)
+	return mountNode
+}
+
+func buildVolumeFallbackNode(mountKey, namespace, volumeType, volumeSource string, volumeDef map[string]any, nodeMap map[string]kube.Resource, includeReferences bool) *kube.Tree {
+	if volumeSource == "" {
+		return nil
+	}
+	if volumeType == "emptyDir" {
+		return nil
 	}
 
-	return mountNode
+	meta := map[string]any{"name": volumeSource}
+	if volumeType != "" {
+		meta["sourceType"] = volumeType
+	}
+
+	if volumeType == "csi" {
+		if csi, ok := graph.M(volumeDef).MapOk("csi"); ok {
+			nodeType := "storage"
+			if driver, ok := csi.StringOk("driver"); ok && driver != "" {
+				meta["driver"] = driver
+				if driver == "secrets-store.csi.k8s.io" {
+					nodeType = "secretstore"
+				}
+			}
+
+			fallbackNode := NewTree(mountKey+"/volume", nodeType, meta)
+			if !includeReferences {
+				if nps, ok := csi.Raw()["nodePublishSecretRef"].(map[string]any); ok {
+					if secretName, ok := nps["name"].(string); ok && secretName != "" {
+						meta["nodePublishSecretRef"] = secretName
+					}
+				}
+				if attrs, ok := csi.Raw()["volumeAttributes"].(map[string]any); ok {
+					if spc, ok := attrs["secretProviderClass"].(string); ok && spc != "" {
+						meta["secretProviderClass"] = spc
+					}
+				}
+				return fallbackNode
+			}
+
+			if nps, ok := csi.Raw()["nodePublishSecretRef"].(map[string]any); ok {
+				if secretName, ok := nps["name"].(string); ok && secretName != "" {
+					meta["nodePublishSecretRef"] = secretName
+					if secretRefNode := newSecretReferenceNode(nodeMap, namespace, secretName); secretRefNode != nil {
+						fallbackNode.Children = append(fallbackNode.Children, secretRefNode)
+					}
+				}
+			}
+			if attrs, ok := csi.Raw()["volumeAttributes"].(map[string]any); ok {
+				if spc, ok := attrs["secretProviderClass"].(string); ok && spc != "" {
+					meta["secretProviderClass"] = spc
+					if spcRefNode := newSecretProviderClassReferenceNode(nodeMap, namespace, spc); spcRefNode != nil {
+						fallbackNode.Children = append(fallbackNode.Children, spcRefNode)
+					}
+				}
+			}
+
+			return fallbackNode
+		}
+	}
+
+	return NewTree(mountKey+"/volume", "storage", meta)
 }
 
 func extractVolumeInfo(volMap map[string]any, namespace string) (volumeType, volumeSource, resourceKey string) {

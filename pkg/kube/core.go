@@ -190,6 +190,10 @@ type GatewayProvider interface {
 	GetGateways(namespace string, ctx context.Context, opts metav1.ListOptions) ([]map[string]any, error)
 }
 
+type SecretsStoreProvider interface {
+	GetSecretProviderClasses(namespace string, ctx context.Context, opts metav1.ListOptions) ([]map[string]any, error)
+}
+
 type MockConfig struct {
 	AllEmpty bool
 	AllError bool
@@ -248,6 +252,7 @@ type InMemoryModel struct {
 	ClusterIssuers                   []map[string]any
 	HTTPRoutes                       []map[string]any
 	Gateways                         []map[string]any
+	SecretProviderClasses            []map[string]any
 	CRDs                             []map[string]any
 	Egresses                         []map[string]any
 	PodLogs                          map[string]string
@@ -387,7 +392,6 @@ func NewClient(contextName, namespace string) (*Client, error) {
 			syncInterval:  30 * time.Second,
 		}, nil
 	}
-
 	kubeconfig = os.Getenv("KUBECONFIG")
 	if kubeconfig == "" {
 		home, err := os.UserHomeDir()
@@ -464,6 +468,7 @@ func NewClient(contextName, namespace string) (*Client, error) {
 	}, nil
 }
 
+// NewClientWithClientset supports injected clients for integration and test usage.
 func NewClientWithClientset(clientset kubernetes.Interface, dynamicClient dynamic.Interface, config *rest.Config, contextName, namespace string) *Client {
 	if contextName == "" {
 		contextName = "injected-cluster"

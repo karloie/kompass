@@ -2,12 +2,14 @@ package tree
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func expandResourceFromVolume(parentKey, namespace string, volume map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
+func expandResourceFromVolume(parentKey, namespace string, idx int, volume map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	volumeSources := []struct {
 		field   string
 		nameKey string
@@ -28,19 +30,873 @@ func expandResourceFromVolume(parentKey, namespace string, volume map[string]any
 			}
 		}
 	}
+
+	if csi, ok := graph.M(volume).MapOk("csi"); ok {
+		if driver, ok := csi.StringOk("driver"); ok && driver != "" {
+			return buildVolumeFallbackNode(
+				fmt.Sprintf("%s/volume/%d", parentKey, idx),
+				namespace,
+				"csi",
+				driver,
+				volume,
+				nodeMap,
+				true,
+			)
+		}
+	}
+
 	return nil
 }
 
 func expandVolumesAsResources(parentKey, namespace string, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	nodes := make([]*kube.Tree, 0)
-	for _, vol := range volumes {
+	for idx, vol := range volumes {
 		if volMap, ok := vol.(map[string]any); ok {
-			if node := expandResourceFromVolume(parentKey, namespace, volMap, graphChildren, state, nodeMap); node != nil {
+			if node := expandResourceFromVolume(parentKey, namespace, idx, volMap, graphChildren, state, nodeMap); node != nil {
 				nodes = append(nodes, node)
 			}
 		}
 	}
 	return nodes
+}
+
+func buildStorageNode(parentKey string, storageChildren []*kube.Tree) *kube.Tree {
+	return buildSectionNode(parentKey, "storage", storageChildren)
+}
+
+func buildSecretsNode(parentKey string, secretChildren []*kube.Tree) *kube.Tree {
+	return buildSectionNode(parentKey, "secrets", secretChildren)
+}
+
+func buildConfigMapsNode(parentKey string, configMapChildren []*kube.Tree) *kube.Tree {
+	return buildSectionNode(parentKey, "configmaps", configMapChildren)
+}
+
+func buildSectionNode(parentKey, sectionType string, sectionChildren []*kube.Tree) *kube.Tree {
+	if len(sectionChildren) == 0 {
+		return nil
+	}
+	node := NewTree(parentKey+"/"+sectionType, sectionType, nil)
+	node.Children = sectionChildren
+	sortChildren(node.Children)
+	return node
+}
+
+func sortConfigMapChildren(children []*kube.Tree) {
+	sortChildrenByPriority(children, map[string]int{"env": 0, "mount": 1})
+}
+
+func sortPersistentVolumeClaimChildren(children []*kube.Tree) {
+	sortChildrenByPriority(children, map[string]int{"mount": 0, "persistentvolume": 1})
+}
+
+func secretStoreSignature(driver, spc, nodePublishSecretRef, fallback string) string {
+	signature := driver + "|" + spc + "|" + nodePublishSecretRef
+	if signature == "||" {
+		return fallback
+	}
+	return signature
+}
+
+func attachSyncedSecretsToSecretStores(namespace string, secretStoreNodes []*kube.Tree, envUsageBySecretKey map[string][]map[string]any, state *treeBuildState, nodeMap map[string]kube.Resource) {
+	for _, storeNode := range secretStoreNodes {
+		if storeNode == nil || storeNode.Type != "secretstore" {
+			continue
+		}
+
+		spcName, _ := storeNode.Meta["secretProviderClass"].(string)
+		if spcName == "" {
+			continue
+		}
+
+		spcKey := BuildResourceKeyRef("secretproviderclass", namespace, spcName)
+		spcResource, exists := nodeMap[spcKey]
+		if !exists {
+			continue
+		}
+
+		if secretObjects, ok := graph.M(spcResource.AsMap()).Path("spec").Raw()["secretObjects"].([]any); ok {
+			for _, so := range secretObjects {
+				soMap, ok := so.(map[string]any)
+				if !ok {
+					continue
+				}
+				secretName, _ := soMap["secretName"].(string)
+				if secretName == "" {
+					continue
+				}
+
+				secretKey := BuildResourceKeyRef("secret", namespace, secretName)
+				if _, exists := nodeMap[secretKey]; !exists {
+					continue
+				}
+
+				var secretNode *kube.Tree
+				for _, child := range storeNode.Children {
+					if child.Type == "secret" && child.Key == secretKey {
+						secretNode = child
+						break
+					}
+				}
+				if secretNode == nil {
+					secretNode = NewTree(secretKey, "secret", nil)
+					storeNode.Children = append(storeNode.Children, secretNode)
+				}
+
+				for envIdx, envUsage := range envUsageBySecretKey[secretKey] {
+					secretNode.Children = append(secretNode.Children, NewTree(secretKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
+				}
+				sortChildren(secretNode.Children)
+
+				if state != nil {
+					state.MarkSeen(secretKey)
+				}
+			}
+		}
+
+		sortSecretStoreChildren(storeNode.Children)
+	}
+}
+
+func sortSecretStoreChildren(children []*kube.Tree) {
+	sortChildrenByPriority(children, map[string]int{"secretproviderclass": 0, "secret": 1, "mount": 2})
+}
+
+func sortChildrenByPriority(children []*kube.Tree, priority map[string]int) {
+	sort.Slice(children, func(i, j int) bool {
+		rankI, okI := priority[children[i].Type]
+		rankJ, okJ := priority[children[j].Type]
+		if !okI {
+			rankI = 99
+		}
+		if !okJ {
+			rankJ = 99
+		}
+		if rankI != rankJ {
+			return rankI < rankJ
+		}
+
+		nameI := ""
+		nameJ := ""
+		if name, ok := children[i].Meta["name"].(string); ok {
+			nameI = name
+		}
+		if name, ok := children[j].Meta["name"].(string); ok {
+			nameJ = name
+		}
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
+
+		return children[i].Key < children[j].Key
+	})
+}
+
+func secretKeysShownUnderSecretStores(secretStoreNodes []*kube.Tree) map[string]bool {
+	keys := make(map[string]bool)
+	for _, storeNode := range secretStoreNodes {
+		if storeNode == nil || storeNode.Type != "secretstore" {
+			continue
+		}
+		for _, child := range storeNode.Children {
+			if child != nil && child.Type == "secret" && child.Key != "" {
+				keys[child.Key] = true
+			}
+		}
+	}
+	return keys
+}
+
+func filterRedundantTopLevelSecrets(secretNodes []*kube.Tree, secretsShownByStore map[string]bool) []*kube.Tree {
+	if len(secretNodes) == 0 || len(secretsShownByStore) == 0 {
+		return secretNodes
+	}
+
+	filtered := make([]*kube.Tree, 0, len(secretNodes))
+	for _, node := range secretNodes {
+		if node == nil {
+			continue
+		}
+		if node.Type == "secret" && secretsShownByStore[node.Key] {
+			continue
+		}
+		filtered = append(filtered, node)
+	}
+	return filtered
+}
+
+func splitVolumeResourceNodes(volumeNodes []*kube.Tree) (storageNodes []*kube.Tree, secretNodes []*kube.Tree, configMapNodes []*kube.Tree) {
+	seenSecretStore := make(map[string]bool)
+	storageNodes = make([]*kube.Tree, 0, len(volumeNodes))
+	secretNodes = make([]*kube.Tree, 0)
+	configMapNodes = make([]*kube.Tree, 0)
+
+	for _, node := range volumeNodes {
+		if node == nil {
+			continue
+		}
+
+		if node.Type == "configmap" {
+			configMapNodes = append(configMapNodes, node)
+			continue
+		}
+
+		if node.Type == "secret" {
+			secretNodes = append(secretNodes, node)
+			continue
+		}
+
+		if node.Type != "secretstore" {
+			storageNodes = append(storageNodes, node)
+			continue
+		}
+
+		driver, _ := node.Meta["driver"].(string)
+		spc, _ := node.Meta["secretProviderClass"].(string)
+		nps, _ := node.Meta["nodePublishSecretRef"].(string)
+		signature := secretStoreSignature(driver, spc, nps, node.Key)
+		if seenSecretStore[signature] {
+			continue
+		}
+		seenSecretStore[signature] = true
+		secretNodes = append(secretNodes, node)
+	}
+
+	return storageNodes, secretNodes, configMapNodes
+}
+
+func collectSecretStoreUsageBySignature(containers []any, volumes []any) map[string][]map[string]any {
+	usageBySignature := make(map[string][]map[string]any)
+
+	type secretStoreInfo struct {
+		signature            string
+		volumeName           string
+		driver               string
+		secretProviderClass  string
+		nodePublishSecretRef string
+	}
+
+	storesByVolumeName := make(map[string]secretStoreInfo)
+	for _, v := range volumes {
+		volMap, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		volName, _ := volMap["name"].(string)
+		if volName == "" {
+			continue
+		}
+		csi, ok := graph.M(volMap).MapOk("csi")
+		if !ok {
+			continue
+		}
+		driver, _ := csi.StringOk("driver")
+		if driver != "secrets-store.csi.k8s.io" {
+			continue
+		}
+
+		spc := ""
+		nps := ""
+		if attrs, ok := csi.Raw()["volumeAttributes"].(map[string]any); ok {
+			if value, ok := attrs["secretProviderClass"].(string); ok {
+				spc = value
+			}
+		}
+		if nodePublishSecretRef, ok := csi.Raw()["nodePublishSecretRef"].(map[string]any); ok {
+			if value, ok := nodePublishSecretRef["name"].(string); ok {
+				nps = value
+			}
+		}
+
+		storesByVolumeName[volName] = secretStoreInfo{
+			signature:            secretStoreSignature(driver, spc, nps, volName),
+			volumeName:           volName,
+			driver:               driver,
+			secretProviderClass:  spc,
+			nodePublishSecretRef: nps,
+		}
+	}
+
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		volumeMounts, _ := containerMap["volumeMounts"].([]any)
+		for _, vm := range volumeMounts {
+			vmMap, ok := vm.(map[string]any)
+			if !ok {
+				continue
+			}
+			mountVolumeName, _ := vmMap["name"].(string)
+			mountPath, _ := vmMap["mountPath"].(string)
+			if mountVolumeName == "" || mountPath == "" {
+				continue
+			}
+			store, ok := storesByVolumeName[mountVolumeName]
+			if !ok {
+				continue
+			}
+
+			meta := map[string]any{
+				"mount":  mountPath,
+				"mode":   "csi",
+				"volume": store.volumeName,
+			}
+			if readOnly, ok := vmMap["readOnly"].(bool); ok && readOnly {
+				meta["readOnly"] = true
+			}
+			if store.driver != "" {
+				meta["driver"] = store.driver
+			}
+			if store.secretProviderClass != "" {
+				meta["secretProviderClass"] = store.secretProviderClass
+			}
+			if store.nodePublishSecretRef != "" {
+				meta["nodePublishSecretRef"] = store.nodePublishSecretRef
+			}
+
+			usageBySignature[store.signature] = append(usageBySignature[store.signature], meta)
+		}
+	}
+
+	return usageBySignature
+}
+
+func collectSecretEnvUsageBySecretKey(namespace string, containers []any) map[string][]map[string]any {
+	usageBySecretKey := make(map[string][]map[string]any)
+	seen := make(map[string]bool)
+
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		envVars, _ := containerMap["env"].([]any)
+		for _, e := range envVars {
+			envMap, ok := e.(map[string]any)
+			if !ok {
+				continue
+			}
+			envName, _ := envMap["name"].(string)
+			if envName == "" {
+				continue
+			}
+			valueFrom, ok := envMap["valueFrom"].(map[string]any)
+			if !ok {
+				continue
+			}
+			secretKeyRef, ok := valueFrom["secretKeyRef"].(map[string]any)
+			if !ok {
+				continue
+			}
+			secretName, _ := secretKeyRef["name"].(string)
+			if secretName == "" {
+				continue
+			}
+			secretKey := BuildResourceKeyRef("secret", namespace, secretName)
+			entryKey := secretKey + "|" + envName
+			if seen[entryKey] {
+				continue
+			}
+			seen[entryKey] = true
+
+			meta := map[string]any{
+				"name":  envName,
+				"value": "<SECRET>",
+			}
+			if keyName, ok := secretKeyRef["key"].(string); ok && keyName != "" {
+				meta["key"] = keyName
+			}
+
+			usageBySecretKey[secretKey] = append(usageBySecretKey[secretKey], meta)
+		}
+	}
+
+	return usageBySecretKey
+}
+
+func attachSecretStoreUsage(secretStoreNodes []*kube.Tree, usageBySignature map[string][]map[string]any) {
+	for _, storeNode := range secretStoreNodes {
+		if storeNode == nil || storeNode.Type != "secretstore" {
+			continue
+		}
+
+		driver, _ := storeNode.Meta["driver"].(string)
+		spc, _ := storeNode.Meta["secretProviderClass"].(string)
+		nps, _ := storeNode.Meta["nodePublishSecretRef"].(string)
+		signature := secretStoreSignature(driver, spc, nps, storeNode.Key)
+
+		for idx, usage := range usageBySignature[signature] {
+			storeNode.Children = append(storeNode.Children, NewTree(storeNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+		}
+
+		sortSecretStoreChildren(storeNode.Children)
+	}
+}
+
+func mergeUniqueNodesByKey(primary []*kube.Tree, secondary []*kube.Tree) []*kube.Tree {
+	if len(primary) == 0 {
+		return secondary
+	}
+	if len(secondary) == 0 {
+		return primary
+	}
+
+	seen := make(map[string]bool, len(primary)+len(secondary))
+	merged := make([]*kube.Tree, 0, len(primary)+len(secondary))
+	for _, n := range primary {
+		if n == nil || n.Key == "" || seen[n.Key] {
+			continue
+		}
+		seen[n.Key] = true
+		merged = append(merged, n)
+	}
+	for _, n := range secondary {
+		if n == nil || n.Key == "" || seen[n.Key] {
+			continue
+		}
+		seen[n.Key] = true
+		merged = append(merged, n)
+	}
+	return merged
+}
+
+func expandEnvSecretsAsResources(namespace string, containers []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	secretKeys := collectEnvSecretKeys(namespace, containers)
+
+	nodes := make([]*kube.Tree, 0, len(secretKeys))
+	for secretKey := range secretKeys {
+		if _, exists := nodeMap[secretKey]; !exists {
+			continue
+		}
+		if !state.CanTraverse(secretKey) {
+			continue
+		}
+		if node := buildTreeNode(secretKey, graphChildren, state, nodeMap); node != nil {
+			nodes = append(nodes, node)
+		}
+	}
+
+	return nodes
+}
+
+func collectEnvSecretKeys(namespace string, containers []any) map[string]bool {
+	secretKeys := make(map[string]bool)
+
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if envVars, ok := containerMap["env"].([]any); ok {
+			for _, ev := range envVars {
+				envMap, ok := ev.(map[string]any)
+				if !ok {
+					continue
+				}
+				if valueFrom, ok := graph.M(envMap).MapOk("valueFrom"); ok {
+					if secretKeyRef, ok := valueFrom.MapOk("secretKeyRef"); ok {
+						if secretName, ok := secretKeyRef.StringOk("name"); ok && secretName != "" {
+							secretKeys[BuildResourceKeyRef("secret", namespace, secretName)] = true
+						}
+					}
+				}
+			}
+		}
+
+		if envFrom, ok := containerMap["envFrom"].([]any); ok {
+			for _, ef := range envFrom {
+				envFromMap, ok := ef.(map[string]any)
+				if !ok {
+					continue
+				}
+				if secretRef, ok := graph.M(envFromMap).MapOk("secretRef"); ok {
+					if secretName, ok := secretRef.StringOk("name"); ok && secretName != "" {
+						secretKeys[BuildResourceKeyRef("secret", namespace, secretName)] = true
+					}
+				}
+			}
+		}
+	}
+
+	return secretKeys
+}
+
+func collectEnvConfigMapKeys(namespace string, containers []any) map[string]bool {
+	configMapKeys := make(map[string]bool)
+
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if envVars, ok := containerMap["env"].([]any); ok {
+			for _, ev := range envVars {
+				envMap, ok := ev.(map[string]any)
+				if !ok {
+					continue
+				}
+				if valueFrom, ok := graph.M(envMap).MapOk("valueFrom"); ok {
+					if cmKeyRef, ok := valueFrom.MapOk("configMapKeyRef"); ok {
+						if cmName, ok := cmKeyRef.StringOk("name"); ok && cmName != "" {
+							configMapKeys[BuildResourceKeyRef("configmap", namespace, cmName)] = true
+						}
+					}
+				}
+			}
+		}
+
+		if envFrom, ok := containerMap["envFrom"].([]any); ok {
+			for _, ef := range envFrom {
+				envFromMap, ok := ef.(map[string]any)
+				if !ok {
+					continue
+				}
+				if cmRef, ok := graph.M(envFromMap).MapOk("configMapRef"); ok {
+					if cmName, ok := cmRef.StringOk("name"); ok && cmName != "" {
+						configMapKeys[BuildResourceKeyRef("configmap", namespace, cmName)] = true
+					}
+				}
+			}
+		}
+	}
+
+	return configMapKeys
+}
+
+func collectVolumeConfigMapKeys(namespace string, volumes []any) map[string]bool {
+	configMapKeys := make(map[string]bool)
+
+	for _, v := range volumes {
+		volMap, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if configMap, ok := graph.M(volMap).MapOk("configMap"); ok {
+			if name, ok := configMap.StringOk("name"); ok && name != "" {
+				configMapKeys[BuildResourceKeyRef("configmap", namespace, name)] = true
+			}
+		}
+
+		if projected, ok := graph.M(volMap).MapOk("projected"); ok {
+			if sources, ok := projected.Raw()["sources"].([]any); ok {
+				for _, source := range sources {
+					sourceMap, ok := source.(map[string]any)
+					if !ok {
+						continue
+					}
+					if cm, ok := graph.M(sourceMap).MapOk("configMap"); ok {
+						if name, ok := cm.StringOk("name"); ok && name != "" {
+							configMapKeys[BuildResourceKeyRef("configmap", namespace, name)] = true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return configMapKeys
+}
+
+func collectConfigMapUsageByKey(namespace string, containers []any, volumes []any) map[string][]map[string]any {
+	usageByKey := make(map[string][]map[string]any)
+
+	volumeMountsByName := make(map[string][]string)
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		mounts, _ := containerMap["volumeMounts"].([]any)
+		for _, m := range mounts {
+			mountMap, ok := m.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := mountMap["name"].(string)
+			mountPath, _ := mountMap["mountPath"].(string)
+			if name == "" || mountPath == "" {
+				continue
+			}
+			volumeMountsByName[name] = append(volumeMountsByName[name], mountPath)
+		}
+	}
+
+	for _, v := range volumes {
+		volMap, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		volName, _ := volMap["name"].(string)
+		mountPaths := volumeMountsByName[volName]
+
+		if configMap, ok := graph.M(volMap).MapOk("configMap"); ok {
+			if cmName, ok := configMap.StringOk("name"); ok && cmName != "" {
+				cmKey := BuildResourceKeyRef("configmap", namespace, cmName)
+				for _, mountPath := range mountPaths {
+					usageByKey[cmKey] = append(usageByKey[cmKey], map[string]any{
+						"mount":  mountPath,
+						"volume": volName,
+						"mode":   "volume",
+					})
+				}
+			}
+		}
+
+		if projected, ok := graph.M(volMap).MapOk("projected"); ok {
+			if sources, ok := projected.Raw()["sources"].([]any); ok {
+				for _, source := range sources {
+					sourceMap, ok := source.(map[string]any)
+					if !ok {
+						continue
+					}
+					cmSource, ok := graph.M(sourceMap).MapOk("configMap")
+					if !ok {
+						continue
+					}
+					cmName, ok := cmSource.StringOk("name")
+					if !ok || cmName == "" {
+						continue
+					}
+
+					items := make([]any, 0)
+					if rawItems, ok := cmSource.Raw()["items"].([]any); ok {
+						for _, rawItem := range rawItems {
+							itemMap, ok := rawItem.(map[string]any)
+							if !ok {
+								continue
+							}
+							key, _ := itemMap["key"].(string)
+							path, _ := itemMap["path"].(string)
+							if key != "" && path != "" {
+								items = append(items, key+"->"+path)
+							}
+						}
+					}
+
+					cmKey := BuildResourceKeyRef("configmap", namespace, cmName)
+					for _, mountPath := range mountPaths {
+						meta := map[string]any{
+							"mount":  mountPath,
+							"volume": volName,
+							"mode":   "projected",
+						}
+						if len(items) > 0 {
+							meta["items"] = items
+						}
+						usageByKey[cmKey] = append(usageByKey[cmKey], meta)
+					}
+				}
+			}
+		}
+	}
+
+	return usageByKey
+}
+
+func collectConfigMapEnvUsageByKey(namespace string, containers []any) map[string][]map[string]any {
+	usageByKey := make(map[string][]map[string]any)
+	seen := make(map[string]bool)
+
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		envVars, _ := containerMap["env"].([]any)
+		for _, e := range envVars {
+			envMap, ok := e.(map[string]any)
+			if !ok {
+				continue
+			}
+			envName, _ := envMap["name"].(string)
+			if envName == "" {
+				continue
+			}
+			valueFrom, ok := envMap["valueFrom"].(map[string]any)
+			if !ok {
+				continue
+			}
+			cmKeyRef, ok := valueFrom["configMapKeyRef"].(map[string]any)
+			if !ok {
+				continue
+			}
+			cmName, _ := cmKeyRef["name"].(string)
+			if cmName == "" {
+				continue
+			}
+
+			cmKey := BuildResourceKeyRef("configmap", namespace, cmName)
+			entryKey := cmKey + "|" + envName
+			if seen[entryKey] {
+				continue
+			}
+			seen[entryKey] = true
+
+			meta := map[string]any{
+				"name": envName,
+			}
+			if keyName, ok := cmKeyRef["key"].(string); ok && keyName != "" {
+				meta["key"] = keyName
+			}
+			usageByKey[cmKey] = append(usageByKey[cmKey], meta)
+		}
+	}
+
+	return usageByKey
+}
+
+func collectPersistentVolumeClaimUsageByKey(namespace string, containers []any, volumes []any) map[string][]map[string]any {
+	usageByKey := make(map[string][]map[string]any)
+
+	volumeMountsByName := make(map[string][]string)
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		mounts, _ := containerMap["volumeMounts"].([]any)
+		for _, m := range mounts {
+			mountMap, ok := m.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := mountMap["name"].(string)
+			mountPath, _ := mountMap["mountPath"].(string)
+			if name == "" || mountPath == "" {
+				continue
+			}
+			volumeMountsByName[name] = append(volumeMountsByName[name], mountPath)
+		}
+	}
+
+	for _, v := range volumes {
+		volMap, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		volName, _ := volMap["name"].(string)
+		mountPaths := volumeMountsByName[volName]
+		if len(mountPaths) == 0 {
+			continue
+		}
+
+		pvc, ok := graph.M(volMap).MapOk("persistentVolumeClaim")
+		if !ok {
+			continue
+		}
+		claimName, ok := pvc.StringOk("claimName")
+		if !ok || claimName == "" {
+			continue
+		}
+
+		pvcKey := BuildResourceKeyRef("persistentvolumeclaim", namespace, claimName)
+		for _, mountPath := range mountPaths {
+			usageByKey[pvcKey] = append(usageByKey[pvcKey], map[string]any{
+				"mount":  mountPath,
+				"volume": volName,
+				"mode":   "volume",
+			})
+		}
+	}
+
+	return usageByKey
+}
+
+func attachPersistentVolumeClaimUsage(storageNodes []*kube.Tree, usageByKey map[string][]map[string]any) {
+	for _, storageNode := range storageNodes {
+		if storageNode == nil || storageNode.Type != "persistentvolumeclaim" {
+			continue
+		}
+
+		for idx, usage := range usageByKey[storageNode.Key] {
+			storageNode.Children = append(storageNode.Children, NewTree(storageNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+		}
+
+		sortPersistentVolumeClaimChildren(storageNode.Children)
+	}
+}
+
+func expandConfigMapsAsResources(namespace string, containers []any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	configMapKeys := collectEnvConfigMapKeys(namespace, containers)
+	for key := range collectVolumeConfigMapKeys(namespace, volumes) {
+		configMapKeys[key] = true
+	}
+	usageByKey := collectConfigMapUsageByKey(namespace, containers, volumes)
+	envUsageByKey := collectConfigMapEnvUsageByKey(namespace, containers)
+
+	nodes := make([]*kube.Tree, 0, len(configMapKeys))
+	for cmKey := range configMapKeys {
+		if _, exists := nodeMap[cmKey]; !exists {
+			continue
+		}
+		if !state.CanTraverse(cmKey) {
+			continue
+		}
+		cmNode := NewTree(cmKey, "configmap", nil)
+		for envIdx, envUsage := range envUsageByKey[cmKey] {
+			cmNode.Children = append(cmNode.Children, NewTree(cmKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
+		}
+		for idx, usage := range usageByKey[cmKey] {
+			cmNode.Children = append(cmNode.Children, NewTree(cmKey+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+		}
+		sortConfigMapChildren(cmNode.Children)
+		nodes = append(nodes, cmNode)
+		state.MarkSeen(cmKey)
+	}
+
+	return nodes
+}
+
+func buildPodSpecChildren(specKey, namespace string, spec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) ([]*kube.Tree, *kube.Tree) {
+	if spec == nil {
+		return nil, nil
+	}
+
+	builder := NewChildrenBuilder()
+	containers, _ := spec["containers"].([]any)
+	volumes, _ := spec["volumes"].([]any)
+
+	var podSecurityContextNode *kube.Tree
+	if securityContext, ok := spec["securityContext"].(map[string]any); ok {
+		podSecurityContextNode = buildPodSecurityContextNode(specKey, securityContext)
+	}
+
+	if len(containers) == 1 {
+		if containerMap, ok := containers[0].(map[string]any); ok {
+			builder.Extend(buildContainerChildren(specKey, namespace, 0, containerMap, nil, volumes, graphChildren, state, nodeMap))
+		}
+	} else {
+		for idx, c := range containers {
+			if containerMap, ok := c.(map[string]any); ok {
+				builder.Add(buildContainerNode(specKey, namespace, idx, containerMap, nil, volumes, graphChildren, state, nodeMap))
+			}
+		}
+	}
+
+	volumeNodes := expandVolumesAsResources(specKey, namespace, volumes, graphChildren, state, nodeMap)
+	storageVolumeNodes, secretStoreNodes, volumeConfigMapNodes := splitVolumeResourceNodes(volumeNodes)
+	attachPersistentVolumeClaimUsage(storageVolumeNodes, collectPersistentVolumeClaimUsageByKey(namespace, containers, volumes))
+	attachSecretStoreUsage(secretStoreNodes, collectSecretStoreUsageBySignature(containers, volumes))
+	attachSyncedSecretsToSecretStores(namespace, secretStoreNodes, collectSecretEnvUsageBySecretKey(namespace, containers), state, nodeMap)
+
+	secretChildren := expandEnvSecretsAsResources(namespace, containers, graphChildren, state, nodeMap)
+	secretChildren = filterRedundantTopLevelSecrets(secretChildren, secretKeysShownUnderSecretStores(secretStoreNodes))
+	secretChildren = append(secretChildren, secretStoreNodes...)
+
+	configMapChildren := expandConfigMapsAsResources(namespace, containers, volumes, graphChildren, state, nodeMap)
+	configMapChildren = mergeUniqueNodesByKey(configMapChildren, volumeConfigMapNodes)
+
+	builder.Add(buildSecretsNode(specKey, secretChildren))
+	builder.Add(buildConfigMapsNode(specKey, configMapChildren))
+	builder.Add(buildStorageNode(specKey, storageVolumeNodes))
+
+	return builder.Build(), podSecurityContextNode
 }
 
 func buildPodTemplateChildren(templateKey string, namespace string, templateSpec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
@@ -49,138 +905,21 @@ func buildPodTemplateChildren(templateKey string, namespace string, templateSpec
 	}
 
 	builder := NewChildrenBuilder()
-	containers, _ := templateSpec["containers"].([]any)
-	volumes, _ := templateSpec["volumes"].([]any)
-
-	if securityContext, ok := templateSpec["securityContext"].(map[string]any); ok {
-		builder.Add(buildPodSecurityContextNode(templateKey, securityContext))
-	}
-
-	if len(containers) == 1 {
-		if containerMap, ok := containers[0].(map[string]any); ok {
-			containerChildren := buildContainerChildren(templateKey, namespace, 0, containerMap, nil, volumes, graphChildren, state, nodeMap)
-			builder.Extend(containerChildren)
-		}
-	} else {
-		for idx, c := range containers {
-			if containerMap, ok := c.(map[string]any); ok {
-				builder.Add(buildContainerNode(templateKey, namespace, idx, containerMap, nil, volumes, graphChildren, state, nodeMap))
-			}
-		}
-	}
-
-	builder.Extend(expandVolumesAsResources(templateKey, namespace, volumes, graphChildren, state, nodeMap))
+	specChildren, podSecurityContextNode := buildPodSpecChildren(templateKey, namespace, templateSpec, graphChildren, state, nodeMap)
+	builder.Add(podSecurityContextNode)
+	builder.Extend(specChildren)
 
 	return builder.Build()
 }
 
 func buildPodWithSimplifiedContainers(podKey string, pod kube.Resource) *kube.Tree {
-	metadata := graph.M(pod.AsMap()).Map("metadata").Raw()
-	status := graph.M(pod.AsMap()).Map("status").Raw()
+	podNode := buildSimplifiedPodNode(podKey, pod)
+	if podNode == nil {
+		return nil
+	}
 	spec := graph.M(pod.AsMap()).Map("spec").Raw()
-
-	nodeMetadata := map[string]any{}
-
-	if metadata != nil {
-		if name := graph.M(metadata).String("name"); name != "" {
-			nodeMetadata["name"] = name
-		}
-	}
-
-	if status != nil {
-		if phase := graph.M(status).String("phase"); phase != "" {
-			nodeMetadata["phase"] = phase
-		}
-		if podIP := graph.M(status).String("podIP"); podIP != "" {
-			nodeMetadata["podIP"] = podIP
-		}
-		if hostIP := graph.M(status).String("hostIP"); hostIP != "" {
-			nodeMetadata["hostIP"] = hostIP
-		}
-	}
-
-	if spec != nil {
-		if nodeName := graph.M(spec).String("nodeName"); nodeName != "" {
-			nodeMetadata["nodeName"] = nodeName
-		}
-	}
-
-	podNode := &kube.Tree{
-		Key:      podKey,
-		Type:     "pod",
-		Meta:     nodeMetadata,
-		Children: []*kube.Tree{},
-	}
-
-	containerStatuses := make(map[string]map[string]any)
-	if status != nil {
-		if statuses, ok := status["containerStatuses"].([]any); ok {
-			for _, s := range statuses {
-				if statusMap, ok := s.(map[string]any); ok {
-					if name, ok := statusMap["name"].(string); ok {
-						containerStatuses[name] = statusMap
-					}
-				}
-			}
-		}
-	}
-
-	if spec != nil {
-		if containers, ok := spec["containers"].([]any); ok {
-			for idx, c := range containers {
-				if containerMap, ok := c.(map[string]any); ok {
-					containerName, _ := containerMap["name"].(string)
-					containerStatus := containerStatuses[containerName]
-
-					containerKey := fmt.Sprintf("%s/container/%d", podKey, idx)
-					containerNode := NewTree(containerKey, "container", map[string]any{"name": containerName})
-
-					if image, ok := containerMap["image"].(string); ok {
-						imageNode := NewTree(containerKey+"/image", "image", map[string]any{"name": image})
-						containerNode.Children = append(containerNode.Children, imageNode)
-					}
-
-					if containerStatus != nil {
-						hasLivenessProbe := containerMap["livenessProbe"] != nil
-						hasReadinessProbe := containerMap["readinessProbe"] != nil
-						hasStartupProbe := containerMap["startupProbe"] != nil
-
-						if hasLivenessProbe {
-							probeStatus := "passing"
-							if state, ok := containerStatus["state"].(map[string]any); ok {
-								if _, running := state["running"]; !running {
-									probeStatus = "unknown"
-								}
-							}
-							livenessNode := NewTree(containerKey+"/livenessprobe", "livenessprobe", map[string]any{"status": probeStatus})
-							containerNode.Children = append(containerNode.Children, livenessNode)
-						}
-
-						if hasReadinessProbe {
-							probeStatus := "not-ready"
-							if ready, ok := containerStatus["ready"].(bool); ok && ready {
-								probeStatus = "ready"
-							}
-							readinessNode := NewTree(containerKey+"/readinessprobe", "readinessprobe", map[string]any{"status": probeStatus})
-							containerNode.Children = append(containerNode.Children, readinessNode)
-						}
-
-						if hasStartupProbe {
-							probeStatus := "not-started"
-							if started, ok := containerStatus["started"].(bool); ok && started {
-								probeStatus = "started"
-							}
-							startupNode := NewTree(containerKey+"/startupprobe", "startupprobe", map[string]any{"status": probeStatus})
-							containerNode.Children = append(containerNode.Children, startupNode)
-						}
-					}
-
-					podNode.Children = append(podNode.Children, containerNode)
-				}
-			}
-		}
-	}
-
+	status := graph.M(pod.AsMap()).Map("status").Raw()
+	podNode.Children = buildRuntimeContainerChildren(podKey, spec, status)
 	return podNode
 }
 
@@ -236,28 +975,12 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 	builder := NewChildrenBuilder()
 	specKey := podKey + "/spec"
 	specNode := NewTree(specKey, "spec", map[string]any{})
-	specBuilder := NewChildrenBuilder()
-	containers, _ := spec["containers"].([]any)
-	volumes, _ := spec["volumes"].([]any)
-
-	if securityContext, ok := spec["securityContext"].(map[string]any); ok {
-		builder.Add(buildPodSecurityContextNode(podKey, securityContext))
+	specChildren, podSecurityContextNode := buildPodSpecChildren(specKey, namespace, spec, graphChildren, state, nodeMap)
+	if podSecurityContextNode != nil {
+		podSecurityContextNode.Key = podKey + "/podsecuritycontext"
 	}
-
-	if len(containers) == 1 {
-		if containerMap, ok := containers[0].(map[string]any); ok {
-			specBuilder.Extend(buildContainerChildren(specKey, namespace, 0, containerMap, nil, volumes, graphChildren, state, nodeMap))
-		}
-	} else {
-		for idx, c := range containers {
-			if containerMap, ok := c.(map[string]any); ok {
-				specBuilder.Add(buildContainerNode(specKey, namespace, idx, containerMap, nil, volumes, graphChildren, state, nodeMap))
-			}
-		}
-	}
-
-	specBuilder.Extend(expandVolumesAsResources(specKey, namespace, volumes, graphChildren, state, nodeMap))
-	specNode.Children = specBuilder.Build()
+	specNode.Children = specChildren
+	builder.Add(podSecurityContextNode)
 	builder.Extend(buildRuntimeContainerChildren(podKey, spec, status))
 	builder.Add(specNode)
 
@@ -271,18 +994,7 @@ func buildRuntimeContainerChildren(podKey string, spec map[string]any, status ma
 		return nil
 	}
 
-	containerStatuses := make(map[string]map[string]any)
-	if status != nil {
-		if statuses, ok := status["containerStatuses"].([]any); ok {
-			for _, s := range statuses {
-				if statusMap, ok := s.(map[string]any); ok {
-					if name, ok := statusMap["name"].(string); ok {
-						containerStatuses[name] = statusMap
-					}
-				}
-			}
-		}
-	}
+	containerStatuses := indexContainerStatuses(status)
 
 	runtimeChildren := make([]*kube.Tree, 0)
 	if containers, ok := spec["containers"].([]any); ok {
@@ -294,44 +1006,81 @@ func buildRuntimeContainerChildren(podKey string, spec map[string]any, status ma
 
 			containerName, _ := containerMap["name"].(string)
 			containerStatus := containerStatuses[containerName]
-			containerKey := fmt.Sprintf("%s/container/%d", podKey, idx)
-
-			metadata := map[string]any{"name": containerName}
-			if containerStatus != nil {
-				if restartCount, ok := containerStatus["restartCount"].(float64); ok && restartCount > 0 {
-					metadata["restarts"] = fmt.Sprintf("%.0f", restartCount)
-				}
-				if state, ok := containerStatus["state"].(map[string]any); ok {
-					if waiting, ok := state["waiting"].(map[string]any); ok {
-						metadata["state"] = "Waiting"
-						if reason, ok := waiting["reason"].(string); ok && reason != "" {
-							metadata["reason"] = reason
-						}
-					} else if running, ok := state["running"].(map[string]any); ok {
-						if startedAt, ok := running["startedAt"].(string); ok && startedAt != "" {
-							metadata["state"] = "Running"
-						}
-					} else if terminated, ok := state["terminated"].(map[string]any); ok {
-						metadata["state"] = "Terminated"
-						if exitCode, ok := terminated["exitCode"].(float64); ok {
-							metadata["exitCode"] = fmt.Sprintf("%.0f", exitCode)
-						}
-						if reason, ok := terminated["reason"].(string); ok && reason != "" {
-							metadata["reason"] = reason
-						}
-					}
-				}
+			if containerNode := buildRuntimeContainerNode(podKey, idx, containerMap, containerStatus); containerNode != nil {
+				runtimeChildren = append(runtimeChildren, containerNode)
 			}
-
-			containerNode := NewTree(containerKey, "container", metadata)
-			if image, ok := containerMap["image"].(string); ok {
-				containerNode.Children = append(containerNode.Children, NewTree(containerKey+"/image", "image", map[string]any{"name": image}))
-			}
-			runtimeChildren = append(runtimeChildren, containerNode)
 		}
 	}
 
 	return runtimeChildren
+}
+
+func indexContainerStatuses(status map[string]any) map[string]map[string]any {
+	containerStatuses := make(map[string]map[string]any)
+	if status == nil {
+		return containerStatuses
+	}
+	if statuses, ok := status["containerStatuses"].([]any); ok {
+		for _, s := range statuses {
+			if statusMap, ok := s.(map[string]any); ok {
+				if name, ok := statusMap["name"].(string); ok {
+					containerStatuses[name] = statusMap
+				}
+			}
+		}
+	}
+	return containerStatuses
+}
+
+func buildRuntimeContainerNode(podKey string, idx int, containerSpec map[string]any, containerStatus map[string]any) *kube.Tree {
+	containerName, _ := containerSpec["name"].(string)
+	containerKey := fmt.Sprintf("%s/container/%d", podKey, idx)
+
+	metadata := map[string]any{"name": containerName}
+	applyContainerStatusMetadata(metadata, containerStatus)
+
+	containerNode := NewTree(containerKey, "container", metadata)
+	if imageMeta, ok := runtimeImageMetadata(containerStatus); ok {
+		containerNode.Children = append(containerNode.Children, NewTree(containerKey+"/image", "image", imageMeta))
+	}
+	if resourcesNode := buildRuntimeResourcesNode(containerKey, containerStatus); resourcesNode != nil {
+		containerNode.Children = append(containerNode.Children, resourcesNode)
+	}
+
+	if containerStatus != nil {
+		hasLivenessProbe := containerSpec["livenessProbe"] != nil
+		hasReadinessProbe := containerSpec["readinessProbe"] != nil
+		hasStartupProbe := containerSpec["startupProbe"] != nil
+
+		if hasLivenessProbe {
+			probeStatus := "passing"
+			if state, ok := containerStatus["state"].(map[string]any); ok {
+				if _, running := state["running"]; !running {
+					probeStatus = "unknown"
+				}
+			}
+			metadata["livenessStatus"] = probeStatus
+		}
+
+		if hasReadinessProbe {
+			probeStatus := "not-ready"
+			if ready, ok := containerStatus["ready"].(bool); ok && ready {
+				probeStatus = "ready"
+			}
+			metadata["readinessStatus"] = probeStatus
+		}
+
+		if hasStartupProbe {
+			probeStatus := "not-started"
+			if started, ok := containerStatus["started"].(bool); ok && started {
+				probeStatus = "started"
+			}
+			metadata["startupStatus"] = probeStatus
+		}
+	}
+
+	sortChildren(containerNode.Children)
+	return containerNode
 }
 
 func buildContainerChildren(parentKey string, namespace string, idx int, containerSpec map[string]any, containerStatus map[string]any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
@@ -355,7 +1104,8 @@ func buildContainerChildren(parentKey string, namespace string, idx int, contain
 	}
 
 	if envVars, ok := containerSpec["env"].([]any); ok && len(envVars) > 0 {
-		envarsNode := buildEnvarsNode(containerKey, namespace, envVars, containerSpec, nodeMap)
+		volumeMounts, _ := containerSpec["volumeMounts"].([]any)
+		envarsNode := buildEnvarsNode(containerKey, namespace, envVars, volumeMounts, volumes, nodeMap)
 		if envarsNode != nil {
 			children = append(children, envarsNode)
 		}
@@ -403,6 +1153,8 @@ func buildContainerChildren(parentKey string, namespace string, idx int, contain
 		}
 	}
 
+	sortChildren(children)
+
 	return children
 }
 
@@ -413,76 +1165,114 @@ func buildContainerNode(podKey string, namespace string, idx int, containerSpec 
 	metadata := map[string]any{
 		"name": containerName,
 	}
-
-	if resources, ok := containerSpec["resources"].(map[string]any); ok {
-		var cpuReq, cpuLim, memReq, memLim string
-		if requests, ok := resources["requests"].(map[string]any); ok {
-			if cpu, ok := requests["cpu"].(string); ok && cpu != "" {
-				cpuReq = cpu
-			}
-			if mem, ok := requests["memory"].(string); ok && mem != "" {
-				memReq = mem
-			}
-		}
-		if limits, ok := resources["limits"].(map[string]any); ok {
-			if cpu, ok := limits["cpu"].(string); ok && cpu != "" {
-				cpuLim = cpu
-			}
-			if mem, ok := limits["memory"].(string); ok && mem != "" {
-				memLim = mem
-			}
-		}
-		if cpuReq != "" || cpuLim != "" {
-			if cpuReq != "" && cpuLim != "" {
-				metadata["cpu"] = fmt.Sprintf("%s/%s", cpuReq, cpuLim)
-			} else if cpuReq != "" {
-				metadata["cpu"] = cpuReq
-			} else {
-				metadata["cpu"] = cpuLim
-			}
-		}
-		if memReq != "" || memLim != "" {
-			if memReq != "" && memLim != "" {
-				metadata["memory"] = fmt.Sprintf("%s/%s", memReq, memLim)
-			} else if memReq != "" {
-				metadata["memory"] = memReq
-			} else {
-				metadata["memory"] = memLim
-			}
-		}
-	}
-
-	if containerStatus != nil {
-		if restartCount, ok := containerStatus["restartCount"].(float64); ok && restartCount > 0 {
-			metadata["restarts"] = fmt.Sprintf("%.0f", restartCount)
-		}
-		if state, ok := containerStatus["state"].(map[string]any); ok {
-			if waiting, ok := state["waiting"].(map[string]any); ok {
-				metadata["state"] = "Waiting"
-				if reason, ok := waiting["reason"].(string); ok && reason != "" {
-					metadata["reason"] = reason
-				}
-			} else if running, ok := state["running"].(map[string]any); ok {
-				if startedAt, ok := running["startedAt"].(string); ok && startedAt != "" {
-					metadata["state"] = "Running"
-				}
-			} else if terminated, ok := state["terminated"].(map[string]any); ok {
-				metadata["state"] = "Terminated"
-				if exitCode, ok := terminated["exitCode"].(float64); ok {
-					metadata["exitCode"] = fmt.Sprintf("%.0f", exitCode)
-				}
-				if reason, ok := terminated["reason"].(string); ok && reason != "" {
-					metadata["reason"] = reason
-				}
-			}
-		}
-	}
+	applyContainerStatusMetadata(metadata, containerStatus)
 
 	containerNode := NewTree(containerKey, "container", metadata)
 
 	containerNode.Children = buildContainerChildren(podKey, namespace, idx, containerSpec, containerStatus, volumes, graphChildren, state, nodeMap)
 
 	return containerNode
+}
+
+func applyContainerStatusMetadata(metadata map[string]any, containerStatus map[string]any) {
+	if metadata == nil || containerStatus == nil {
+		return
+	}
+
+	if restartCount, ok := containerStatus["restartCount"].(float64); ok && restartCount > 0 {
+		metadata["restarts"] = fmt.Sprintf("%.0f", restartCount)
+	}
+
+	stateMap, ok := containerStatus["state"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	if waiting, ok := stateMap["waiting"].(map[string]any); ok {
+		metadata["state"] = "Waiting"
+		if reason, ok := waiting["reason"].(string); ok && reason != "" {
+			metadata["reason"] = reason
+		}
+		return
+	}
+
+	if running, ok := stateMap["running"].(map[string]any); ok {
+		if startedAt, ok := running["startedAt"].(string); ok && startedAt != "" {
+			metadata["state"] = "Running"
+		}
+		return
+	}
+
+	if terminated, ok := stateMap["terminated"].(map[string]any); ok {
+		metadata["state"] = "Terminated"
+		if exitCode, ok := terminated["exitCode"].(float64); ok {
+			metadata["exitCode"] = fmt.Sprintf("%.0f", exitCode)
+		}
+		if reason, ok := terminated["reason"].(string); ok && reason != "" {
+			metadata["reason"] = reason
+		}
+	}
+}
+
+func runtimeImageMetadata(containerStatus map[string]any) (map[string]any, bool) {
+	if containerStatus == nil {
+		return nil, false
+	}
+
+	rawImage, _ := containerStatus["image"].(string)
+	rawImageID, _ := containerStatus["imageID"].(string)
+
+	image := normalizeRuntimeImageRef(rawImage)
+	imageID := normalizeRuntimeImageRef(rawImageID)
+
+	if imageID != "" {
+		return map[string]any{"name": imageID}, true
+	}
+
+	if image == "" {
+		return nil, false
+	}
+
+	return map[string]any{"name": image}, true
+}
+
+func buildRuntimeResourcesNode(containerKey string, containerStatus map[string]any) *kube.Tree {
+	if containerStatus == nil {
+		return nil
+	}
+
+	runtimeResources := map[string]any{}
+
+	if resources, ok := containerStatus["resources"].(map[string]any); ok {
+		if limits, ok := resources["limits"].(map[string]any); ok && len(limits) > 0 {
+			runtimeResources["limits"] = limits
+		}
+		if requests, ok := resources["requests"].(map[string]any); ok && len(requests) > 0 {
+			runtimeResources["requests"] = requests
+		}
+	}
+
+	if allocated, ok := containerStatus["allocatedResources"].(map[string]any); ok && len(allocated) > 0 {
+		runtimeResources["allocated"] = allocated
+	}
+
+	if len(runtimeResources) == 0 {
+		return nil
+	}
+
+	return NewTree(containerKey+"/resources", "resources", runtimeResources)
+}
+
+func normalizeRuntimeImageRef(ref string) string {
+	if ref == "" {
+		return ""
+	}
+	for _, prefix := range []string{"docker-pullable://", "docker://", "containerd://", "cri-o://"} {
+		if strings.HasPrefix(ref, prefix) {
+			return strings.TrimPrefix(ref, prefix)
+		}
+	}
+	return ref
 }
 
 func buildSecurityContextNode(containerKey string, securityContext map[string]any) *kube.Tree {
@@ -709,6 +1499,8 @@ func buildPortsNode(containerKey string, ports []any) *kube.Tree {
 			portsNode.Children = append(portsNode.Children, portNode)
 		}
 	}
+
+	sortChildren(portsNode.Children)
 
 	return portsNode
 }

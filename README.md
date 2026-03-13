@@ -43,59 +43,63 @@ kompass
 ### Example Output
 
 ```
-🚀 deployment: petshop-web [AVAILABLE] {available=1, current=1, namespace=petshop, ready=1, replicas=1, strategy=RollingUpdate, updated=1}
-├─ 📜 ciliumnetworkpolicy: petshop-web {egress=false, ingress=true}
-│  ├─ 👉 cnp-ingress: fromentities {entities=[cluster]}
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/instance=petshop-web
-│  ├─ 🎯 endpointselector: label app.kubernetes.io/name=petshop-web
-│  ├─ 👈 cnp-egress: toendpoint {matchLabels=app.kubernetes.io/name:petshop-db}
-│  │  └─ 🖥️ service: petshop-db-service {ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=petshop-db app.kubernetes.io/name=petshop-db], type=ClusterIP}
-│  └─ 👈 cnp-egress: tofqdn {matchName=am.kpt.petshop.com}
-├─ 🎮 replicaset: petshop-web-598696998b [READY] {available=1, current=1, ready=1, replicas=1}
-│  ├─ 🫛 pod: petshop-web-598696998b-xxxxx {nodeName=bunny-01-worker-055ceed2, phase=Running, podIP=10.244.9.240}
-│  │  └─ 🧊 container: app
-│  │     └─ 🐋 image: petshop/petshop-web:main_20260226_100330
-│  └─ 🫛 pod: petshop-web-598696998b-yyyyy {phase=Running, podIP=10.244.9.250}
-│     └─ 🧊 container: app
-│        └─ 🐋 image: petshop/petshop-web:main_20260226_100330
-├─ 🖥️ service: petshop-web {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-web app.kubernetes.io/name=petshop-web], type=ClusterIP}
-│  ├─ 📍 endpoints: petshop-web
-│  │  └─ 🔗 subset: {ports=[petshop-web-http:8080/TCP]}
-│  │     └─ 🔌 address: {ip=10.244.9.240, nodeName=bunny-01-worker-055ceed2, targetName=petshop-web-598696998b-xxxxx}
-│  ├─ 📍 endpointslice: petshop-web-abcde {addressType=IPv4, port=8080, portName=petshop-web-http, protocol=TCP}
-│  │  └─ 🔌 endpoint: {address=10.244.9.240, nodeName=bunny-01-worker-055ceed2, ready=true, serving=true, targetName=petshop-web-598696998b-xxxxx}
-│  └─ 🔄 httproute: petshop-web {hostnames=[petshop-web.bunny.los.petshop.com petshop-web.bunny.petshop.com], paths=[/*], service=petshop-web:8080/TCP (ClusterIP)}
-└─ 📄 spec
-   ├─ 🔤 envars
-   │  ├─ 💬 env: LOG_LEVEL=info
-   │  ├─ 💬 env: NEO4J_PASSWORD=<SECRET> {key=PETSHOP-DATABASE-PASSWORD}
-   │  │  └─ 🔒 secret: petshop-web-secrets {keys=2, type=Opaque}
-   │  ├─ 💬 env: NEO4J_URI=bolt://petshop-db-service:7687
-   │  ├─ 💬 env: NEO4J_USERNAME=neo4j
-   │  ├─ 💬 env: OIDC_CLIENT_ID=petshop-web
-   │  ├─ 💬 env: OIDC_CLIENT_SECRET=<SECRET> {key=PETSHOP-WEB-CLIENT-SECRET}
-   │  │  └─ 🔒 secret: petshop-web-secrets {keys=2, type=Opaque}
-   │  ├─ 💬 env: OIDC_ISSUER_URL=https://am.kpt.petshop.com/am/oauth2/realms/root/realms/intranett
-   │  ├─ 💬 env: OIDC_REDIRECT_URL=https://petshop-web.bunny.petshop.com/auth/callback
-   │  └─ 💬 env: REQUIRE_SECURE_CONNECTION=true
-   ├─ 🐋 image: petshop/petshop-web:main_20260226_100330 {pullPolicy=Always}
-   ├─ 📂 mounts
-   │  ├─ 📁 mount: {mount=/tmp, volume=emptyDir}
-   │  └─ 📁 mount: {mount=/mnt/secrets, readOnly=true, volume=secrets-store.csi.k8s.io}
+🚀 deployment petshop-db [AVAILABLE] {available=1, current=2, namespace=petshop, ready=1, replicas=2, strategy=RollingUpdate, updated=2}
+├─ 🕸 ciliumnetworkpolicy petshop-db {egress=false, ingress=true}
+│  ├─ 👉 cnp-ingress fromendpoint {matchLabels=app.kubernetes.io/name:petshop-tennant}
+│  │  └─ 🤝 service petshop-tennant {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-tennant app.kubernetes.io/name=petshop-tennant], type=ClusterIP}
+│  ├─ 👉 cnp-ingress fromendpoint {matchLabels=app.kubernetes.io/name:petshop-frontend-girls}
+│  │  ├─ 🤝 service petshop-lowe {loadBalancerIP=[boys.petshop.com west-end-girls.petshop.com its-a-sin.petshop.com always-on-my-mind.petshop.com go-west.petshop.com opportunities.petshop.com], ports=[443/TCP], selector=[app.kubernetes.io/instance=petshop-frontend-girls app.kubernetes.io/name=petshop-frontend-girls], type=LoadBalancer}
+│  │  └─ 🤝 service petshop-frontend-girls {ports=[8080/TCP], selector=[app.kubernetes.io/instance=petshop-frontend-girls app.kubernetes.io/name=petshop-frontend-girls], type=ClusterIP}
+│  ├─ 👉 cnp-ingress fromentities {entities=[cluster]}
+│  ├─ 🎯 endpointselector label app.kubernetes.io/instance=petshop-db
+│  └─ 🎯 endpointselector label app.kubernetes.io/name=petshop-db
+├─ 🧩 replicaset petshop-db-5cb9cd8b74 [PROGRESSING] {available=1, current=2, ready=1, replicas=2}
+│  ├─ 🫛 pod petshop-db-5cb9cd8b74-pqhk9 [RUNNING] {nodeName=psb-01-worker-055ceed2, podIP=10.244.9.90}
+│  │  └─ 🧊 container app [RUNNING, LIVENESS=PASSING, READINESS=READY, STARTUP=STARTED]
+│  │     └─ 🐋 image docker-hub/neo4j:5.26.20-community-ubi9 {id=docker-hub/neo4j@sha256:mock-petshop-db}
+│  └─ 🫛 pod petshop-db-5cb9cd8b74-qx7m2 [PENDING] {nodeName=psb-01-worker-055ceed2, podIP=10.244.9.91}
+│     └─ 🧊 container app [WAITING, LIVENESS=UNKNOWN, READINESS=NOT-READY, STARTUP=NOT-STARTED] {reason=CrashLoopBackOff, restarts=6}
+│        └─ 🐋 image docker-hub/neo4j:5.26.20-community-ubi9 {id=docker-hub/neo4j@sha256:mock-petshop-db-bad}
+├─ 🤝 service petshop-db-service {ports=[7474/TCP 7687/TCP], selector=[app.kubernetes.io/instance=petshop-db app.kubernetes.io/name=petshop-db], type=ClusterIP}
+│  ├─ 📍 endpoints petshop-db-service
+│  │  └─ 🔗 subset {ports=[petshop-db-bolt:7687/TCP petshop-db-http:7474/TCP]}
+│  │     ├─ 🔌 address [READY] {ip=10.244.9.90, nodeName=psb-01-worker-055ceed2, targetName=petshop-db-5cb9cd8b74-pqhk9}
+│  │     └─ 🔌 address [NOT-READY] {ip=10.244.9.91, nodeName=psb-01-worker-055ceed2, targetName=petshop-db-5cb9cd8b74-qx7m2}
+│  └─ 📍 endpointslice petshop-db-service-672nq {addressType=IPv4, port=7474, portName=petshop-db-http, protocol=TCP}
+│     ├─ 🔌 endpoint [READY] {address=10.244.9.90, nodeName=psb-01-worker-055ceed2, serving=true, targetName=petshop-db-5cb9cd8b74-pqhk9}
+│     └─ 🔌 endpoint [NOT-READY] {address=10.244.9.91, nodeName=psb-01-worker-055ceed2, targetName=petshop-db-5cb9cd8b74-qx7m2}
+└─ 📑 spec
+   ├─ ♻️ environment
+   │  └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PBS-DATABASE-PASSWORD, secretStore=petshop-db-vault}
+   ├─ 🐋 image docker-hub/neo4j:5.26.20-community-ubi9 {pullPolicy=Always}
+   ├─ 💓 livenessprobe {failureThreshold=40, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}
+   ├─ 🛡️ podsecuritycontext {fsGroup=7474, runAsGroup=7474, runAsUser=7474}
    ├─ 🔌 ports
-   │  └─ ⇄ port: http {containerPort=8080, protocol=TCP}
-   ├─ 💾 resources: {limits=memory:512Mi, requests=cpu:100m memory:128Mi}
-   └─ 🛡️ securitycontext: {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=1000, seccompProfile=RuntimeDefault}
+   │  └─ ⇄ port http {containerPort=8080, protocol=TCP}
+   ├─ ✅ readinessprobe {failureThreshold=20, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}
+   ├─ 🔧 resources {limits=memory:1Gi, requests=cpu:100m memory:128Mi}
+   ├─ 🔒 secrets
+   │  └─ 🔐 external secret source secrets-store.csi.k8s.io {driver=secrets-store.csi.k8s.io, secretProviderClass=petshop-db-vault}
+   │     ├─ 🔏 provider config petshop-db-vault {provider=azure, secretObjects=1}
+   │     └─ 🔒 synced secret petshop-db-secrets {keys=1, type=Opaque}
+   │        └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PBS-DATABASE-PASSWORD}
+   ├─ 🛡️ securitycontext {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=7474, seccompProfile=RuntimeDefault}
+   ├─ ▶️ startupprobe {failureThreshold=1000, periodSeconds=5, port=7687, type=tcpSocket}
+   └─ 💾 storage
+      └─ 📀 claim petshop-db-data [BOUND] {accessModes=[ReadWriteOnce], capacity=3Gi, phase=Bound, storage=3Gi, storageClass=standard, volumeName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}
+         └─ 💿 backing volume pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522 {accessModes=[ReadWriteOnce], capacity=3Gi, phase=Bound, reclaimPolicy=Delete, storageClass=standard, volumeMode=Filesystem}
+            ├─ 🗂️ storage class standard {allowVolumeExpansion=true, provisioner=kubernetes.io/gce-pd, reclaimPolicy=Delete, volumeBindingMode=Immediate}
+            └─ 📎 attachment csi-959030a095e12a5c5224b5fe15796d0ad6ae46b1099c05fc09f46e08a6f47359 {attached=true, attacher=pd.csi.storage.gke.io, nodeName=psb-01-worker-055ceed2, pvName=pvc-dbde64d2-ef2b-4cb7-ae0d-a3b07cb7e522}
 ```
 
 ### Basic Commands
 
 ```bash
 # Exact resource
-kompass deployment/myapp/frontend
+kompass --mock deployment/petshop/petshop-kafka
 
 # Multiple resources
-kompass pod/default/nginx service/default/nginx
+kompass --mock */petshop/* */kafka-system/*
 
 # Wildcard patterns
 kompass '*/myapp/*'              # All resources in myapp namespace
