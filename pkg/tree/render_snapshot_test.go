@@ -17,7 +17,7 @@ type snapshotEnvelope struct {
 func loadMockSnapshotGraphs(t *testing.T) *kube.Graphs {
 	t.Helper()
 
-	path := filepath.Join("..", "..", "testdata", "fixtures", "kompass_snapshot_mock.json")
+	path := filepath.Join("..", "..", "testdata", "fixtures", "mock.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read mock snapshot fixture: %v", err)
