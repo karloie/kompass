@@ -182,153 +182,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		if m.modal != nil {
-			if m.modal.SearchMode {
-				switch msg.Type {
-				case tea.KeyCtrlC:
-					return m, tea.Quit
-				case tea.KeyCtrlU:
-					m.modal.SearchQuery = ""
-				case tea.KeyEsc:
-					m.modal.SearchMode = false
-				case tea.KeyEnter:
-					m.modal.SearchMode = false
-					m.applyModalSearch()
-				case tea.KeyBackspace:
-					if len(m.modal.SearchQuery) > 0 {
-						r := []rune(m.modal.SearchQuery)
-						m.modal.SearchQuery = string(r[:len(r)-1])
-					}
-				default:
-					if len(msg.Runes) > 0 {
-						m.modal.SearchQuery += string(msg.Runes)
-					}
-				}
-				return m, nil
-			}
-
-			switch msg.String() {
-			case "ctrl+c":
-				return m, tea.Quit
-			case "esc", "q":
-				m.modal = nil
-			case "left", "h":
-				m.modal.ColScroll = maxInt(0, m.modal.ColScroll-4)
-			case "right", "l":
-				m.modal.ColScroll = minInt(m.modalMaxColScroll(), m.modal.ColScroll+4)
-			case "home":
-				m.modal.ColScroll = 0
-			case "end":
-				m.modal.ColScroll = m.modalMaxColScroll()
-			case "g":
-				m.modal.Scroll = 0
-			case "G":
-				m.modal.Scroll = maxInt(0, len(m.modal.Lines)-1)
-			case "up", "k":
-				if m.modal.Scroll > 0 {
-					m.modal.Scroll--
-				}
-			case "down", "j":
-				if m.modal.Scroll < maxInt(0, len(m.modal.Lines)-1) {
-					m.modal.Scroll++
-				}
-			case "pgup":
-				m.modal.Scroll = maxInt(0, m.modal.Scroll-10)
-			case "pgdown":
-				m.modal.Scroll = minInt(maxInt(0, len(m.modal.Lines)-1), m.modal.Scroll+10)
-			case "/":
-				// Preserve last query for quick repeated filtering.
-				m.modal.SearchMode = true
-				m.modal.ActionStatus = ""
-			case "n":
-				m.jumpModalMatch(1)
-			case "N":
-				m.jumpModalMatch(-1)
-			case "y":
-				if err := copyToClipboard(m.modal.Raw); err != nil {
-					m.modal.ActionStatus = "copy failed: " + err.Error()
-				} else {
-					m.modal.ActionStatus = "copied to clipboard"
-				}
-			case "e":
-				return m, openInEditorCmd(m.modal.Raw)
-			case "o":
-				m.emitSelection = true
-				return m, tea.Quit
-			}
-			return m, nil
+			return m.handleModalKey(msg)
 		}
 
-		switch msg.String() {
-		case "ctrl+c":
-			return m, tea.Quit
-		case "esc":
-			if m.clearActiveSelection() {
-				return m, nil
-			}
-			return m, tea.Quit
-		case "tab":
-			if m.mode == ModeSelector {
-				m.activePane = m.nextAvailablePane(1)
-			}
-		case "shift+tab":
-			if m.mode == ModeSelector {
-				m.activePane = m.nextAvailablePane(-1)
-			}
-		case "1":
-			if m.paneAvailable(0) {
-				m.activePane = 0
-			} else if m.paneAvailable(1) {
-				m.activePane = 1
-			}
-		case "2":
-			if m.mode == ModeSelector {
-				if m.paneAvailable(1) {
-					m.activePane = 1
-				} else if m.paneAvailable(0) {
-					m.activePane = 0
-				}
-			}
-		case "left":
-			m.activeColumn = (m.activeColumn + 3) % 4
-		case "right":
-			m.activeColumn = (m.activeColumn + 1) % 4
-		case "up", "k":
-			if m.cursorByPane[m.activePane] > 0 {
-				m.cursorByPane[m.activePane]--
-			}
-		case "down", "j":
-			if m.cursorByPane[m.activePane] < len(m.rowsByPane[m.activePane])-1 {
-				m.cursorByPane[m.activePane]++
-			}
-		case " ":
-			if r := m.currentRow(); r != nil {
-				if m.selected[m.activePane][r.Key] {
-					delete(m.selected[m.activePane], r.Key)
-				} else {
-					m.selected[m.activePane][r.Key] = true
-				}
-			}
-		case "ctrl+a":
-			for _, r := range m.rowsByPane[m.activePane] {
-				m.selected[m.activePane][r.Key] = true
-			}
-		case "+", "=":
-			maxHeight := maxInt(1, m.height/3)
-			m.footerHeight = minInt(maxHeight, m.footerHeight+1)
-		case "-":
-			m.footerHeight = maxInt(1, m.footerHeight-1)
-		case "enter":
-			if r := m.currentRow(); r != nil {
-				m.modal = openYAMLModal(*r, m.resources[r.Key])
-			}
-		case "v":
-			m.modal = openSelectionModal(m.keysForOutput())
-		case "o":
-			m.emitSelection = true
-			return m, tea.Quit
-		case "?":
-			m.modal = openHelpModal()
-		}
+		return m.handleMainKey(msg)
 	}
 
 	switch msg := msg.(type) {
@@ -342,6 +199,162 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *model) handleModalSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return *m, tea.Quit
+	case tea.KeyCtrlU:
+		m.modal.SearchQuery = ""
+	case tea.KeyEsc:
+		m.modal.SearchMode = false
+	case tea.KeyEnter:
+		m.modal.SearchMode = false
+		m.applyModalSearch()
+	case tea.KeyBackspace:
+		if len(m.modal.SearchQuery) > 0 {
+			r := []rune(m.modal.SearchQuery)
+			m.modal.SearchQuery = string(r[:len(r)-1])
+		}
+	default:
+		if len(msg.Runes) > 0 {
+			m.modal.SearchQuery += string(msg.Runes)
+		}
+	}
+	return *m, nil
+}
+
+func (m *model) handleModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.modal.SearchMode {
+		return m.handleModalSearchKey(msg)
+	}
+
+	switch msg.String() {
+	case "ctrl+c":
+		return *m, tea.Quit
+	case "esc", "q":
+		m.modal = nil
+	case "left", "h":
+		m.modal.ColScroll = maxInt(0, m.modal.ColScroll-4)
+	case "right", "l":
+		m.modal.ColScroll = minInt(m.modalMaxColScroll(), m.modal.ColScroll+4)
+	case "home":
+		m.modal.ColScroll = 0
+	case "end":
+		m.modal.ColScroll = m.modalMaxColScroll()
+	case "g":
+		m.modal.Scroll = 0
+	case "G":
+		m.modal.Scroll = maxInt(0, len(m.modal.Lines)-1)
+	case "up", "k":
+		if m.modal.Scroll > 0 {
+			m.modal.Scroll--
+		}
+	case "down", "j":
+		if m.modal.Scroll < maxInt(0, len(m.modal.Lines)-1) {
+			m.modal.Scroll++
+		}
+	case "pgup":
+		m.modal.Scroll = maxInt(0, m.modal.Scroll-10)
+	case "pgdown":
+		m.modal.Scroll = minInt(maxInt(0, len(m.modal.Lines)-1), m.modal.Scroll+10)
+	case "/":
+		// Preserve last query for quick repeated filtering.
+		m.modal.SearchMode = true
+		m.modal.ActionStatus = ""
+	case "n":
+		m.jumpModalMatch(1)
+	case "N":
+		m.jumpModalMatch(-1)
+	case "y":
+		if err := copyToClipboard(m.modal.Raw); err != nil {
+			m.modal.ActionStatus = "copy failed: " + err.Error()
+		} else {
+			m.modal.ActionStatus = "copied to clipboard"
+		}
+	case "e":
+		return *m, openInEditorCmd(m.modal.Raw)
+	case "o":
+		m.emitSelection = true
+		return *m, tea.Quit
+	}
+	return *m, nil
+}
+
+func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return *m, tea.Quit
+	case "esc":
+		if m.clearActiveSelection() {
+			return *m, nil
+		}
+		return *m, tea.Quit
+	case "tab":
+		if m.mode == ModeSelector {
+			m.activePane = m.nextAvailablePane(1)
+		}
+	case "shift+tab":
+		if m.mode == ModeSelector {
+			m.activePane = m.nextAvailablePane(-1)
+		}
+	case "1":
+		if m.paneAvailable(0) {
+			m.activePane = 0
+		} else if m.paneAvailable(1) {
+			m.activePane = 1
+		}
+	case "2":
+		if m.mode == ModeSelector {
+			if m.paneAvailable(1) {
+				m.activePane = 1
+			} else if m.paneAvailable(0) {
+				m.activePane = 0
+			}
+		}
+	case "left":
+		m.activeColumn = (m.activeColumn + 3) % 4
+	case "right":
+		m.activeColumn = (m.activeColumn + 1) % 4
+	case "up", "k":
+		if m.cursorByPane[m.activePane] > 0 {
+			m.cursorByPane[m.activePane]--
+		}
+	case "down", "j":
+		if m.cursorByPane[m.activePane] < len(m.rowsByPane[m.activePane])-1 {
+			m.cursorByPane[m.activePane]++
+		}
+	case " ":
+		if r := m.currentRow(); r != nil {
+			if m.selected[m.activePane][r.Key] {
+				delete(m.selected[m.activePane], r.Key)
+			} else {
+				m.selected[m.activePane][r.Key] = true
+			}
+		}
+	case "ctrl+a":
+		for _, r := range m.rowsByPane[m.activePane] {
+			m.selected[m.activePane][r.Key] = true
+		}
+	case "+", "=":
+		maxHeight := maxInt(1, m.height/3)
+		m.footerHeight = minInt(maxHeight, m.footerHeight+1)
+	case "-":
+		m.footerHeight = maxInt(1, m.footerHeight-1)
+	case "enter":
+		if r := m.currentRow(); r != nil {
+			m.modal = openYAMLModal(*r, m.resources[r.Key])
+		}
+	case "v":
+		m.modal = openSelectionModal(m.keysForOutput())
+	case "o":
+		m.emitSelection = true
+		return *m, tea.Quit
+	case "?":
+		m.modal = openHelpModal()
+	}
+	return *m, nil
 }
 
 func (m model) View() string {
@@ -467,36 +480,60 @@ func (m model) renderRow(r row, focused bool) string {
 }
 
 func (m model) viewModal() string {
+	headerText := m.modalHeaderText()
+	footerText := m.modalFooterText()
+	header := fit(headerStyle.Render(headerText), m.width)
+	footer := fit(footerStyle.Render(footerText), m.width)
+	bodyHeight := maxInt(1, m.height-2)
+	bodyLines := m.modalBodyLines(bodyHeight)
+	for len(bodyLines) < bodyHeight {
+		bodyLines = append(bodyLines, "")
+	}
+	return strings.Join([]string{header, strings.Join(bodyLines, "\n"), footer}, "\n")
+}
+
+func (m model) modalHeaderText() string {
 	headerText := fmt.Sprintf("YAML | %s | Esc close", m.modal.Title)
+	if m.modal.Kind == modalHelp {
+		return "HELP | Keybindings | Esc close"
+	}
+	if m.modal.SearchMode {
+		headerText = "YAML | SEARCH | Enter apply | Esc cancel"
+	}
+	if m.modal.Kind != modalYAML {
+		return headerText
+	}
+
+	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.modal.Lines), m.modal.Scroll+1), len(m.modal.Lines), m.modal.ColScroll+1)
+	if len(m.modal.MatchLines) > 0 {
+		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.modal.ActiveMatch+1, len(m.modal.MatchLines))
+	}
+	return fmt.Sprintf("%s | %s", headerText, lineInfo)
+}
+
+func (m model) modalFooterText() string {
 	footerText := "Up/Down scroll | PgUp/PgDn page | g/G top/bottom | Left/Right pan | Home/End line start/end | / search | n/N next/prev | y copy | e edit | Esc close"
 	if m.modal.Kind == modalHelp {
-		headerText = "HELP | Keybindings | Esc close"
 		footerText = "Tab/Shift+Tab panes | arrows nav | Space select | Enter inspect | Esc close"
 	} else if m.modal.SearchMode {
-		headerText = "YAML | SEARCH | Enter apply | Esc cancel"
 		footerText = "Search: " + m.modal.SearchQuery
 	} else if len(m.modal.MatchLines) > 0 {
 		footerText = fmt.Sprintf("%s | match %d/%d", footerText, m.modal.ActiveMatch+1, len(m.modal.MatchLines))
 	}
-	if m.modal.Kind == modalYAML {
-		lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.modal.Lines), m.modal.Scroll+1), len(m.modal.Lines), m.modal.ColScroll+1)
-		if len(m.modal.MatchLines) > 0 {
-			lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.modal.ActiveMatch+1, len(m.modal.MatchLines))
-		}
-		headerText = fmt.Sprintf("%s | %s", headerText, lineInfo)
-	}
 	if m.modal.ActionStatus != "" {
-		footerText = footerText + " | " + m.modal.ActionStatus
+		footerText += " | " + m.modal.ActionStatus
 	}
-	header := fit(headerStyle.Render(headerText), m.width)
-	footer := fit(footerStyle.Render(footerText), m.width)
-	bodyHeight := maxInt(1, m.height-2)
+	return footerText
+}
+
+func (m model) modalBodyLines(bodyHeight int) []string {
 	start := clamp(m.modal.Scroll, 0, maxInt(0, len(m.modal.Lines)-1))
 	end := minInt(len(m.modal.Lines), start+bodyHeight)
 	bodyLines := make([]string, 0, bodyHeight)
 	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.modal.Lines))))
 	contentWidth := maxInt(1, m.width-lineNumberWidth-4)
 	activeMatchLine := m.modal.activeMatchLine()
+
 	for i := start; i < end; i++ {
 		line := visibleSegment(m.modal.Lines[i], m.modal.ColScroll, contentWidth)
 		line = highlightSearchTerm(line, m.modal.SearchQuery, i == activeMatchLine)
@@ -504,10 +541,7 @@ func (m model) viewModal() string {
 		prefix := modalLinePrefix(i, lineNumberWidth, m.modal.MatchLines, activeMatchLine)
 		bodyLines = append(bodyLines, prefix+line)
 	}
-	for len(bodyLines) < bodyHeight {
-		bodyLines = append(bodyLines, "")
-	}
-	return strings.Join([]string{header, strings.Join(bodyLines, "\n"), footer}, "\n")
+	return bodyLines
 }
 
 func (m model) currentRow() *row {
