@@ -43,10 +43,20 @@ jobs:
           set -euo pipefail
 
           git fetch --tags --force
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+
+          if [[ -n "$latest_tag" ]]; then
+            commit_range="$latest_tag..HEAD"
+            base_version="${latest_tag#v}"
+          else
+            commit_range="HEAD"
+            base_version="0.0.0"
+            latest_tag="none"
+          fi
+
           echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
 
-          commit_messages=$(git log --format=%s "$latest_tag"..HEAD)
+          commit_messages=$(git log --format=%s "$commit_range")
           if [[ -z "$commit_messages" ]]; then
             echo "No commits since $latest_tag; skipping"
             echo "should_release=false" >> "$GITHUB_OUTPUT"
@@ -56,13 +66,13 @@ jobs:
           bump="patch"
 
           # Conventional Commits: breaking change marker in header (type(scope)!:) or body/footer.
-          if git log "$latest_tag"..HEAD --format=%B | grep -Eq 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]*\))?!:'; then
+          if git log "$commit_range" --format=%B | grep -Eq 'BREAKING CHANGE|^[a-zA-Z]+(\([^)]*\))?!:'; then
             bump="major"
           elif echo "$commit_messages" | grep -Eq '^feat(\([^)]*\))?:'; then
             bump="minor"
           fi
 
-          version=${latest_tag#v}
+          version=$base_version
           IFS='.' read -r major minor patch <<< "$version"
           major=${major:-0}
           minor=${minor:-0}
