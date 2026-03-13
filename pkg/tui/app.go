@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
+	tree "github.com/karloie/kompass/pkg/tree"
 	"sigs.k8s.io/yaml"
 )
 
@@ -32,23 +33,25 @@ type Options struct {
 }
 
 type row struct {
-	Key      string
-	Type     string
-	Name     string
-	Status   string
-	Metadata map[string]any
-	Depth    int
+	Key       string
+	Type      string
+	Name      string
+	Line      string
+	PlainLine string
+	Status    string
+	Metadata  map[string]any
+	Depth     int
 }
 
-type modalKind string
+type fileKind string
 
 const (
-	modalYAML modalKind = "yaml"
-	modalHelp modalKind = "help"
+	fileYAML fileKind = "yaml"
+	fileHelp fileKind = "help"
 )
 
-type viewerModal struct {
-	Kind      modalKind
+type viewerFile struct {
+	Kind      fileKind
 	Title     string
 	Lines     []string
 	Raw       string
@@ -83,14 +86,15 @@ type model struct {
 	resources    map[string]*kube.Resource
 
 	footerHeight  int
-	modal         *viewerModal
+	file          *viewerFile
 	emitSelection bool
 }
 
 var (
 	headerStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("24")).Padding(0, 1)
 	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
-	focusedCell       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
+	fileedCell        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
+	selectedRowStyle  = lipgloss.NewStyle().Bold(true)
 	matchLineStyle    = lipgloss.NewStyle().Background(lipgloss.Color("236"))
 	activeMatchStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
 	lineNumberStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
@@ -181,8 +185,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
-		if m.modal != nil {
-			return m.handleModalKey(msg)
+		if m.file != nil {
+			return m.handleFileKey(msg)
 		}
 
 		return m.handleMainKey(msg)
@@ -190,91 +194,93 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case editorDoneMsg:
-		if m.modal != nil {
+		if m.file != nil {
 			if msg.err != nil {
-				m.modal.ActionStatus = "editor failed: " + msg.err.Error()
+				m.file.ActionStatus = "editor failed: " + msg.err.Error()
 			} else {
-				m.modal.ActionStatus = "editor closed"
+				m.file.ActionStatus = "editor closed"
 			}
 		}
 	}
 	return m, nil
 }
 
-func (m *model) handleModalSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) handleFileSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return *m, tea.Quit
 	case tea.KeyCtrlU:
-		m.modal.SearchQuery = ""
+		m.file.SearchQuery = ""
 	case tea.KeyEsc:
-		m.modal.SearchMode = false
+		m.file.SearchMode = false
 	case tea.KeyEnter:
-		m.modal.SearchMode = false
-		m.applyModalSearch()
+		m.file.SearchMode = false
+		m.applyFileSearch()
 	case tea.KeyBackspace:
-		if len(m.modal.SearchQuery) > 0 {
-			r := []rune(m.modal.SearchQuery)
-			m.modal.SearchQuery = string(r[:len(r)-1])
+		if len(m.file.SearchQuery) > 0 {
+			r := []rune(m.file.SearchQuery)
+			m.file.SearchQuery = string(r[:len(r)-1])
 		}
 	default:
 		if len(msg.Runes) > 0 {
-			m.modal.SearchQuery += string(msg.Runes)
+			m.file.SearchQuery += string(msg.Runes)
 		}
 	}
 	return *m, nil
 }
 
-func (m *model) handleModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.modal.SearchMode {
-		return m.handleModalSearchKey(msg)
+func (m *model) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.file.SearchMode {
+		return m.handleFileSearchKey(msg)
 	}
 
 	switch msg.String() {
 	case "ctrl+c":
 		return *m, tea.Quit
 	case "esc", "q":
-		m.modal = nil
+		m.file = nil
+	case "enter":
+		m.file = nil
 	case "left", "h":
-		m.modal.ColScroll = maxInt(0, m.modal.ColScroll-4)
+		m.file.ColScroll = maxInt(0, m.file.ColScroll-4)
 	case "right", "l":
-		m.modal.ColScroll = minInt(m.modalMaxColScroll(), m.modal.ColScroll+4)
+		m.file.ColScroll = minInt(m.fileMaxColScroll(), m.file.ColScroll+4)
 	case "home":
-		m.modal.ColScroll = 0
+		m.file.ColScroll = 0
 	case "end":
-		m.modal.ColScroll = m.modalMaxColScroll()
+		m.file.ColScroll = m.fileMaxColScroll()
 	case "g":
-		m.modal.Scroll = 0
+		m.file.Scroll = 0
 	case "G":
-		m.modal.Scroll = maxInt(0, len(m.modal.Lines)-1)
+		m.file.Scroll = maxInt(0, len(m.file.Lines)-1)
 	case "up", "k":
-		if m.modal.Scroll > 0 {
-			m.modal.Scroll--
+		if m.file.Scroll > 0 {
+			m.file.Scroll--
 		}
 	case "down", "j":
-		if m.modal.Scroll < maxInt(0, len(m.modal.Lines)-1) {
-			m.modal.Scroll++
+		if m.file.Scroll < maxInt(0, len(m.file.Lines)-1) {
+			m.file.Scroll++
 		}
 	case "pgup":
-		m.modal.Scroll = maxInt(0, m.modal.Scroll-10)
+		m.file.Scroll = maxInt(0, m.file.Scroll-10)
 	case "pgdown":
-		m.modal.Scroll = minInt(maxInt(0, len(m.modal.Lines)-1), m.modal.Scroll+10)
+		m.file.Scroll = minInt(maxInt(0, len(m.file.Lines)-1), m.file.Scroll+10)
 	case "/":
 		// Preserve last query for quick repeated filtering.
-		m.modal.SearchMode = true
-		m.modal.ActionStatus = ""
+		m.file.SearchMode = true
+		m.file.ActionStatus = ""
 	case "n":
-		m.jumpModalMatch(1)
+		m.jumpFileMatch(1)
 	case "N":
-		m.jumpModalMatch(-1)
+		m.jumpFileMatch(-1)
 	case "y":
-		if err := copyToClipboard(m.modal.Raw); err != nil {
-			m.modal.ActionStatus = "copy failed: " + err.Error()
+		if err := copyToClipboard(m.file.Raw); err != nil {
+			m.file.ActionStatus = "copy failed: " + err.Error()
 		} else {
-			m.modal.ActionStatus = "copied to clipboard"
+			m.file.ActionStatus = "copied to clipboard"
 		}
 	case "e":
-		return *m, openInEditorCmd(m.modal.Raw)
+		return *m, openInEditorCmd(m.file.Raw)
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
@@ -313,10 +319,6 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.activePane = 0
 			}
 		}
-	case "left":
-		m.activeColumn = (m.activeColumn + 3) % 4
-	case "right":
-		m.activeColumn = (m.activeColumn + 1) % 4
 	case "up", "k":
 		if m.cursorByPane[m.activePane] > 0 {
 			m.cursorByPane[m.activePane]--
@@ -344,15 +346,15 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); r != nil {
-			m.modal = openYAMLModal(*r, m.resources[r.Key])
+			m.file = openYAMLFile(*r, m.resources[r.Key])
 		}
 	case "v":
-		m.modal = openSelectionModal(m.keysForOutput())
+		m.file = openSelectionFile(m.keysForOutput())
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
 	case "?":
-		m.modal = openHelpModal()
+		m.file = openHelpFile()
 	}
 	return *m, nil
 }
@@ -362,16 +364,16 @@ func (m model) View() string {
 		return "loading..."
 	}
 
-	if m.modal != nil {
-		return m.viewModal()
+	if m.file != nil {
+		return m.viewFile()
 	}
 
 	header := m.viewHeader()
 	footer := m.viewFooter()
-	bodyHeight := maxInt(1, m.height-1-m.footerHeight)
-	body := m.viewRows(bodyHeight)
+	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
+	rows := m.viewRows(rowsHeight)
 
-	return strings.Join([]string{header, body, footer}, "\n")
+	return strings.Join([]string{header, rows, footer}, "\n")
 }
 
 func (m model) viewHeader() string {
@@ -381,58 +383,45 @@ func (m model) viewHeader() string {
 	} else if m.activePane == 1 {
 		paneName = "Single"
 	}
-	columns := []string{"type", "name", "status", "metadata"}
 	selectedCount := len(m.selected[m.activePane])
-	text := fmt.Sprintf("%s | col:%s | selected:%d | Tab pane | arrows nav | Space select | Enter inspect | v view selected | o output keys | ? help | Esc quit", paneName, columns[m.activeColumn], selectedCount)
-	return fit(headerStyle.Render(text), m.width)
+	text := fmt.Sprintf("%s | selected:%d | Tab pane | Up/Down rows | Space select | Enter inspect | v view selected | o output keys | ? help | Esc quit", paneName, selectedCount)
+	return renderFullWidthBar(headerStyle, text, m.width)
+}
+
+func renderFullWidthBar(style lipgloss.Style, text string, width int) string {
+	if width <= 0 {
+		return style.Render(text)
+	}
+	contentWidth := maxInt(0, width-2)
+	content := pad(truncate(text, contentWidth), contentWidth)
+	return style.Render(content)
 }
 
 func (m model) viewFooter() string {
 	r := m.currentRow()
 	if r == nil {
-		return fit(footerStyle.Render("No items"), m.width)
+		return renderFullWidthBar(footerStyle, "No items", m.width)
 	}
-	text := footerSummary(m.context, m.namespace, r, m.activeColumn)
-	line := fit(footerStyle.Render(text), m.width)
+	text := footerSummary(m.context, m.namespace, r)
+	line := renderFullWidthBar(footerStyle, text, m.width)
 	if m.footerHeight == 1 {
 		return line
 	}
 
 	lines := []string{line}
 	for i := 1; i < m.footerHeight; i++ {
-		lines = append(lines, fit(footerStyle.Render(" "), m.width))
+		lines = append(lines, renderFullWidthBar(footerStyle, "", m.width))
 	}
 	return strings.Join(lines, "\n")
 }
 
-func footerSummary(context, namespace string, r *row, activeColumn int) string {
+func footerSummary(context, namespace string, r *row) string {
 	if r == nil {
 		return "No items"
 	}
 
 	base := fmt.Sprintf("%s/%s | %s %s [%s]", context, namespace, r.Type, r.Name, r.Status)
-	if len(r.Metadata) == 0 {
-		return base
-	}
-
-	switch activeColumn {
-	case 0: // type
-		return fmt.Sprintf("%s type=%s depth=%d", base, r.Type, r.Depth)
-	case 1: // name
-		return fmt.Sprintf("%s key=%s", base, r.Key)
-	case 2: // status
-		reason, _ := r.Metadata["reason"].(string)
-		if reason != "" {
-			return fmt.Sprintf("%s reason=%s", base, reason)
-		}
-		return base
-	default: // metadata
-		meta := summarizeMetadata(r.Metadata)
-		if meta == "" {
-			return base
-		}
-		return fmt.Sprintf("%s %s", base, meta)
-	}
+	return fmt.Sprintf("%s key=%s", base, r.Key)
 }
 
 func (m model) viewRows(height int) string {
@@ -458,90 +447,110 @@ func (m model) viewRows(height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m model) renderRow(r row, focused bool) string {
-	marker := unselectedMarker
-	if m.selected[m.activePane][r.Key] {
-		marker = selectedMarker
+func (m model) renderRow(r row, fileed bool) string {
+	isSelected := m.selected[m.activePane][r.Key]
+	marker := "[ ]"
+	if isSelected {
+		marker = "[x]"
+	}
+	if !fileed {
+		if isSelected {
+			marker = selectedMarker
+		} else {
+			marker = unselectedMarker
+		}
 	}
 
-	indent := strings.Repeat("  ", maxInt(0, r.Depth))
-	typeCol := pad(r.Type, 16)
-	nameCol := pad(indent+r.Name, maxInt(18, m.width/3))
-	statusCol := pad(r.Status, 14)
-	metaCol := truncate(summarizeMetadata(r.Metadata), maxInt(10, m.width-40))
-
-	cols := []string{typeCol, nameCol, statusCol, metaCol}
-	if focused {
-		cols[m.activeColumn] = focusedCell.Render(cols[m.activeColumn])
+	lineContent := r.Line
+	if fileed {
+		lineContent = r.PlainLine
 	}
-
-	line := fmt.Sprintf("%s %s | %s | %s | %s", marker, cols[0], cols[1], cols[2], cols[3])
-	return fit(line, m.width)
+	if strings.TrimSpace(lineContent) == "" {
+		lineContent = r.Name
+	}
+	content := withSelectionMarker(lineContent, marker)
+	if fileed {
+		content = pad(truncate(content, maxInt(1, m.width)), maxInt(1, m.width))
+		content = fileedCell.Render(content)
+	} else if isSelected {
+		content = selectedRowStyle.Render(content)
+	}
+	return content
 }
 
-func (m model) viewModal() string {
-	headerText := m.modalHeaderText()
-	footerText := m.modalFooterText()
+func withSelectionMarker(line, marker string) string {
+	for _, branch := range []string{"├─ ", "└─ "} {
+		if idx := strings.Index(line, branch); idx >= 0 {
+			insertPos := idx + len(branch)
+			return line[:insertPos] + marker + " " + line[insertPos:]
+		}
+	}
+	return marker + " " + line
+}
+
+func (m model) viewFile() string {
+	headerText := m.fileHeaderText()
+	footerText := m.fileFooterText()
 	header := fit(headerStyle.Render(headerText), m.width)
 	footer := fit(footerStyle.Render(footerText), m.width)
-	bodyHeight := maxInt(1, m.height-2)
-	bodyLines := m.modalBodyLines(bodyHeight)
-	for len(bodyLines) < bodyHeight {
-		bodyLines = append(bodyLines, "")
+	rowsHeight := maxInt(1, m.height-2)
+	rowsLines := m.fileRowsLines(rowsHeight)
+	for len(rowsLines) < rowsHeight {
+		rowsLines = append(rowsLines, "")
 	}
-	return strings.Join([]string{header, strings.Join(bodyLines, "\n"), footer}, "\n")
+	return strings.Join([]string{header, strings.Join(rowsLines, "\n"), footer}, "\n")
 }
 
-func (m model) modalHeaderText() string {
-	headerText := fmt.Sprintf("YAML | %s | Esc close", m.modal.Title)
-	if m.modal.Kind == modalHelp {
+func (m model) fileHeaderText() string {
+	headerText := fmt.Sprintf("FILE | %s | Esc close", m.file.Title)
+	if m.file.Kind == fileHelp {
 		return "HELP | Keybindings | Esc close"
 	}
-	if m.modal.SearchMode {
-		headerText = "YAML | SEARCH | Enter apply | Esc cancel"
+	if m.file.SearchMode {
+		headerText = "FILE | SEARCH | Enter apply | Esc cancel"
 	}
-	if m.modal.Kind != modalYAML {
+	if m.file.Kind != fileYAML {
 		return headerText
 	}
 
-	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.modal.Lines), m.modal.Scroll+1), len(m.modal.Lines), m.modal.ColScroll+1)
-	if len(m.modal.MatchLines) > 0 {
-		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.modal.ActiveMatch+1, len(m.modal.MatchLines))
+	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.file.Lines), m.file.Scroll+1), len(m.file.Lines), m.file.ColScroll+1)
+	if len(m.file.MatchLines) > 0 {
+		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.file.ActiveMatch+1, len(m.file.MatchLines))
 	}
 	return fmt.Sprintf("%s | %s", headerText, lineInfo)
 }
 
-func (m model) modalFooterText() string {
+func (m model) fileFooterText() string {
 	footerText := "Up/Down scroll | PgUp/PgDn page | g/G top/bottom | Left/Right pan | Home/End line start/end | / search | n/N next/prev | y copy | e edit | Esc close"
-	if m.modal.Kind == modalHelp {
-		footerText = "Tab/Shift+Tab panes | arrows nav | Space select | Enter inspect | Esc close"
-	} else if m.modal.SearchMode {
-		footerText = "Search: " + m.modal.SearchQuery
-	} else if len(m.modal.MatchLines) > 0 {
-		footerText = fmt.Sprintf("%s | match %d/%d", footerText, m.modal.ActiveMatch+1, len(m.modal.MatchLines))
+	if m.file.Kind == fileHelp {
+		footerText = "Tab/Shift+Tab panes | arrows rows | Space select | Enter inspect | Esc close"
+	} else if m.file.SearchMode {
+		footerText = "Search: " + m.file.SearchQuery
+	} else if len(m.file.MatchLines) > 0 {
+		footerText = fmt.Sprintf("%s | match %d/%d", footerText, m.file.ActiveMatch+1, len(m.file.MatchLines))
 	}
-	if m.modal.ActionStatus != "" {
-		footerText += " | " + m.modal.ActionStatus
+	if m.file.ActionStatus != "" {
+		footerText += " | " + m.file.ActionStatus
 	}
 	return footerText
 }
 
-func (m model) modalBodyLines(bodyHeight int) []string {
-	start := clamp(m.modal.Scroll, 0, maxInt(0, len(m.modal.Lines)-1))
-	end := minInt(len(m.modal.Lines), start+bodyHeight)
-	bodyLines := make([]string, 0, bodyHeight)
-	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.modal.Lines))))
+func (m model) fileRowsLines(rowsHeight int) []string {
+	start := clamp(m.file.Scroll, 0, maxInt(0, len(m.file.Lines)-1))
+	end := minInt(len(m.file.Lines), start+rowsHeight)
+	rowsLines := make([]string, 0, rowsHeight)
+	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.file.Lines))))
 	contentWidth := maxInt(1, m.width-lineNumberWidth-4)
-	activeMatchLine := m.modal.activeMatchLine()
+	activeMatchLine := m.file.activeMatchLine()
 
 	for i := start; i < end; i++ {
-		line := visibleSegment(m.modal.Lines[i], m.modal.ColScroll, contentWidth)
-		line = highlightSearchTerm(line, m.modal.SearchQuery, i == activeMatchLine)
-		line = styleModalLine(line, i, m.modal.MatchLines, activeMatchLine)
-		prefix := modalLinePrefix(i, lineNumberWidth, m.modal.MatchLines, activeMatchLine)
-		bodyLines = append(bodyLines, prefix+line)
+		line := visibleSegment(m.file.Lines[i], m.file.ColScroll, contentWidth)
+		line = highlightSearchTerm(line, m.file.SearchQuery, i == activeMatchLine)
+		line = styleFileLine(line, i, m.file.MatchLines, activeMatchLine)
+		prefix := fileLinePrefix(i, lineNumberWidth, m.file.MatchLines, activeMatchLine)
+		rowsLines = append(rowsLines, prefix+line)
 	}
-	return bodyLines
+	return rowsLines
 }
 
 func (m model) currentRow() *row {
@@ -595,12 +604,23 @@ func (m model) nextAvailablePane(direction int) int {
 func flattenTrees(trees *kube.Trees) []row {
 	rows := make([]row, 0, 128)
 	for _, root := range trees.Trees {
-		flattenNode(&rows, root, 0)
+		coloredRendered := strings.TrimRight(tree.RenderTree(root, trees.Nodes, false), "\n")
+		plainRendered := strings.TrimRight(tree.RenderTree(root, trees.Nodes, true), "\n")
+		coloredLines := []string{}
+		plainLines := []string{}
+		if coloredRendered != "" {
+			coloredLines = strings.Split(coloredRendered, "\n")
+		}
+		if plainRendered != "" {
+			plainLines = strings.Split(plainRendered, "\n")
+		}
+		lineIndex := 0
+		flattenNode(&rows, root, 0, coloredLines, plainLines, &lineIndex)
 	}
 	return rows
 }
 
-func flattenNode(rows *[]row, n *kube.Tree, depth int) {
+func flattenNode(rows *[]row, n *kube.Tree, depth int, coloredLines, plainLines []string, lineIndex *int) {
 	if n == nil {
 		return
 	}
@@ -610,9 +630,20 @@ func flattenNode(rows *[]row, n *kube.Tree, depth int) {
 	}
 	name := stringMeta(meta, "name", n.Key)
 	status := stringMeta(meta, "status", "")
-	*rows = append(*rows, row{Key: n.Key, Type: n.Type, Name: name, Status: status, Metadata: meta, Depth: depth})
+	line := name
+	plainLine := name
+	if lineIndex != nil {
+		if *lineIndex < len(coloredLines) {
+			line = coloredLines[*lineIndex]
+		}
+		if *lineIndex < len(plainLines) {
+			plainLine = plainLines[*lineIndex]
+		}
+		*lineIndex++
+	}
+	*rows = append(*rows, row{Key: n.Key, Type: n.Type, Name: name, Line: line, PlainLine: plainLine, Status: status, Metadata: meta, Depth: depth})
 	for _, c := range n.Children {
-		flattenNode(rows, c, depth+1)
+		flattenNode(rows, c, depth+1, coloredLines, plainLines, lineIndex)
 	}
 }
 
@@ -626,7 +657,7 @@ func singleRows(rows []row) []row {
 	return out
 }
 
-func openYAMLModal(r row, resource *kube.Resource) *viewerModal {
+func openYAMLFile(r row, resource *kube.Resource) *viewerFile {
 	var content any
 	if resource != nil && resource.Resource != nil {
 		content = resource.Resource
@@ -645,26 +676,25 @@ func openYAMLModal(r row, resource *kube.Resource) *viewerModal {
 	}
 	raw := strings.TrimRight(string(b), "\n")
 	lines := strings.Split(raw, "\n")
-	return &viewerModal{Kind: modalYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Lines: lines, Raw: raw}
+	return &viewerFile{Kind: fileYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Lines: lines, Raw: raw}
 }
 
-func openHelpModal() *viewerModal {
+func openHelpFile() *viewerFile {
 	lines := []string{
-		"Navigation",
+		"Rows",
 		"  Up/Down or j/k  move row",
-		"  Left/Right      switch focused column (type/name/status/metadata)",
 		"  Tab             next pane",
 		"  Shift+Tab       previous pane",
 		"  1/2             jump to Selector/Single",
 		"",
 		"Actions",
 		"  Space           toggle row selection",
-		"  Enter           open YAML modal for current row",
-		"  v               open selected rows modal",
+		"  Enter           open YAML file for current row",
+		"  v               open selected rows file",
 		"  o               output selected/current keys and quit",
 		"  + / -           increase/decrease footer panel height",
 		"",
-		"Modal",
+		"File",
 		"  Up/Down, PgUp/PgDn  scroll",
 		"  g / G               jump to top/bottom",
 		"  Left/Right or h/l   pan long lines",
@@ -672,18 +702,18 @@ func openHelpModal() *viewerModal {
 		"  /                    start search",
 		"  Ctrl+U               clear search query",
 		"  n / N                next/previous match",
-		"  y                    copy modal content",
+		"  y                    copy file content",
 		"  e                    open in $EDITOR (read-only where supported)",
-		"  Esc or q            close modal",
+		"  Esc or q            close file",
 		"",
 		"Exit",
 		"  Esc / Ctrl+C     quit application",
 	}
 	raw := strings.Join(lines, "\n")
-	return &viewerModal{Kind: modalHelp, Title: "Keybindings", Lines: lines, Raw: raw}
+	return &viewerFile{Kind: fileHelp, Title: "Keybindings", Lines: lines, Raw: raw}
 }
 
-func openSelectionModal(keys []string) *viewerModal {
+func openSelectionFile(keys []string) *viewerFile {
 	if len(keys) == 0 {
 		keys = []string{"(no rows)"}
 	}
@@ -697,7 +727,7 @@ func openSelectionModal(keys []string) *viewerModal {
 	}
 	raw := strings.TrimRight(string(b), "\n")
 	lines := strings.Split(raw, "\n")
-	return &viewerModal{Kind: modalYAML, Title: "selected/rows", Lines: lines, Raw: raw}
+	return &viewerFile{Kind: fileYAML, Title: "selected/rows", Lines: lines, Raw: raw}
 }
 
 func (m model) keysForOutput() []string {
@@ -720,94 +750,94 @@ func (m model) keysForOutput() []string {
 	return keys
 }
 
-func (m *model) applyModalSearch() {
-	if m.modal == nil || m.modal.Kind != modalYAML {
+func (m *model) applyFileSearch() {
+	if m.file == nil || m.file.Kind != fileYAML {
 		return
 	}
-	query := strings.TrimSpace(strings.ToLower(m.modal.SearchQuery))
+	query := strings.TrimSpace(strings.ToLower(m.file.SearchQuery))
 	if query == "" {
-		m.modal.MatchLines = nil
-		m.modal.ActiveMatch = 0
-		m.modal.ActionStatus = ""
+		m.file.MatchLines = nil
+		m.file.ActiveMatch = 0
+		m.file.ActionStatus = ""
 		return
 	}
 
 	matches := make([]int, 0)
-	for i, line := range m.modal.Lines {
+	for i, line := range m.file.Lines {
 		if strings.Contains(strings.ToLower(line), query) {
 			matches = append(matches, i)
 		}
 	}
-	m.modal.MatchLines = matches
-	m.modal.ActiveMatch = 0
+	m.file.MatchLines = matches
+	m.file.ActiveMatch = 0
 	if len(matches) == 0 {
-		m.modal.ActionStatus = "no matches"
+		m.file.ActionStatus = "no matches"
 		return
 	}
-	m.modal.Scroll = matches[0]
+	m.file.Scroll = matches[0]
 	m.ensureActiveMatchVisible()
-	m.modal.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
+	m.file.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
 }
 
-func (m *model) jumpModalMatch(direction int) {
-	if m.modal == nil || len(m.modal.MatchLines) == 0 {
-		if m.modal != nil {
-			m.modal.ActionStatus = "no matches"
+func (m *model) jumpFileMatch(direction int) {
+	if m.file == nil || len(m.file.MatchLines) == 0 {
+		if m.file != nil {
+			m.file.ActionStatus = "no matches"
 		}
 		return
 	}
-	count := len(m.modal.MatchLines)
-	idx := (m.modal.ActiveMatch + direction + count) % count
-	m.modal.ActiveMatch = idx
-	m.modal.Scroll = m.modal.MatchLines[idx]
+	count := len(m.file.MatchLines)
+	idx := (m.file.ActiveMatch + direction + count) % count
+	m.file.ActiveMatch = idx
+	m.file.Scroll = m.file.MatchLines[idx]
 	m.ensureActiveMatchVisible()
-	m.modal.ActionStatus = ""
+	m.file.ActionStatus = ""
 }
 
 func (m *model) ensureActiveMatchVisible() {
-	if m.modal == nil || len(m.modal.MatchLines) == 0 {
+	if m.file == nil || len(m.file.MatchLines) == 0 {
 		return
 	}
-	activeLine := m.modal.activeMatchLine()
-	if activeLine < 0 || activeLine >= len(m.modal.Lines) {
+	activeLine := m.file.activeMatchLine()
+	if activeLine < 0 || activeLine >= len(m.file.Lines) {
 		return
 	}
 
-	query := strings.TrimSpace(m.modal.SearchQuery)
+	query := strings.TrimSpace(m.file.SearchQuery)
 	if query == "" {
 		return
 	}
 
-	matchCol := matchColumn(m.modal.Lines[activeLine], query)
+	matchCol := matchColumn(m.file.Lines[activeLine], query)
 	if matchCol < 0 {
 		return
 	}
 
-	contentWidth := m.modalContentWidth()
+	contentWidth := m.fileContentWidth()
 	if contentWidth <= 0 {
 		return
 	}
 
 	matchStart := matchCol
 	matchEnd := matchCol + len([]rune(query)) - 1
-	viewStart := m.modal.ColScroll
+	viewStart := m.file.ColScroll
 	viewEnd := viewStart + contentWidth - 1
 
 	if matchStart < viewStart {
-		m.modal.ColScroll = matchStart
+		m.file.ColScroll = matchStart
 	} else if matchEnd > viewEnd {
-		m.modal.ColScroll = matchEnd - contentWidth + 1
+		m.file.ColScroll = matchEnd - contentWidth + 1
 	}
-	m.modal.ColScroll = clamp(m.modal.ColScroll, 0, m.modalMaxColScroll())
+	m.file.ColScroll = clamp(m.file.ColScroll, 0, m.fileMaxColScroll())
 }
 
-func (m *model) modalMaxColScroll() int {
-	if m.modal == nil || len(m.modal.Lines) == 0 {
+func (m *model) fileMaxColScroll() int {
+	if m.file == nil || len(m.file.Lines) == 0 {
 		return 0
 	}
-	contentWidth := m.modalContentWidth()
+	contentWidth := m.fileContentWidth()
 	longest := 0
-	for _, line := range m.modal.Lines {
+	for _, line := range m.file.Lines {
 		l := len([]rune(line))
 		if l > longest {
 			longest = l
@@ -816,15 +846,15 @@ func (m *model) modalMaxColScroll() int {
 	return maxInt(0, longest-contentWidth)
 }
 
-func (m *model) modalContentWidth() int {
-	if m.modal == nil {
+func (m *model) fileContentWidth() int {
+	if m.file == nil {
 		return 1
 	}
-	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.modal.Lines))))
+	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.file.Lines))))
 	return maxInt(1, m.width-lineNumberWidth-4)
 }
 
-func styleModalLine(line string, lineIndex int, matchLines []int, activeMatchLine int) string {
+func styleFileLine(line string, lineIndex int, matchLines []int, activeMatchLine int) string {
 	if lineIndex == activeMatchLine {
 		return activeMatchStyle.Render(line)
 	}
@@ -834,8 +864,8 @@ func styleModalLine(line string, lineIndex int, matchLines []int, activeMatchLin
 	return line
 }
 
-func modalLinePrefix(lineIndex, lineNumberWidth int, matchLines []int, activeMatchLine int) string {
-	marker := modalGutterMarker(lineIndex, matchLines, activeMatchLine)
+func fileLinePrefix(lineIndex, lineNumberWidth int, matchLines []int, activeMatchLine int) string {
+	marker := fileGutterMarker(lineIndex, matchLines, activeMatchLine)
 	switch marker {
 	case ">":
 		marker = gutterActiveStyle.Render(marker)
@@ -846,7 +876,7 @@ func modalLinePrefix(lineIndex, lineNumberWidth int, matchLines []int, activeMat
 	return marker + " " + lineNumber
 }
 
-func modalGutterMarker(lineIndex int, matchLines []int, activeMatchLine int) string {
+func fileGutterMarker(lineIndex int, matchLines []int, activeMatchLine int) string {
 	if lineIndex == activeMatchLine {
 		return ">"
 	}
@@ -953,7 +983,7 @@ func containsInt(values []int, needle int) bool {
 	return false
 }
 
-func (m *viewerModal) activeMatchLine() int {
+func (m *viewerFile) activeMatchLine() int {
 	if m == nil || len(m.MatchLines) == 0 {
 		return -1
 	}

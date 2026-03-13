@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -68,48 +69,71 @@ func TestTabSkipsSelectorWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestQuestionMarkOpensHelpModal(t *testing.T) {
+func TestQuestionMarkOpensHelpFile(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
 	m1 := updated.(model)
-	if m1.modal == nil {
-		t.Fatalf("expected help modal to open")
+	if m1.file == nil {
+		t.Fatalf("expected help file to open")
 	}
-	if m1.modal.Kind != modalHelp {
-		t.Fatalf("expected help modal kind, got %q", m1.modal.Kind)
+	if m1.file.Kind != fileHelp {
+		t.Fatalf("expected help file kind, got %q", m1.file.Kind)
 	}
 }
 
-func TestOpenYAMLModalPrefersResourceData(t *testing.T) {
+func TestOpenYAMLFilePrefersResourceData(t *testing.T) {
 	r := row{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running", Metadata: map[string]any{"name": "foo"}}
 	res := map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": "foo"}}
-	modal := openYAMLModal(r, &kube.Resource{Resource: res})
-	if modal == nil {
-		t.Fatalf("expected yaml modal")
+	file := openYAMLFile(r, &kube.Resource{Resource: res})
+	if file == nil {
+		t.Fatalf("expected yaml file")
 	}
-	joined := strings.Join(modal.Lines, "\n")
+	joined := strings.Join(file.Lines, "\n")
 	if !strings.Contains(joined, "kind: Pod") {
-		t.Fatalf("expected yaml modal to include resource kind, got:\n%s", joined)
+		t.Fatalf("expected yaml file to include resource kind, got:\n%s", joined)
 	}
 }
 
-func TestEscClosesModalBeforeQuit(t *testing.T) {
+func TestEscClosesFileBeforeQuit(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = openHelpModal()
+	m.file = openHelpFile()
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m1 := updated.(model)
-	if m1.modal != nil {
-		t.Fatalf("expected Esc to close modal first")
+	if m1.file != nil {
+		t.Fatalf("expected Esc to close file first")
 	}
 	if cmd != nil {
-		t.Fatalf("expected no quit command while closing modal")
+		t.Fatalf("expected no quit command while closing file")
 	}
 
 	_, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd == nil {
 		t.Fatalf("expected second Esc to quit app")
+	}
+}
+
+func TestDoubleEnterReturnsToSelector(t *testing.T) {
+	m := newModel(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(model)
+	if cmd != nil {
+		t.Fatalf("expected Enter to open file without quitting")
+	}
+	if m1.file == nil {
+		t.Fatalf("expected first Enter to open file")
+	}
+
+	updated, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(model)
+	if cmd != nil {
+		t.Fatalf("expected second Enter to close file without quitting")
+	}
+	if m2.file != nil {
+		t.Fatalf("expected second Enter to return to selector (close file)")
 	}
 }
 
@@ -126,21 +150,12 @@ func TestFooterSummaryByColumn(t *testing.T) {
 		},
 	}
 
-	if got := footerSummary("ctx", "ns", r, 0); !strings.Contains(got, "type=pod") {
-		t.Fatalf("expected type summary, got %q", got)
-	}
-	if got := footerSummary("ctx", "ns", r, 1); !strings.Contains(got, "key=pod/ns/foo") {
-		t.Fatalf("expected name summary with key, got %q", got)
-	}
-	if got := footerSummary("ctx", "ns", r, 2); !strings.Contains(got, "reason=CrashLoopBackOff") {
-		t.Fatalf("expected status summary with reason, got %q", got)
-	}
-	if got := footerSummary("ctx", "ns", r, 3); !strings.Contains(got, "namespace=ns") {
-		t.Fatalf("expected metadata summary, got %q", got)
+	if got := footerSummary("ctx", "ns", r); !strings.Contains(got, "key=pod/ns/foo") {
+		t.Fatalf("expected footer summary to include key, got %q", got)
 	}
 }
 
-func TestModalSearchFindsMatchesAndJumps(t *testing.T) {
+func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
 	r := row{Key: "k", Type: "pod", Name: "foo"}
 	resource := &kube.Resource{Resource: map[string]any{
 		"kind": "Pod",
@@ -149,38 +164,38 @@ func TestModalSearchFindsMatchesAndJumps(t *testing.T) {
 		},
 	}}
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = openYAMLModal(r, resource)
-	m.modal.SearchMode = true
-	m.modal.SearchQuery = "name"
+	m.file = openYAMLFile(r, resource)
+	m.file.SearchMode = true
+	m.file.SearchQuery = "name"
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m1 := updated.(model)
-	if m1.modal.SearchMode {
+	if m1.file.SearchMode {
 		t.Fatalf("expected search mode to close after Enter")
 	}
-	if len(m1.modal.MatchLines) == 0 {
+	if len(m1.file.MatchLines) == 0 {
 		t.Fatalf("expected at least one search match")
 	}
 
-	before := m1.modal.ActiveMatch
+	before := m1.file.ActiveMatch
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m2 := updated.(model)
-	if len(m2.modal.MatchLines) > 1 && m2.modal.ActiveMatch == before {
+	if len(m2.file.MatchLines) > 1 && m2.file.ActiveMatch == before {
 		t.Fatalf("expected n to change active match when multiple matches exist")
 	}
 }
 
-func TestEscInSearchModeClosesSearchNotModal(t *testing.T) {
+func TestEscInSearchModeClosesSearchNotFile(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = openHelpModal()
-	m.modal.SearchMode = true
+	m.file = openHelpFile()
+	m.file.SearchMode = true
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m1 := updated.(model)
-	if m1.modal == nil {
-		t.Fatalf("expected modal to remain open when Esc closes search mode")
+	if m1.file == nil {
+		t.Fatalf("expected file to remain open when Esc closes search mode")
 	}
-	if m1.modal.SearchMode {
+	if m1.file.SearchMode {
 		t.Fatalf("expected search mode to be closed")
 	}
 }
@@ -214,7 +229,7 @@ func TestOQuitsAndEnablesOutput(t *testing.T) {
 	}
 }
 
-func TestVOpensSelectionModal(t *testing.T) {
+func TestVOpensSelectionFile(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []row{{Key: "a"}, {Key: "b"}}
 	m.selected[0]["a"] = true
@@ -222,14 +237,91 @@ func TestVOpensSelectionModal(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	m1 := updated.(model)
-	if m1.modal == nil {
-		t.Fatalf("expected v to open selected rows modal")
+	if m1.file == nil {
+		t.Fatalf("expected v to open selected rows file")
 	}
-	if m1.modal.Kind != modalYAML {
-		t.Fatalf("expected selected rows modal to be YAML kind, got %q", m1.modal.Kind)
+	if m1.file.Kind != fileYAML {
+		t.Fatalf("expected selected rows file to be YAML kind, got %q", m1.file.Kind)
 	}
-	if !strings.Contains(m1.modal.Raw, "selectedKeys") || !strings.Contains(m1.modal.Raw, "- a") {
-		t.Fatalf("expected selected rows modal to include selected keys, got:\n%s", m1.modal.Raw)
+	if !strings.Contains(m1.file.Raw, "selectedKeys") || !strings.Contains(m1.file.Raw, "- a") {
+		t.Fatalf("expected selected rows file to include selected keys, got:\n%s", m1.file.Raw)
+	}
+}
+
+func TestRenderRowFileedLongNameStaysSingleLine(t *testing.T) {
+	m := newModel(Options{Mode: ModeSelector})
+	m.width = 24
+	r := row{Key: "k", Name: "deployment/applikasjonsplattform/ad-explore-webservice-config"}
+
+	line := m.renderRow(r, true)
+	if strings.Contains(line, "\n") {
+		t.Fatalf("expected fileed row to render as a single line")
+	}
+	if got := lipgloss.Width(line); got != m.width {
+		t.Fatalf("expected fileed row to invert full width %d, got %d", m.width, got)
+	}
+}
+
+func TestViewHeaderFillsViewportWidth(t *testing.T) {
+	m := newModel(Options{Mode: ModeSelector})
+	m.width = 64
+
+	header := m.viewHeader()
+	if got := lipgloss.Width(header); got != m.width {
+		t.Fatalf("expected header width %d, got %d", m.width, got)
+	}
+}
+
+func TestViewFooterFillsViewportWidth(t *testing.T) {
+	m := newModel(Options{Mode: ModeSelector})
+	m.width = 64
+	m.rowsByPane[0] = []row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+
+	footer := m.viewFooter()
+	if got := lipgloss.Width(footer); got != m.width {
+		t.Fatalf("expected footer width %d, got %d", m.width, got)
+	}
+}
+
+func TestWithSelectionMarkerOnTreeBranch(t *testing.T) {
+	line := withSelectionMarker("└─ service child", "[ ]")
+	if !strings.Contains(line, "└─ [ ] service child") {
+		t.Fatalf("expected marker inserted after branch prefix, got %q", line)
+	}
+
+	root := withSelectionMarker("deployment root", "[x]")
+	if !strings.HasPrefix(root, "[x] deployment root") {
+		t.Fatalf("expected marker prefixed for root line, got %q", root)
+	}
+}
+
+func TestFlattenTreesUsesASCIITreeLines(t *testing.T) {
+	trees := &kube.Trees{
+		Nodes: map[string]*kube.Resource{},
+		Trees: []*kube.Tree{
+			{
+				Key:  "deploy/ns/root",
+				Type: "deployment",
+				Meta: map[string]any{"name": "root"},
+				Children: []*kube.Tree{
+					{Key: "svc/ns/child", Type: "service", Meta: map[string]any{"name": "child"}},
+				},
+			},
+		},
+	}
+
+	rows := flattenTrees(trees)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if !strings.Contains(rows[0].Line, "root") {
+		t.Fatalf("expected root row to include rendered root name, got %q", rows[0].Line)
+	}
+	if !strings.Contains(rows[1].Line, "child") {
+		t.Fatalf("expected child row to include rendered child name, got %q", rows[1].Line)
+	}
+	if !strings.Contains(rows[1].Line, "└") && !strings.Contains(rows[1].Line, "├") {
+		t.Fatalf("expected child row to include ASCII branch prefix, got %q", rows[1].Line)
 	}
 }
 
@@ -253,14 +345,14 @@ func TestEscClearsSelectionBeforeQuit(t *testing.T) {
 	}
 }
 
-func TestViewerModalActiveMatchLine(t *testing.T) {
-	modal := &viewerModal{MatchLines: []int{3, 7, 11}, ActiveMatch: 1}
-	if got := modal.activeMatchLine(); got != 7 {
+func TestViewerFileActiveMatchLine(t *testing.T) {
+	file := &viewerFile{MatchLines: []int{3, 7, 11}, ActiveMatch: 1}
+	if got := file.activeMatchLine(); got != 7 {
 		t.Fatalf("expected active match line 7, got %d", got)
 	}
 
-	modal.ActiveMatch = 99
-	if got := modal.activeMatchLine(); got != -1 {
+	file.ActiveMatch = 99
+	if got := file.activeMatchLine(); got != -1 {
 		t.Fatalf("expected out-of-range active match to return -1, got %d", got)
 	}
 }
@@ -296,51 +388,51 @@ func TestHighlightSearchTerm(t *testing.T) {
 	}
 }
 
-func TestModalHomeEndNavigation(t *testing.T) {
+func TestFileHomeEndNavigation(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
 	m.width = 20
-	m.modal = &viewerModal{Kind: modalYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
+	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
 	m1 := updated.(model)
-	if m1.modal.ColScroll != 0 {
-		t.Fatalf("expected Home to jump to line start, got %d", m1.modal.ColScroll)
+	if m1.file.ColScroll != 0 {
+		t.Fatalf("expected Home to jump to line start, got %d", m1.file.ColScroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	m2 := updated.(model)
-	if m2.modal.ColScroll == 0 {
-		t.Fatalf("expected End to jump to line end, got %d", m2.modal.ColScroll)
+	if m2.file.ColScroll == 0 {
+		t.Fatalf("expected End to jump to line end, got %d", m2.file.ColScroll)
 	}
 }
 
-func TestModalGAndGNavigation(t *testing.T) {
+func TestFileGAndGNavigation(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = &viewerModal{Kind: modalYAML, Lines: []string{"a", "b", "c", "d"}, Scroll: 2}
+	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a", "b", "c", "d"}, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	m1 := updated.(model)
-	if m1.modal.Scroll != 0 {
-		t.Fatalf("expected g to jump to top, got %d", m1.modal.Scroll)
+	if m1.file.Scroll != 0 {
+		t.Fatalf("expected g to jump to top, got %d", m1.file.Scroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 	m2 := updated.(model)
-	if m2.modal.Scroll != 3 {
-		t.Fatalf("expected G to jump to bottom, got %d", m2.modal.Scroll)
+	if m2.file.Scroll != 3 {
+		t.Fatalf("expected G to jump to bottom, got %d", m2.file.Scroll)
 	}
 }
 
-func TestModalGutterMarker(t *testing.T) {
+func TestFileGutterMarker(t *testing.T) {
 	matchLines := []int{2, 5, 8}
 
-	if got := modalGutterMarker(5, matchLines, 8); got != "*" {
+	if got := fileGutterMarker(5, matchLines, 8); got != "*" {
 		t.Fatalf("expected match marker '*', got %q", got)
 	}
-	if got := modalGutterMarker(8, matchLines, 8); got != ">" {
+	if got := fileGutterMarker(8, matchLines, 8); got != ">" {
 		t.Fatalf("expected active marker '>', got %q", got)
 	}
-	if got := modalGutterMarker(3, matchLines, 8); got != " " {
+	if got := fileGutterMarker(3, matchLines, 8); got != " " {
 		t.Fatalf("expected no marker for non-match line, got %q", got)
 	}
 }
@@ -381,26 +473,26 @@ func TestResolveEditorCommandForUnknownKeepsArgs(t *testing.T) {
 	}
 }
 
-func TestModalHorizontalPanning(t *testing.T) {
+func TestFileHorizontalPanning(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = &viewerModal{Kind: modalYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz"}}
+	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz"}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m1 := updated.(model)
-	if m1.modal.ColScroll != 4 {
-		t.Fatalf("expected right to increase col scroll to 4, got %d", m1.modal.ColScroll)
+	if m1.file.ColScroll != 4 {
+		t.Fatalf("expected right to increase col scroll to 4, got %d", m1.file.ColScroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	m2 := updated.(model)
-	if m2.modal.ColScroll != 0 {
-		t.Fatalf("expected left to decrease col scroll to 0, got %d", m2.modal.ColScroll)
+	if m2.file.ColScroll != 0 {
+		t.Fatalf("expected left to decrease col scroll to 0, got %d", m2.file.ColScroll)
 	}
 
 	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	m3 := updated.(model)
-	if m3.modal.ColScroll != 0 {
-		t.Fatalf("expected left at boundary to stay at 0, got %d", m3.modal.ColScroll)
+	if m3.file.ColScroll != 0 {
+		t.Fatalf("expected left at boundary to stay at 0, got %d", m3.file.ColScroll)
 	}
 }
 
@@ -416,30 +508,30 @@ func TestVisibleSegment(t *testing.T) {
 	}
 }
 
-func TestApplyModalSearchKeepsActiveMatchVisible(t *testing.T) {
+func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
 	m.width = 18
-	m.modal = &viewerModal{
-		Kind:        modalYAML,
+	m.file = &viewerFile{
+		Kind:        fileYAML,
 		Lines:       []string{"abcdefghijTARGETxyz"},
 		SearchQuery: "target",
 		ColScroll:   0,
 	}
 
-	m.applyModalSearch()
-	if len(m.modal.MatchLines) != 1 {
-		t.Fatalf("expected one match line, got %d", len(m.modal.MatchLines))
+	m.applyFileSearch()
+	if len(m.file.MatchLines) != 1 {
+		t.Fatalf("expected one match line, got %d", len(m.file.MatchLines))
 	}
-	if m.modal.ColScroll == 0 {
+	if m.file.ColScroll == 0 {
 		t.Fatalf("expected horizontal auto-pan to reveal active match")
 	}
 }
 
-func TestJumpModalMatchKeepsNextMatchVisible(t *testing.T) {
+func TestJumpFileMatchKeepsNextMatchVisible(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
 	m.width = 20
-	m.modal = &viewerModal{
-		Kind:        modalYAML,
+	m.file = &viewerFile{
+		Kind:        fileYAML,
 		Lines:       []string{"TARGET", "abcdefghijklmnopTARGET"},
 		SearchQuery: "target",
 		MatchLines:  []int{0, 1},
@@ -447,11 +539,11 @@ func TestJumpModalMatchKeepsNextMatchVisible(t *testing.T) {
 		ColScroll:   0,
 	}
 
-	m.jumpModalMatch(1)
-	if m.modal.ActiveMatch != 1 {
-		t.Fatalf("expected active match to move to second line, got %d", m.modal.ActiveMatch)
+	m.jumpFileMatch(1)
+	if m.file.ActiveMatch != 1 {
+		t.Fatalf("expected active match to move to second line, got %d", m.file.ActiveMatch)
 	}
-	if m.modal.ColScroll == 0 {
+	if m.file.ColScroll == 0 {
 		t.Fatalf("expected horizontal auto-pan for second match")
 	}
 }
@@ -467,26 +559,26 @@ func TestMatchColumn(t *testing.T) {
 
 func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = &viewerModal{Kind: modalYAML, Lines: []string{"a"}, SearchQuery: "name"}
+	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a"}, SearchQuery: "name"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	m1 := updated.(model)
-	if !m1.modal.SearchMode {
+	if !m1.file.SearchMode {
 		t.Fatalf("expected slash to enter search mode")
 	}
-	if m1.modal.SearchQuery != "name" {
-		t.Fatalf("expected slash to preserve prior query, got %q", m1.modal.SearchQuery)
+	if m1.file.SearchQuery != "name" {
+		t.Fatalf("expected slash to preserve prior query, got %q", m1.file.SearchQuery)
 	}
 }
 
 func TestCtrlUClearsSearchQuery(t *testing.T) {
 	m := newModel(Options{Mode: ModeSelector})
-	m.modal = &viewerModal{Kind: modalYAML, Lines: []string{"a"}, SearchMode: true, SearchQuery: "status"}
+	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a"}, SearchMode: true, SearchQuery: "status"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
 	m1 := updated.(model)
-	if m1.modal.SearchQuery != "" {
-		t.Fatalf("expected Ctrl+U to clear search query, got %q", m1.modal.SearchQuery)
+	if m1.file.SearchQuery != "" {
+		t.Fatalf("expected Ctrl+U to clear search query, got %q", m1.file.SearchQuery)
 	}
 }
 

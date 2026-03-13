@@ -20,7 +20,7 @@ SNAP_REAL_NAMESPACE ?= applikasjonsplattform
 SNAP_REAL_JSON ?= $(SNAP_DIR)/real.json
 SNAP_REAL_TREE ?= $(SNAP_DIR)/real.txt
 
-build: test
+build:
 	@echo
 	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); \
@@ -31,7 +31,7 @@ build-release: LDFLAGS := $(RELEASE_LDFLAGS)
 build-release: build
 	@echo
 
-test:
+test: build
 	@echo
 	go test -count=1 ./...
 
