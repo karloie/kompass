@@ -3,32 +3,40 @@
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
 LDFLAGS ?=
 ARGS ?=
 COVERPKG ?= ./...
+GO_RUN = go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass
 
-SNAPSHOT_DIR ?= testdata/fixtures
-SNAPSHOT_MOCK_NAMESPACE ?= petshop
-SNAPSHOT_TOOL_CONTEXT ?= tool-test-01
-SNAPSHOT_TOOL_NAMESPACE ?= applikasjonsplattform
+SNAP_DIR ?= testdata/fixtures
 
-SNAPSHOT_MOCK_JSON ?= $(SNAPSHOT_DIR)/kompass_snapshot_mock.json
-SNAPSHOT_TOOL_JSON ?= $(SNAPSHOT_DIR)/kompass_snapshot_tool_app.json
-SNAPSHOT_MOCK_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_mock.txt
-SNAPSHOT_TOOL_TREE ?= $(SNAPSHOT_DIR)/kompass_snapshot_tool_app.txt
+SNAP_MOCK_JSON ?= $(SNAP_DIR)/mock.json
+SNAP_MOCK_TREE ?= $(SNAP_DIR)/mock.txt
+SNAP_MOCK_NAMESPACE ?= petshop
 
-build:
-	@go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
+SNAP_REAL_CONTEXT ?= tool-test-01
+SNAP_REAL_NAMESPACE ?= applikasjonsplattform
+SNAP_REAL_JSON ?= $(SNAP_DIR)/real.json
+SNAP_REAL_TREE ?= $(SNAP_DIR)/real.txt
 
-build-release: LDFLAGS := $(VERSION_LDFLAGS)
+build: test
+	@echo
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
+	@OUT_SIZE=$$(du -hs kompass | cut -f1); \
+	OUT_PATH=$$(realpath kompass); \
+	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
+
+build-release: LDFLAGS := $(RELEASE_LDFLAGS)
 build-release: build
+	@echo
 
-test: build
-	@go clean -testcache
-	@go test ./...
+test:
+	@echo
+	go test -count=1 ./...
 
-cover: build
-	@go test ./... -coverpkg=$(COVERPKG) -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
+coverage: build
+	@go test -count=1 ./... -coverpkg=$(COVERPKG) -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
 	@echo "┌─────────────────────────────────────────────────────────┬──────────┬──────────┐"
 	@echo "│ Package                                                 │  LOCAL   │  CROSS   │"
 	@echo "├─────────────────────────────────────────────────────────┼──────────┼──────────┤"
@@ -45,7 +53,7 @@ cover: build
 	@go tool cover -func=coverage.out | grep 'total:' | awk '{printf "│ %-55s │ %7s  │ %7s  │\n", "TOTAL", "-", $$3}'
 	@echo "└─────────────────────────────────────────────────────────┴──────────┴──────────┘"
 
-cover-func: build
+coverage-func: build
 	@go test ./... -coverpkg=$(COVERPKG) -coverprofile=coverage.out -covermode=atomic >/dev/null 2>&1 || true
 	@echo "┌───────────────────────────────────────────────────────────────────────────────┐"
 	@echo "│ Function Coverage                                                             │"
@@ -54,23 +62,26 @@ cover-func: build
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
 help:
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --help
+	@$(GO_RUN) --help
 
 mock:
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock $(ARGS)
+	@$(GO_RUN) --mock $(ARGS)
 
 real:
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass $(ARGS)
+	@$(GO_RUN) $(ARGS)
+
+tui:
+	@$(GO_RUN) --tui $(ARGS)
 
 service:
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock --service $(ARGS)
+	@$(GO_RUN) --mock --service $(ARGS)
 
 snapshot:
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --json --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_JSON)
-	@echo "Wrote $(SNAPSHOT_MOCK_JSON)"
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --json -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_JSON)
-	@echo "Wrote $(SNAPSHOT_TOOL_JSON)"
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass --mock -n $(SNAPSHOT_MOCK_NAMESPACE) > $(SNAPSHOT_MOCK_TREE)
-	@echo "Wrote $(SNAPSHOT_MOCK_TREE)"
-	@go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass -c $(SNAPSHOT_TOOL_CONTEXT) -n $(SNAPSHOT_TOOL_NAMESPACE) > $(SNAPSHOT_TOOL_TREE)
-	@echo "Wrote $(SNAPSHOT_TOOL_TREE)"
+	@$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_MOCK_JSON)
+	@echo "Wrote $(SNAP_MOCK_JSON)"
+	@$(GO_RUN) --json -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_REAL_JSON)
+	@echo "Wrote $(SNAP_REAL_JSON)"
+	@$(GO_RUN) --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_MOCK_TREE)
+	@echo "Wrote $(SNAP_MOCK_TREE)"
+	@$(GO_RUN) -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_REAL_TREE)
+	@echo "Wrote $(SNAP_REAL_TREE)"
