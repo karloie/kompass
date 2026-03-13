@@ -39,19 +39,7 @@ func InferGraphs(provider kube.Kube, selectors []string) (*kube.Graphs, error) {
 		}
 	}()
 	tree.FilterOwnedJobRoots(result)
+	tree.FilterOwnedSecretRoots(result)
 	slog.Debug("tree policy completed", "graphs", len(result.Graphs), "duration", time.Since(policyStart).String())
 	return result, err
-}
-
-// GraphNodesForGraph resolves node maps from response-level nodes.
-func GraphNodesForGraph(result *kube.Graphs, graph *kube.Graph) map[string]*kube.Resource {
-	if graph == nil {
-		return nil
-	}
-
-	if len(result.Nodes) > 0 {
-		return result.Nodes
-	}
-
-	return nil
 }

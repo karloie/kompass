@@ -70,6 +70,14 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 
 		childParentMeta := meta
 		if childParentMeta != nil {
+			if _, hasNodeType := childParentMeta["__nodeType"]; !hasNodeType {
+				cloned := make(map[string]any, len(childParentMeta)+1)
+				for k, v := range childParentMeta {
+					cloned[k] = v
+				}
+				cloned["__nodeType"] = treeNode.Type
+				childParentMeta = cloned
+			}
 			if _, hasNamespace := childParentMeta["namespace"]; !hasNamespace && parentMeta != nil {
 				if ns, ok := parentMeta["namespace"].(string); ok {
 
@@ -77,14 +85,17 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 					for k, v := range meta {
 						childParentMeta[k] = v
 					}
+					childParentMeta["__nodeType"] = treeNode.Type
 					childParentMeta["namespace"] = ns
 				}
 			}
 		} else if parentMeta != nil {
 
 			if ns, ok := parentMeta["namespace"].(string); ok {
-				childParentMeta = map[string]any{"namespace": ns}
+				childParentMeta = map[string]any{"namespace": ns, "__nodeType": treeNode.Type}
 			}
+		} else {
+			childParentMeta = map[string]any{"__nodeType": treeNode.Type}
 		}
 		renderTreeNode(sb, child, childPrefix, childIsLast, false, nodeMap, visited, plain, childParentMeta)
 	}

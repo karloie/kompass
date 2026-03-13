@@ -31,12 +31,12 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"fromEndpoints": []any{
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-motor",
+								"app.kubernetes.io/name": "petshop-tennant",
 							},
 						},
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-web",
+								"app.kubernetes.io/name": "petshop-frontend-girls",
 							},
 						},
 					},
@@ -53,15 +53,15 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "cilium.io/v2",
 		"kind":       "CiliumNetworkPolicy",
 		"metadata": map[string]any{
-			"name":      "petshop-motor",
+			"name":      "petshop-tennant",
 			"namespace": "petshop",
 			"uid":       "cilium-motor-policy-uuid",
 		},
 		"spec": map[string]any{
 			"endpointSelector": map[string]any{
 				"matchLabels": map[string]any{
-					"app.kubernetes.io/instance": "petshop-motor",
-					"app.kubernetes.io/name":     "petshop-motor",
+					"app.kubernetes.io/instance": "petshop-tennant",
+					"app.kubernetes.io/name":     "petshop-tennant",
 				},
 			},
 			"egress": []any{
@@ -69,7 +69,7 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"toEndpoints": []any{
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-webservice",
+								"app.kubernetes.io/name": "petshop-backend-boys",
 							},
 						},
 						map[string]any{
@@ -96,12 +96,12 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "gateway.networking.k8s.io/v1",
 		"kind":       "HTTPRoute",
 		"metadata": map[string]any{
-			"name":      "petshop-motor",
+			"name":      "petshop-tennant",
 			"namespace": "petshop",
 			"uid":       "httproute-motor-uuid",
 			"labels": map[string]any{
-				"app.kubernetes.io/instance":   "petshop-motor",
-				"app.kubernetes.io/name":       "petshop-motor",
+				"app.kubernetes.io/instance":   "petshop-tennant",
+				"app.kubernetes.io/name":       "petshop-tennant",
 				"app.kubernetes.io/managed-by": "Helm",
 				"helm.sh/chart":                "petshop-app-helm-chart-0.18.1",
 			},
@@ -121,7 +121,7 @@ func addGatewayResources(model *kube.InMemoryModel) {
 						map[string]any{
 							"group": "",
 							"kind":  "Service",
-							"name":  "petshop-motor",
+							"name":  "petshop-tennant",
 							"port":  8080,
 						},
 					},
@@ -142,22 +142,22 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "cilium.io/v2",
 		"kind":       "CiliumNetworkPolicy",
 		"metadata": map[string]any{
-			"name":      "petshop-web",
+			"name":      "petshop-frontend-girls",
 			"namespace": "petshop",
 			"uid":       "cilium-web-policy-uuid",
 		},
 		"spec": map[string]any{
 			"endpointSelector": map[string]any{
 				"matchLabels": map[string]any{
-					"app.kubernetes.io/instance": "petshop-web",
-					"app.kubernetes.io/name":     "petshop-web",
+					"app.kubernetes.io/instance": "petshop-frontend-girls",
+					"app.kubernetes.io/name":     "petshop-frontend-girls",
 				},
 			},
 			"egress": []any{
 				map[string]any{
 					"toFQDNs": []any{
 						map[string]any{
-							"matchName": "am.kpt.petshop.com",
+							"matchName": "am.dev.petshop.com",
 						},
 					},
 				},
@@ -187,12 +187,12 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "gateway.networking.k8s.io/v1",
 		"kind":       "HTTPRoute",
 		"metadata": map[string]any{
-			"name":      "petshop-web",
+			"name":      "petshop-frontend-girls",
 			"namespace": "petshop",
 			"uid":       "httproute-web-uuid",
 			"labels": map[string]any{
-				"app.kubernetes.io/instance":   "petshop-web",
-				"app.kubernetes.io/name":       "petshop-web",
+				"app.kubernetes.io/instance":   "petshop-frontend-girls",
+				"app.kubernetes.io/name":       "petshop-frontend-girls",
 				"app.kubernetes.io/managed-by": "Helm",
 				"helm.sh/chart":                "petshop-app-helm-chart-0.18.1",
 			},
@@ -206,14 +206,14 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"namespace": "management",
 				},
 			},
-			"hostnames": []any{"petshop-web.bunny.los.petshop.com", "petshop-web.bunny.petshop.com"},
+			"hostnames": []any{"frontend-girls.petshop.com", "frontend-girls.petshop.com"},
 			"rules": []any{
 				map[string]any{
 					"backendRefs": []any{
 						map[string]any{
 							"group": "",
 							"kind":  "Service",
-							"name":  "petshop-web",
+							"name":  "petshop-frontend-girls",
 							"port":  8080,
 						},
 					},
@@ -234,15 +234,15 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "cilium.io/v2",
 		"kind":       "CiliumNetworkPolicy",
 		"metadata": map[string]any{
-			"name":      "petshop-webservice",
+			"name":      "petshop-backend-boys",
 			"namespace": "petshop",
 			"uid":       "cilium-webservice-policy-uuid",
 		},
 		"spec": map[string]any{
 			"endpointSelector": map[string]any{
 				"matchLabels": map[string]any{
-					"app.kubernetes.io/instance": "petshop-webservice",
-					"app.kubernetes.io/name":     "petshop-webservice",
+					"app.kubernetes.io/instance": "petshop-backend-boys",
+					"app.kubernetes.io/name":     "petshop-backend-boys",
 				},
 			},
 			"egress": []any{
@@ -262,12 +262,12 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"fromEndpoints": []any{
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-motor",
+								"app.kubernetes.io/name": "petshop-tennant",
 							},
 						},
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-web",
+								"app.kubernetes.io/name": "petshop-frontend-girls",
 							},
 						},
 					},
@@ -284,12 +284,12 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"apiVersion": "gateway.networking.k8s.io/v1",
 		"kind":       "HTTPRoute",
 		"metadata": map[string]any{
-			"name":      "petshop-webservice",
+			"name":      "petshop-backend-boys",
 			"namespace": "petshop",
 			"uid":       "httproute-webservice-uuid",
 			"labels": map[string]any{
-				"app.kubernetes.io/instance":   "petshop-webservice",
-				"app.kubernetes.io/name":       "petshop-webservice",
+				"app.kubernetes.io/instance":   "petshop-backend-boys",
+				"app.kubernetes.io/name":       "petshop-backend-boys",
 				"app.kubernetes.io/managed-by": "Helm",
 				"helm.sh/chart":                "petshop-app-helm-chart-0.18.1",
 			},
@@ -303,14 +303,14 @@ func addGatewayResources(model *kube.InMemoryModel) {
 					"namespace": "management",
 				},
 			},
-			"hostnames": []any{"petshop-webservice.bunny.los.petshop.com", "petshop-webservice.bunny.petshop.com"},
+			"hostnames": []any{"backend-boys.petshop.com", "backend-boys.petshop.com"},
 			"rules": []any{
 				map[string]any{
 					"backendRefs": []any{
 						map[string]any{
 							"group": "",
 							"kind":  "Service",
-							"name":  "petshop-webservice",
+							"name":  "petshop-backend-boys",
 							"port":  8080,
 						},
 					},
@@ -335,7 +335,7 @@ func addGatewayResources(model *kube.InMemoryModel) {
 			"namespace": "management",
 			"uid":       "2a3ff77e-266c-4218-9709-012f6f980de4",
 			"labels": map[string]any{
-				"argocd.argoproj.io/instance": "gateway-api-config-bunny",
+				"argocd.argoproj.io/instance": "gateway-api-config-psb",
 			},
 		},
 		"spec": map[string]any{
@@ -408,14 +408,14 @@ func addGatewayResources(model *kube.InMemoryModel) {
 			"namespace": "management",
 			"uid":       "a9c9616c-be8a-4c03-ac17-e1d99dd4a020",
 			"labels": map[string]any{
-				"argocd.argoproj.io/instance": "gateway-api-config-bunny",
+				"argocd.argoproj.io/instance": "gateway-api-config-psb",
 			},
 		},
 		"spec": map[string]any{
-			"commonName": "*.bunny.mock.no",
+			"commonName": "*.mock.no",
 			"dnsNames": []any{
-				"*.bunny.mock.no",
-				"*.bunny.mock.com",
+				"*.mock.no",
+				"*.mock.com",
 			},
 			"duration":    "2160h",
 			"renewBefore": "360h",
@@ -447,9 +447,9 @@ func addGatewayResources(model *kube.InMemoryModel) {
 			"uid":       "b1c1d1e1-1234-5678-9abc-def012345678",
 		},
 		"spec": map[string]any{
-			"commonName": "expired.bunny.mock.no",
+			"commonName": "expired.mock.no",
 			"dnsNames": []any{
-				"expired.bunny.mock.no",
+				"expired.mock.no",
 			},
 			"secretName": "expired-cert-secret",
 		},
@@ -475,9 +475,9 @@ func addGatewayResources(model *kube.InMemoryModel) {
 			"uid":       "c2d2e2f2-5678-9abc-def0-123456789abc",
 		},
 		"spec": map[string]any{
-			"commonName": "long-lived.bunny.mock.no",
+			"commonName": "long-lived.mock.no",
 			"dnsNames": []any{
-				"long-lived.bunny.mock.no",
+				"long-lived.mock.no",
 			},
 			"secretName": "long-lived-cert-secret",
 			"issuerRef": map[string]any{
@@ -523,7 +523,7 @@ func addGatewayResources(model *kube.InMemoryModel) {
 		"spec": map[string]any{
 			"acme": map[string]any{
 				"server": "https://acme-v02.api.letsencrypt.org/directory",
-				"email":  "certs@mock.com",
+				"email":  "boys@petshop.com",
 				"privateKeySecretRef": map[string]any{
 					"name": "letsencrypt-prod-key",
 				},

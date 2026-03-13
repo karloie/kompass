@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9] - 2026-03-13
+
+### Changed
+- Tree labels are now copy/paste friendly by removing `type: name` punctuation in favor of `type name` formatting.
+- Root ordering in graph output is now sorted by `name, kind, namespace` within existing root buckets (workload, standalone, inferred) for faster human scanning.
+- Pod and container runtime lines now surface probe health directly in bracketed status output.
+- SecretStore views are now rendered in a more intuitive flow (`external source -> provider config -> synced Kubernetes Secret -> usage`) with clearer newcomer-friendly labels.
+- ConfigMap sections now surface direct env usage and file-mount usage under each source ConfigMap with clearer intent-first wording.
+- Storage sections now use clearer labels (`claim`, `backing volume`, `storage class`, `attachment`) and show PVC mount usage under the claim branch.
+- Petshop mock now prominently features the legendary British pop duo tribute.
+
+### Fixed
+- Pod phase is now rendered consistently as a bracketed status on pod lines instead of duplicated metadata.
+- Endpoint and endpoint-address nodes now render readiness as bracketed status (`[READY]` / `[NOT-READY]`) and avoid duplicated raw readiness fields.
+- Mock `petshop-db` data now includes a degraded second replica with endpoint readiness drift to better represent real-world partial failure scenarios.
+
+### Tests
+- Updated and expanded tree/pod builder and snapshot fixtures to cover status formatting, secretstore env usage rendering, and degraded mock replica behavior.
+
 ## [0.0.8] - 2026-03-12
 
 ### Changed
@@ -66,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-v` flag for version information
 - `--help` / `-h` flag for usage information
 
-[Unreleased]: https://github.com/karloie/kompass/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/karloie/kompass/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
 [0.0.7]: https://github.com/karloie/kompass/releases/tag/v0.0.7

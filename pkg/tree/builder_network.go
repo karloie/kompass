@@ -71,6 +71,74 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 	return children
 }
 
+func buildServiceChildren(serviceKey string, service kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
+
+	for _, childKey := range graphChildren[serviceKey] {
+		if !state.CanTraverse(childKey) {
+			continue
+		}
+
+		childResource, exists := nodeMap[childKey]
+		if !exists {
+			continue
+		}
+
+		if childResource.Type == "pod" {
+			if !childResource.Discovered {
+				continue
+			}
+
+			leafNode := NewTree(childKey, childResource.Type, map[string]any{})
+			children = append(children, leafNode)
+			state.MarkSeen(childKey)
+			continue
+		}
+
+		childNode := buildTreeNode(childKey, graphChildren, state, nodeMap)
+		if childNode != nil {
+			children = append(children, childNode)
+		}
+	}
+
+	sortChildren(children)
+	return children
+}
+
+func buildServiceAccountChildren(serviceAccountKey string, serviceAccount kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
+
+	for _, childKey := range graphChildren[serviceAccountKey] {
+		if !state.CanTraverse(childKey) {
+			continue
+		}
+
+		childResource, exists := nodeMap[childKey]
+		if !exists {
+			continue
+		}
+
+		if childResource.Type == "pod" {
+			if !childResource.Discovered {
+				continue
+			}
+
+			leafNode := NewTree(childKey, childResource.Type, map[string]any{})
+			children = append(children, leafNode)
+			state.MarkSeen(childKey)
+			continue
+		}
+
+		childNode := buildTreeNode(childKey, graphChildren, state, nodeMap)
+		if childNode != nil {
+			children = append(children, childNode)
+		}
+	}
+
+	sortChildren(children)
+	return children
+}
+
 func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	children := []*kube.Tree{}
 
@@ -126,7 +194,9 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 					if addrMap, ok := addr.(map[string]any); ok {
 						addrKey := fmt.Sprintf("%s/address/%d", subsetKey, addrCounter)
 						addrCounter++
-						addrMetadata := map[string]any{}
+						addrMetadata := map[string]any{
+							"ready": true,
+						}
 
 						if ip, ok := addrMap["ip"].(string); ok && ip != "" {
 							addrMetadata["ip"] = ip
@@ -396,6 +466,10 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 			}
 
 			if childResource.Type == "service" || childResource.Type == "pod" {
+				if childResource.Type == "pod" && !childResource.Discovered {
+					continue
+				}
+
 				leafMeta := map[string]any{}
 				if childResource.Type == "pod" {
 					if podName := graph.M(childResource.AsMap()).Map("metadata").String("name"); podName != "" {

@@ -373,17 +373,22 @@ func TestClusterClientDynamicMapWrappers(t *testing.T) {
 			"apiVersion": "cert-manager.io/v1", "kind": "ClusterIssuer",
 			"metadata": map[string]any{"name": "cluster-issuer-a"},
 		}},
+		&unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "secrets-store.csi.x-k8s.io/v1", "kind": "SecretProviderClass",
+			"metadata": map[string]any{"name": "fiskeoye-spc", "namespace": ns},
+		}},
 	}
 
 	scheme := runtime.NewScheme()
 	listKinds := map[schema.GroupVersionResource]string{
-		{Group: "cilium.io", Version: "v2", Resource: "ciliumnetworkpolicies"}:            "CiliumNetworkPolicyList",
-		{Group: "cilium.io", Version: "v2", Resource: "ciliumclusterwidenetworkpolicies"}: "CiliumClusterwideNetworkPolicyList",
-		{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"}:       "HTTPRouteList",
-		{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"}:         "GatewayList",
-		{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}:               "CertificateList",
-		{Group: "cert-manager.io", Version: "v1", Resource: "issuers"}:                    "IssuerList",
-		{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}:             "ClusterIssuerList",
+		{Group: "cilium.io", Version: "v2", Resource: "ciliumnetworkpolicies"}:                  "CiliumNetworkPolicyList",
+		{Group: "cilium.io", Version: "v2", Resource: "ciliumclusterwidenetworkpolicies"}:       "CiliumClusterwideNetworkPolicyList",
+		{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"}:             "HTTPRouteList",
+		{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"}:               "GatewayList",
+		{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}:                     "CertificateList",
+		{Group: "cert-manager.io", Version: "v1", Resource: "issuers"}:                          "IssuerList",
+		{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}:                   "ClusterIssuerList",
+		{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"}: "SecretProviderClassList",
 	}
 	dc := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, listKinds, objects...)
 	client := NewClientWithClientset(fake.NewSimpleClientset(), dc, &rest.Config{Host: "https://cluster"}, "ctx", ns)
@@ -410,6 +415,9 @@ func TestClusterClientDynamicMapWrappers(t *testing.T) {
 	}
 	if items, err := client.GetClusterIssuers(ctx, opts); err != nil || len(items) != 1 {
 		t.Fatalf("GetClusterIssuers(cluster) = (%d, %v), want (1, nil)", len(items), err)
+	}
+	if items, err := client.GetSecretProviderClasses(ns, ctx, opts); err != nil || len(items) != 1 {
+		t.Fatalf("GetSecretProviderClasses(cluster) = (%d, %v), want (1, nil)", len(items), err)
 	}
 
 }

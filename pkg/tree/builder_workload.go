@@ -1,11 +1,17 @@
 package tree
 
 import (
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
+
+var cronJobFilteredChildTypes = map[string]bool{
+	"job": true,
+}
 
 func appendHoistedChildren(children []*kube.Tree, hoistedKeys map[string]bool, targetType string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	for hoistedKey := range hoistedKeys {
@@ -182,6 +188,124 @@ func buildJobChildren(jobKey string, job kube.Resource, graphChildren map[string
 	children = appendFilteredGraphChildren(children, jobKey, jobFilteredChildTypes, graphChildren, state, nodeMap)
 	sortChildren(children)
 	return children
+}
+
+func buildCronJobChildren(cronJobKey string, cronJob kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
+	children := []*kube.Tree{}
+
+	jobKeys := childKeysOfType(cronJobKey, "job", graphChildren, nodeMap)
+	focusJobKey := selectCronJobFocusJob(jobKeys, nodeMap)
+
+	for _, jobKey := range jobKeys {
+		if !state.CanTraverse(jobKey) {
+			continue
+		}
+
+		_, exists := nodeMap[jobKey]
+		if !exists {
+			continue
+		}
+
+		if jobKey == focusJobKey {
+			jobNode := buildTreeNode(jobKey, graphChildren, state, nodeMap)
+			if jobNode != nil {
+				children = append(children, jobNode)
+			}
+			continue
+		}
+
+		state.MarkSeen(jobKey)
+		jobNode := NewTree(jobKey, "job", map[string]any{})
+		for _, podKey := range childKeysOfType(jobKey, "pod", graphChildren, nodeMap) {
+			if !state.CanTraverse(podKey) {
+				continue
+			}
+			podRes, exists := nodeMap[podKey]
+			if !exists {
+				continue
+			}
+			podLeaf := buildSimplifiedPodNode(podKey, podRes)
+			if podLeaf != nil {
+				jobNode.Children = append(jobNode.Children, podLeaf)
+				state.MarkSeen(podKey)
+			}
+		}
+		sortChildren(jobNode.Children)
+		children = append(children, jobNode)
+	}
+
+	children = appendFilteredGraphChildren(children, cronJobKey, cronJobFilteredChildTypes, graphChildren, state, nodeMap)
+	sortChildren(children)
+	return children
+}
+
+func selectCronJobFocusJob(jobKeys []string, nodeMap map[string]kube.Resource) string {
+	if len(jobKeys) == 0 {
+		return ""
+	}
+
+	sortedKeys := append([]string(nil), jobKeys...)
+	sort.Strings(sortedKeys)
+
+	focusJobKey := ""
+	focusTime := time.Time{}
+	for _, jobKey := range sortedKeys {
+		jobRes, exists := nodeMap[jobKey]
+		if !exists || !isActiveJob(jobRes) {
+			continue
+		}
+		jobTime := jobSortTimestamp(jobRes)
+		if focusJobKey == "" || jobTime.After(focusTime) || (jobTime.Equal(focusTime) && jobKey > focusJobKey) {
+			focusJobKey = jobKey
+			focusTime = jobTime
+		}
+	}
+	if focusJobKey != "" {
+		return focusJobKey
+	}
+
+	for _, jobKey := range sortedKeys {
+		jobRes, exists := nodeMap[jobKey]
+		if !exists {
+			continue
+		}
+		jobTime := jobSortTimestamp(jobRes)
+		if focusJobKey == "" || jobTime.After(focusTime) || (jobTime.Equal(focusTime) && jobKey > focusJobKey) {
+			focusJobKey = jobKey
+			focusTime = jobTime
+		}
+	}
+
+	if focusJobKey == "" {
+		return sortedKeys[len(sortedKeys)-1]
+	}
+
+	return focusJobKey
+}
+
+func isActiveJob(job kube.Resource) bool {
+	status := graph.M(job.AsMap()).Map("status")
+	if status == nil {
+		return false
+	}
+	if active, ok := status.IntOk("active"); ok {
+		return active > 0
+	}
+	return false
+}
+
+func jobSortTimestamp(job kube.Resource) time.Time {
+	if startTime := graph.M(job.AsMap()).Map("status").String("startTime"); startTime != "" {
+		if ts, err := time.Parse(time.RFC3339, startTime); err == nil {
+			return ts
+		}
+	}
+	if creationTime := graph.M(job.AsMap()).Map("metadata").String("creationTimestamp"); creationTime != "" {
+		if ts, err := time.Parse(time.RFC3339, creationTime); err == nil {
+			return ts
+		}
+	}
+	return time.Time{}
 }
 
 func resourceMatchesSelector(resourceKey string, workloadNamespace string, podLabels map[string]any, nodeMap map[string]kube.Resource, selectorPaths []string) bool {

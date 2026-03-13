@@ -397,8 +397,8 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 	}
 
 	sort.Slice(graphs, func(i, j int) bool {
-		typeI := strings.Split(graphs[i].ID, "/")[0]
-		typeJ := strings.Split(graphs[j].ID, "/")[0]
+		typeI, namespaceI, nameI := graphIDParts(graphs[i].ID)
+		typeJ, namespaceJ, nameJ := graphIDParts(graphs[j].ID)
 
 		isWorkloadI := isWorkloadType(typeI)
 		isWorkloadJ := isWorkloadType(typeJ)
@@ -422,6 +422,15 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 			}
 		}
 
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
+		if typeI != typeJ {
+			return typeI < typeJ
+		}
+		if namespaceI != namespaceJ {
+			return namespaceI < namespaceJ
+		}
 		return graphs[i].ID < graphs[j].ID
 	})
 	responseNodes := make(map[string]*kube.Resource, len(nodeMap))
@@ -432,6 +441,20 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 	}
 
 	return &kube.Graphs{Graphs: graphs, Nodes: responseNodes}
+}
+
+func graphIDParts(id string) (resourceType, namespace, name string) {
+	parts := strings.SplitN(id, "/", 3)
+	if len(parts) > 0 {
+		resourceType = parts[0]
+	}
+	if len(parts) > 1 {
+		namespace = parts[1]
+	}
+	if len(parts) > 2 {
+		name = parts[2]
+	}
+	return resourceType, namespace, name
 }
 
 func buildGraph(id string, visited map[string]bool, _ map[string]bool, _ map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {

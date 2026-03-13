@@ -107,6 +107,16 @@ func init() {
 		},
 
 		{
+			SourceType: "pod",
+			TargetType: "secretproviderclass",
+			Label:      "mounts",
+			Paths: []string{
+				"$.spec.volumes[*].csi.volumeAttributes.secretProviderClass",
+			},
+			KeyFormat: "secretproviderclass/{namespace}/{name}",
+		},
+
+		{
 			SourceType: "persistentvolumeclaim",
 			TargetType: "persistentvolume",
 			Label:      "bound-to",
@@ -124,6 +134,16 @@ func init() {
 				"$.spec.storageClassName",
 			},
 			KeyFormat: "storageclass/{name}",
+		},
+
+		{
+			SourceType: "secretproviderclass",
+			TargetType: "secret",
+			Label:      "syncs",
+			Paths: []string{
+				"$.spec.secretObjects[*].secretName",
+			},
+			KeyFormat: "secret/{namespace}/{name}",
 		},
 
 		{

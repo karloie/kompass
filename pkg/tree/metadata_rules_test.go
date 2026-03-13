@@ -3,6 +3,8 @@ package tree
 import (
 	"testing"
 	"time"
+
+	kube "github.com/karloie/kompass/pkg/kube"
 )
 
 func TestFormatCertExpiry_AlwaysIncludesExpiresIn(t *testing.T) {
@@ -150,5 +152,35 @@ func TestFormatIssuerType(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestApplyMetadataRules_SecretProviderClass(t *testing.T) {
+	resource := kube.Resource{
+		Type: "secretproviderclass",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "ad-explore-db-petshopvault", "namespace": "tool"},
+			"spec": map[string]any{
+				"provider": "azure",
+				"secretObjects": []any{
+					map[string]any{"secretName": "ad-explore-db-secrets"},
+					map[string]any{"secretName": "ad-explore-tls"},
+				},
+			},
+		},
+	}
+
+	meta := ApplyMetadataRules(resource, nil)
+	if got, _ := meta["name"].(string); got != "ad-explore-db-petshopvault" {
+		t.Fatalf("expected name metadata, got %#v", meta)
+	}
+	if got, _ := meta["namespace"].(string); got != "tool" {
+		t.Fatalf("expected namespace metadata, got %#v", meta)
+	}
+	if got, _ := meta["provider"].(string); got != "azure" {
+		t.Fatalf("expected provider metadata, got %#v", meta)
+	}
+	if got, _ := meta["secretObjects"].(int); got != 2 {
+		t.Fatalf("expected secretObjects=2, got %#v", meta)
 	}
 }

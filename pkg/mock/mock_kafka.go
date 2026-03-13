@@ -30,6 +30,18 @@ func addKafkaApp(model *kube.InMemoryModel) {
 		},
 	})
 
+	model.ConfigMaps = append(model.ConfigMaps, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kafka-runtime-config",
+			Namespace: namespace,
+			UID:       "kafka-configmap-uuid-002",
+		},
+		Data: map[string]string{
+			"retention-hours": "168",
+			"compression":     "lz4",
+		},
+	})
+
 	model.Secrets = append(model.Secrets, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kafka-tls-certs",
@@ -60,7 +72,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 		},
 
 		hostNetwork: false,
-		dnsPolicy:   corev1.DNSClusterFirstWithHostNet,
+		dnsPolicy:   corev1.DNSClusterFirst,
 		hostname:    "kafka-broker-1",
 		subdomain:   "kafka",
 
@@ -72,6 +84,13 @@ func addKafkaApp(model *kube.InMemoryModel) {
 				ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{Name: "kafka-server-config"},
 					Key:                  "log-level",
+				},
+			}},
+
+			{Name: "KAFKA_RETENTION_HOURS", ValueFrom: &corev1.EnvVarSource{
+				ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "kafka-runtime-config"},
+					Key:                  "retention-hours",
 				},
 			}},
 
@@ -124,13 +143,13 @@ func addKafkaApp(model *kube.InMemoryModel) {
 			},
 
 			{
-				Name: "csi-azure-keyvault",
+				Name: "petshopvault",
 				VolumeSource: corev1.VolumeSource{
 					CSI: &corev1.CSIVolumeSource{
 						Driver:   "secrets-store.csi.k8s.io",
 						ReadOnly: ptr.To(true),
 						VolumeAttributes: map[string]string{
-							"secretProviderClass": "petshop-kafka-azure-keyvault",
+							"secretProviderClass": "petshop-kafka-petshopvault",
 							"provider":            "azure",
 						},
 					},
@@ -170,6 +189,17 @@ func addKafkaApp(model *kube.InMemoryModel) {
 									},
 									Items: []corev1.KeyToPath{
 										{Key: "server.properties", Path: "server.properties"},
+									},
+								},
+							},
+							{
+								ConfigMap: &corev1.ConfigMapProjection{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "kafka-runtime-config",
+									},
+									Items: []corev1.KeyToPath{
+										{Key: "retention-hours", Path: "runtime/retention-hours"},
+										{Key: "compression", Path: "runtime/compression"},
 									},
 								},
 							},
@@ -220,13 +250,14 @@ func addKafkaApp(model *kube.InMemoryModel) {
 			{Name: "tmp", MountPath: "/tmp", ReadOnly: false},
 			{Name: "kafka-server-config-vol", MountPath: "/etc/kafka/config", ReadOnly: true},
 			{Name: "kafka-tls-vol", MountPath: "/etc/kafka/tls", ReadOnly: true},
-			{Name: "csi-azure-keyvault", MountPath: "/mnt/azure-keyvault", ReadOnly: true},
+			{Name: "petshopvault", MountPath: "/run/secrets", ReadOnly: true},
 			{Name: "host-log-dir", MountPath: "/kafka-logs", ReadOnly: false},
 			{Name: "projected-combined", MountPath: "/etc/kafka/projected", ReadOnly: true},
 			{Name: "podinfo", MountPath: "/etc/podinfo", ReadOnly: true},
 		},
 	})
 
+	// Keep a few stale target refs to model endpoint lag during pod churn.
 	for i, eps := range model.EndpointSlices {
 		if eps.Name == "petshop-kafka-abcde" {
 
@@ -239,10 +270,10 @@ func addKafkaApp(model *kube.InMemoryModel) {
 						Serving:     ptr.To(true),
 						Terminating: ptr.To(false),
 					},
-					NodeName: ptr.To("bunny-01-worker-055ceed3"),
+					NodeName: ptr.To("psb-01-worker-055ceed3"),
 					TargetRef: &corev1.ObjectReference{
 						Kind:      "Pod",
-						Name:      "petshop-kafka-6b7c8d9e0f-yyyyy",
+						Name:      "petshop-kafka-6b7c8d9e0f-v58bh",
 						Namespace: namespace,
 						UID:       types.UID("1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6e"),
 					},
@@ -255,7 +286,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 						Serving:     ptr.To(true),
 						Terminating: ptr.To(true),
 					},
-					NodeName: ptr.To("bunny-01-worker-055ceed4"),
+					NodeName: ptr.To("psb-01-worker-055ceed4"),
 					TargetRef: &corev1.ObjectReference{
 						Kind:      "Pod",
 						Name:      "petshop-kafka-6b7c8d9e0f-zzzzz",
@@ -271,7 +302,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 						Serving:     ptr.To(false),
 						Terminating: ptr.To(false),
 					},
-					NodeName: ptr.To("bunny-01-worker-055ceed5"),
+					NodeName: ptr.To("psb-01-worker-055ceed5"),
 					TargetRef: &corev1.ObjectReference{
 						Kind:      "Pod",
 						Name:      "petshop-kafka-6b7c8d9e0f-aaaaa",
@@ -288,7 +319,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 						Terminating: ptr.To(false),
 					},
 					Hostname: ptr.To("kafka-0"),
-					NodeName: ptr.To("bunny-02-worker-12345678"),
+					NodeName: ptr.To("psb-02-worker-12345678"),
 					TargetRef: &corev1.ObjectReference{
 						Kind:      "Pod",
 						Name:      "petshop-kafka-6b7c8d9e0f-bbbbb",
@@ -310,10 +341,10 @@ func addKafkaApp(model *kube.InMemoryModel) {
 
 					corev1.EndpointAddress{
 						IP:       "10.244.9.243",
-						NodeName: ptr.To("bunny-01-worker-055ceed3"),
+						NodeName: ptr.To("psb-01-worker-055ceed3"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
-							Name:      "petshop-kafka-6b7c8d9e0f-yyyyy",
+							Name:      "petshop-kafka-6b7c8d9e0f-v58bh",
 							Namespace: namespace,
 							UID:       types.UID("1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6e"),
 						},
@@ -322,7 +353,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 					corev1.EndpointAddress{
 						IP:       "10.244.10.100",
 						Hostname: "kafka-0",
-						NodeName: ptr.To("bunny-02-worker-12345678"),
+						NodeName: ptr.To("psb-02-worker-12345678"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Name:      "petshop-kafka-6b7c8d9e0f-bbbbb",
@@ -336,7 +367,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 
 					{
 						IP:       "10.244.9.244",
-						NodeName: ptr.To("bunny-01-worker-055ceed4"),
+						NodeName: ptr.To("psb-01-worker-055ceed4"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Name:      "petshop-kafka-6b7c8d9e0f-zzzzz",
@@ -347,7 +378,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 
 					{
 						IP:       "10.244.9.245",
-						NodeName: ptr.To("bunny-01-worker-055ceed5"),
+						NodeName: ptr.To("psb-01-worker-055ceed5"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Name:      "petshop-kafka-6b7c8d9e0f-aaaaa",
@@ -362,7 +393,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 				Addresses: []corev1.EndpointAddress{
 					{
 						IP:       "10.244.11.50",
-						NodeName: ptr.To("bunny-03-worker-99999999"),
+						NodeName: ptr.To("psb-03-worker-99999999"),
 						TargetRef: &corev1.ObjectReference{
 							Kind:      "Pod",
 							Name:      "petshop-kafka-6b7c8d9e0f-ccccc",
@@ -415,12 +446,12 @@ func addKafkaApp(model *kube.InMemoryModel) {
 					"fromEndpoints": []any{
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-web",
+								"app.kubernetes.io/name": "petshop-frontend-girls",
 							},
 						},
 						map[string]any{
 							"matchLabels": map[string]any{
-								"app.kubernetes.io/name": "petshop-webservice",
+								"app.kubernetes.io/name": "petshop-backend-boys",
 							},
 						},
 					},
@@ -494,6 +525,9 @@ func addKafkaApp(model *kube.InMemoryModel) {
 			Name:      "petshop-kafka-ingress",
 			Namespace: namespace,
 			UID:       "kafka-ingress-uuid",
+			Labels: map[string]string{
+				"hit": "its-a-sin",
+			},
 			Annotations: map[string]string{
 				"cert-manager.io/cluster-issuer":               "letsencrypt-prod",
 				"nginx.ingress.kubernetes.io/ssl-redirect":     "true",
@@ -504,13 +538,34 @@ func addKafkaApp(model *kube.InMemoryModel) {
 			IngressClassName: ptr.To("nginx"),
 			TLS: []networkingv1.IngressTLS{
 				{
-					Hosts:      []string{"kafka.bunny.petshop.com"},
+					Hosts:      []string{"kafka.petshop.com", "its-a-sin-kafka.petshop.com"},
 					SecretName: "kafka-tls-certs",
 				},
 			},
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: "kafka.bunny.petshop.com",
+					Host: "kafka.petshop.com",
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     "/",
+									PathType: ptr.To(networkingv1.PathTypePrefix),
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{
+											Name: "petshop-kafka",
+											Port: networkingv1.ServiceBackendPort{
+												Number: 8080,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Host: "its-a-sin-kafka.petshop.com",
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
@@ -537,7 +592,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 				Ingress: []networkingv1.IngressLoadBalancerIngress{
 					{
 						IP:       "10.0.100.50",
-						Hostname: "kafka.bunny.petshop.com",
+						Hostname: "kafka.petshop.com",
 					},
 				},
 			},
@@ -555,6 +610,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 				"app.kubernetes.io/instance":   "petshop-kafka",
 				"app.kubernetes.io/name":       "petshop-kafka",
 				"app.kubernetes.io/managed-by": "Helm",
+				"hit":                          "its-a-sin",
 			},
 		},
 		"spec": map[string]any{
@@ -566,7 +622,7 @@ func addKafkaApp(model *kube.InMemoryModel) {
 					"namespace": "management",
 				},
 			},
-			"hostnames": []any{"kafka.bunny.petshop.com"},
+			"hostnames": []any{"kafka.petshop.com", "its-a-sin-kafka.petshop.com"},
 			"rules": []any{
 				map[string]any{
 					"matches": []any{

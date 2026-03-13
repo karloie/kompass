@@ -118,35 +118,8 @@ func (m M) Raw() map[string]any {
 	return map[string]any(m)
 }
 
-func (m M) Exists(key string) bool {
-	if m == nil {
-		return false
-	}
-	_, exists := m[key]
-	return exists
-}
-
-func (m M) BoolOr(key string, defaultVal bool) bool {
-	if m == nil {
-		return defaultVal
-	}
-	if b, ok := m[key].(bool); ok {
-		return b
-	}
-	return defaultVal
-}
-
 func ResourceMeta(r *kube.Resource) M {
 	return M(r.AsMap()).Map("metadata")
-}
-
-func ResourceSpec(r *kube.Resource) M {
-	return M(r.AsMap()).Map("spec")
-}
-
-func ResourceKey(r *kube.Resource, resType string) string {
-	meta := ResourceMeta(r)
-	return Key(resType, meta.String("namespace"), meta.String("name"))
 }
 
 func Key(resourceType, namespace, name string) string {

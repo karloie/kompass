@@ -405,6 +405,14 @@ func LoadClusterIssuer(provider Kube, _ string, ctx context.Context, opts metav1
 		}, false)(provider, "", ctx, opts)
 }
 
+func LoadSecretProviderClass(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+	return conditionBasedLoad("secretproviderclass",
+		func(p Kube) (any, bool) { sp, ok := p.(SecretsStoreProvider); return sp, ok },
+		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
+			return p.(SecretsStoreProvider).GetSecretProviderClasses(ns, c, o)
+		}, true)(provider, namespace, ctx, opts)
+}
+
 func buildResourceKey(resourceType, namespace, name string) string {
 	if name == "" {
 		return ""

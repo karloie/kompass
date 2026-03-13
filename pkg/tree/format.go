@@ -9,10 +9,13 @@ import (
 )
 
 const (
+	colorBold   = "\033[1m"
+	colorDim    = "\033[2m"
 	colorRed    = "\033[31m"
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
 	colorGray   = "\033[90m"
+	colorLight  = "\033[37m"
 	colorReset  = "\033[0m"
 )
 
@@ -37,38 +40,55 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 		prefix = emoji + " "
 	}
 
-	displayType := nodeType
-	if strings.HasPrefix(nodeType, "env-") || strings.HasPrefix(nodeType, "envfrom-") {
-		displayType = "env"
-	} else if strings.HasPrefix(nodeType, "mount-") {
-		displayType = "mount"
-	}
+	parentType, _ := parentMeta["__nodeType"].(string)
+	displayType := resolveDisplayType(nodeType, parentType)
 
 	hasDisplayPrefix := false
 	if displayPrefix, ok := meta["displayPrefix"].(string); ok && displayPrefix != "" {
-		displayType = displayPrefix + ": " + displayType
+		displayType = displayPrefix + " " + displayType
 		hasDisplayPrefix = true
 	}
 
 	if name, ok := meta["name"].(string); ok && name != "" {
 
-		if hasDisplayPrefix {
+		if nodeType == "env" && !hasDisplayPrefix {
+			display = prefix + name
+		} else if hasDisplayPrefix {
 			display = prefix + displayType + " " + name
 		} else {
-			display = prefix + displayType + ": " + name
+			display = prefix + displayType + " " + name
 		}
 
 		if nodeType == "env" {
 			if value, hasValue := meta["value"].(string); hasValue {
 
 				if !strings.HasPrefix(value, "fieldRef ") && !strings.HasPrefix(value, "resourceFieldRef ") {
-					display = prefix + displayType + ": " + name + "=" + truncateMultiline(value)
+					if plain {
+						display = prefix + name + "=" + truncateMultiline(value)
+					} else {
+						display = prefix + colorLight + name + colorReset + colorGray + "=" + colorReset + truncateMultiline(value)
+					}
 				}
 			}
 		}
 	} else {
 
-		if hasDisplayPrefix && nodeType == "label" {
+		if nodeType == "mount" {
+			if mountPath, ok := meta["mount"].(string); ok && mountPath != "" {
+				switch parentType {
+				case "secretstore":
+					display = prefix + "mounted in container " + mountPath
+				case "configmap":
+					display = prefix + "mounted as files " + mountPath
+				case "persistentvolumeclaim":
+					display = prefix + "mounted in container " + mountPath
+				default:
+					display = prefix + mountPath
+				}
+			} else {
+				display = prefix + displayType
+			}
+		} else if hasDisplayPrefix && nodeType == "label" {
 			if key, keyOk := meta["key"].(string); keyOk {
 				if value, valueOk := meta["value"].(string); valueOk {
 					display = prefix + displayType + " " + key + "=" + value
@@ -81,12 +101,255 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 		} else if hasDisplayPrefix {
 			display = prefix + displayType
 		} else {
-			display = prefix + displayType + ":"
+			display = prefix + displayType
 		}
 	}
 
+	hiddenFields := buildHiddenFields(nodeType, hasDisplayPrefix, parentType)
+
+	if nodeType == "env" && parentType == "configmap" {
+		if name, ok := meta["name"].(string); ok && name != "" {
+			if plain {
+				display = prefix + "used as env " + name
+			} else {
+				display = prefix + "used as env " + colorLight + name + colorReset
+			}
+		}
+	}
+
+	parentNamespace := ""
+	if parentMeta != nil {
+		if ns, ok := parentMeta["namespace"].(string); ok {
+			parentNamespace = ns
+		}
+	}
+
+	labels := collectMetadataLabels(meta, parentMeta, parentNamespace, hiddenFields, nodeType, hasDisplayPrefix)
+	display = appendProbeStatus(display, nodeType, meta, plain)
+
+	statusValue := deriveStatusValue(nodeType, meta)
+	if statusValue != "" && !isProbeNode(nodeType) {
+		display = appendNodeStatus(display, nodeType, statusValue, meta, plain)
+	}
+
+	if len(labels) > 0 {
+		display += renderMetadataLabels(labels, plain)
+	}
+
+	return display
+}
+
+func isProbeNode(nodeType string) bool {
+	return nodeType == "livenessprobe" || nodeType == "readinessprobe" || nodeType == "startupprobe"
+}
+
+func appendProbeStatus(display, nodeType string, meta map[string]any, plain bool) string {
+	if !isProbeNode(nodeType) {
+		return display
+	}
+
+	status, ok := meta["status"].(string)
+	if !ok {
+		return display
+	}
+
+	statusDisplay, isGood := probeStatusStyle(status)
+	if plain {
+		return display + " [" + statusDisplay + "]"
+	}
+	if isGood {
+		return display + " [" + colorGreen + statusDisplay + colorReset + "]"
+	}
+	return display + " [" + colorRed + statusDisplay + colorReset + "]"
+}
+
+func probeStatusStyle(status string) (string, bool) {
+	switch status {
+	case "ready":
+		return "READY", true
+	case "not-ready":
+		return "NOT READY", false
+	case "started":
+		return "STARTED", true
+	case "not-started":
+		return "NOT STARTED", false
+	case "passing":
+		return "PASSING", true
+	case "failed":
+		return "FAILED", false
+	default:
+		return strings.ToUpper(status), false
+	}
+}
+
+func deriveStatusValue(nodeType string, meta map[string]any) string {
+	if status, ok := meta["status"].(string); ok && status != "" {
+		return status
+	}
+	if nodeType == "container" {
+		if state, ok := meta["state"].(string); ok && state != "" {
+			return state
+		}
+	}
+	if nodeType == "pod" {
+		if phase, ok := meta["phase"].(string); ok && phase != "" {
+			return phase
+		}
+	}
+	if nodeType == "endpoint" || nodeType == "address" {
+		if ready, ok := meta["ready"].(bool); ok {
+			if ready {
+				return "ready"
+			}
+			return "not-ready"
+		}
+	}
+	return ""
+}
+
+func appendNodeStatus(display, nodeType, statusValue string, meta map[string]any, plain bool) string {
+	statusUpper := strings.ToUpper(statusValue)
+
+	if nodeType == "container" {
+		return display + formatContainerStatus(statusUpper, meta, plain)
+	}
+
+	if nodeType == "certificate" {
+		return display + formatCertificateStatus(statusUpper, plain)
+	}
+
+	return display + formatGenericStatus(statusUpper, plain)
+}
+
+func formatContainerStatus(statusUpper string, meta map[string]any, plain bool) string {
+	stateGood := map[string]bool{"RUNNING": true, "SUCCEEDED": true, "COMPLETE": true, "ACTIVE": true, "AVAILABLE": true, "BOUND": true, "READY": true}
+	stateWarn := map[string]bool{"SCHEDULED": true, "PENDING": true, "UNKNOWN": true, "SUSPENDED": true}
+
+	tokens := []string{statusUpper}
+	tokenGood := []bool{stateGood[statusUpper]}
+	tokenWarn := []bool{stateWarn[statusUpper]}
+
+	appendProbe := func(label, raw string) {
+		upper := strings.ToUpper(raw)
+		tokens = append(tokens, label+"="+upper)
+		good := upper == "PASSING" || upper == "READY" || upper == "STARTED"
+		warn := upper == "UNKNOWN"
+		tokenGood = append(tokenGood, good)
+		tokenWarn = append(tokenWarn, warn)
+	}
+
+	if v, ok := meta["livenessStatus"].(string); ok && v != "" {
+		appendProbe("LIVENESS", v)
+	}
+	if v, ok := meta["readinessStatus"].(string); ok && v != "" {
+		appendProbe("READINESS", v)
+	}
+	if v, ok := meta["startupStatus"].(string); ok && v != "" {
+		appendProbe("STARTUP", v)
+	}
+
+	if plain {
+		return " [" + strings.Join(tokens, ", ") + "]"
+	}
+
+	parts := make([]string, 0, len(tokens))
+	for i, token := range tokens {
+		if tokenGood[i] {
+			parts = append(parts, colorGreen+token+colorReset)
+		} else if tokenWarn[i] {
+			parts = append(parts, colorYellow+token+colorReset)
+		} else {
+			parts = append(parts, colorRed+token+colorReset)
+		}
+	}
+
+	return " [" + strings.Join(parts, ", ") + "]"
+}
+
+func formatCertificateStatus(statusUpper string, plain bool) string {
+	if plain {
+		return " [" + statusUpper + "]"
+	}
+
+	switch {
+	case strings.HasPrefix(statusUpper, "EXPIRES IN "):
+		return " [" + colorGreen + statusUpper + colorReset + "]"
+	case strings.HasPrefix(statusUpper, "EXPIRES TODAY"):
+		return " [" + colorYellow + statusUpper + colorReset + "]"
+	case strings.HasPrefix(statusUpper, "EXPIRED"):
+		return " [" + colorRed + statusUpper + colorReset + "]"
+	default:
+		return " [" + colorRed + statusUpper + colorReset + "]"
+	}
+}
+
+func formatGenericStatus(statusUpper string, plain bool) string {
+	if plain {
+		return " [" + statusUpper + "]"
+	}
+
+	goodStatuses := map[string]bool{
+		"RUNNING":   true,
+		"SUCCEEDED": true,
+		"COMPLETE":  true,
+		"ACTIVE":    true,
+		"AVAILABLE": true,
+		"BOUND":     true,
+		"READY":     true,
+	}
+	suspiciousStatuses := map[string]bool{
+		"SCHEDULED": true,
+		"PENDING":   true,
+		"UNKNOWN":   true,
+		"SUSPENDED": true,
+	}
+
+	if goodStatuses[statusUpper] {
+		return " [" + colorGreen + statusUpper + colorReset + "]"
+	}
+	if suspiciousStatuses[statusUpper] {
+		return " [" + colorYellow + statusUpper + colorReset + "]"
+	}
+	return " [" + colorRed + statusUpper + colorReset + "]"
+}
+
+func resolveDisplayType(nodeType, parentType string) string {
+	switch {
+	case strings.HasPrefix(nodeType, "env-") || strings.HasPrefix(nodeType, "envfrom-"):
+		return "env"
+	case strings.HasPrefix(nodeType, "mount-"):
+		return "mount"
+	case nodeType == "configmaps":
+		return "config"
+	case nodeType == "configmap" && parentType == "configmaps":
+		return "source configmap"
+	case nodeType == "secretstore":
+		return "external secret source"
+	case nodeType == "secretproviderclass" && parentType == "secretstore":
+		return "provider config"
+	case nodeType == "secret" && parentType == "secretstore":
+		return "synced secret"
+	case nodeType == "mount" && parentType == "secretstore":
+		return "mounted in container"
+	case nodeType == "storage":
+		return "data volumes"
+	case nodeType == "persistentvolumeclaim" && parentType == "storage":
+		return "claim"
+	case nodeType == "persistentvolume" && parentType == "persistentvolumeclaim":
+		return "backing volume"
+	case nodeType == "storageclass" && parentType == "persistentvolume":
+		return "storage class"
+	case nodeType == "volumeattachment" && parentType == "persistentvolume":
+		return "attachment"
+	default:
+		return nodeType
+	}
+}
+
+func buildHiddenFields(nodeType string, hasDisplayPrefix bool, parentType string) map[string]bool {
 	hiddenFields := map[string]bool{
 		"annotations":       true,
+		"__nodeType":        true,
 		"count":             true,
 		"creationTimestamp": true,
 		"displayPrefix":     true,
@@ -98,6 +361,9 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 		"orphaned":          true,
 		"ownerReferences":   true,
 		"policyType":        true,
+		"livenessStatus":    true,
+		"readinessStatus":   true,
+		"startupStatus":     true,
 		"resourceVersion":   true,
 		"ruleType":          true,
 		"source":            true,
@@ -112,24 +378,36 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 	if nodeType == "livenessprobe" || nodeType == "readinessprobe" || nodeType == "startupprobe" {
 		hiddenFields["status"] = true
 	}
-
 	if nodeType == "label" && hasDisplayPrefix {
 		hiddenFields["key"] = true
 		hiddenFields["value"] = true
 	}
-
-	parentNamespace := ""
-	if parentMeta != nil {
-		if ns, ok := parentMeta["namespace"].(string); ok {
-			parentNamespace = ns
-		}
+	if nodeType == "env" && parentType == "configmap" {
+		hiddenFields["value"] = true
+	}
+	if nodeType == "mount" {
+		hiddenFields["mount"] = true
+	}
+	if nodeType == "certificate" {
+		hiddenFields["expiresIn"] = true
+	}
+	if nodeType == "container" {
+		hiddenFields["state"] = true
+	}
+	if nodeType == "pod" {
+		hiddenFields["phase"] = true
+	}
+	if nodeType == "endpoint" || nodeType == "address" {
+		hiddenFields["ready"] = true
 	}
 
-	var labels []string
+	return hiddenFields
+}
+
+func collectMetadataLabels(meta map[string]any, parentMeta map[string]any, parentNamespace string, hiddenFields map[string]bool, nodeType string, hasDisplayPrefix bool) []string {
+	labels := []string{}
 	for key, value := range meta {
-
 		if hiddenFields[key] {
-
 			if nodeType == "label" && hasDisplayPrefix && (key == "key" || key == "value") {
 				continue
 			}
@@ -153,191 +431,75 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 			}
 		}
 
-		var strVal string
-		switch v := value.(type) {
-		case string:
-			if v != "" {
-				strVal = truncateMultiline(v)
-			}
-		case int, int32, int64:
-			strVal = fmt.Sprintf("%v", v)
-		case bool:
-			strVal = fmt.Sprintf("%v", v)
-		case map[string]any:
-
-			if len(v) > 0 {
-				parts := []string{}
-
-				keys := make([]string, 0, len(v))
-				for k := range v {
-					keys = append(keys, k)
-				}
-				sort.Strings(keys)
-				for _, k := range keys {
-					mv := v[k]
-
-					var valStr string
-					switch mvTyped := mv.(type) {
-					case string:
-						valStr = truncateMultiline(mvTyped)
-					case map[string]any:
-
-						innerParts := []string{}
-						for _, iv := range mvTyped {
-							innerParts = append(innerParts, fmt.Sprintf("%v", iv))
-						}
-						valStr = strings.Join(innerParts, " ")
-					case []any:
-
-						itemStrs := []string{}
-						for _, item := range mvTyped {
-							var itemStr string
-							if s, ok := item.(string); ok {
-								itemStr = truncateMultiline(s)
-							} else {
-								itemStr = fmt.Sprintf("%v", item)
-							}
-							itemStrs = append(itemStrs, itemStr)
-						}
-						valStr = strings.Join(itemStrs, ",")
-					default:
-						valStr = fmt.Sprintf("%v", mv)
-					}
-					if valStr != "" {
-						parts = append(parts, k+":"+valStr)
-					}
-				}
-				strVal = strings.Join(parts, " ")
-			}
-		case []any:
-
-			if len(v) > 0 {
-				items := []string{}
-				for _, item := range v {
-					var itemStr string
-					if s, ok := item.(string); ok {
-						itemStr = truncateMultiline(s)
-					} else {
-						itemStr = fmt.Sprintf("%v", item)
-					}
-					items = append(items, itemStr)
-				}
-				strVal = strings.Join(items, ",")
-			}
-		default:
-
-			strVal = fmt.Sprintf("%v", v)
-		}
-
-		if strVal != "" {
+		if strVal := metadataValueString(value); strVal != "" {
 			labels = append(labels, key+"="+strVal)
 		}
 	}
+	return labels
+}
 
-	if nodeType == "livenessprobe" || nodeType == "readinessprobe" || nodeType == "startupprobe" {
-		if status, ok := meta["status"].(string); ok {
-			var statusDisplay string
-			var isGood bool
-			switch status {
-			case "ready":
-				statusDisplay = "READY"
-				isGood = true
-			case "not-ready":
-				statusDisplay = "NOT READY"
-				isGood = false
-			case "started":
-				statusDisplay = "STARTED"
-				isGood = true
-			case "not-started":
-				statusDisplay = "NOT STARTED"
-				isGood = false
-			case "passing":
-				statusDisplay = "PASSING"
-				isGood = true
-			case "failed":
-				statusDisplay = "FAILED"
-				isGood = false
-			default:
-				statusDisplay = strings.ToUpper(status)
-				isGood = false
-			}
-
-			if !plain {
-				if isGood {
-					display += " [" + colorGreen + statusDisplay + colorReset + "]"
-				} else {
-					display += " [" + colorRed + statusDisplay + colorReset + "]"
-				}
-			} else {
-				display += " [" + statusDisplay + "]"
+func metadataValueString(value any) string {
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			return truncateMultiline(v)
+		}
+		return ""
+	case int, int32, int64:
+		return fmt.Sprintf("%v", v)
+	case bool:
+		return fmt.Sprintf("%v", v)
+	case map[string]any:
+		if len(v) == 0 {
+			return ""
+		}
+		parts := []string{}
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			valStr := metadataValueString(v[k])
+			if valStr != "" {
+				parts = append(parts, k+":"+valStr)
 			}
 		}
-	}
-
-	if status, ok := meta["status"].(string); ok && status != "" {
-
-		if nodeType != "livenessprobe" && nodeType != "readinessprobe" && nodeType != "startupprobe" {
-			statusUpper := strings.ToUpper(status)
-			if nodeType == "certificate" {
-				if !plain {
-					switch {
-					case strings.HasPrefix(statusUpper, "EXPIRES IN "):
-						display += " [" + colorGreen + statusUpper + colorReset + "]"
-					case strings.HasPrefix(statusUpper, "EXPIRES TODAY"):
-						display += " [" + colorYellow + statusUpper + colorReset + "]"
-					case strings.HasPrefix(statusUpper, "EXPIRED"):
-						display += " [" + colorRed + statusUpper + colorReset + "]"
-					default:
-						display += " [" + colorRed + statusUpper + colorReset + "]"
-					}
-				} else {
-					display += " [" + statusUpper + "]"
-				}
-			} else {
-
-				goodStatuses := map[string]bool{
-					"RUNNING":   true,
-					"SUCCEEDED": true,
-					"COMPLETE":  true,
-					"ACTIVE":    true,
-					"AVAILABLE": true,
-					"BOUND":     true,
-					"READY":     true,
-				}
-				suspiciousStatuses := map[string]bool{
-					"SCHEDULED": true,
-					"PENDING":   true,
-					"UNKNOWN":   true,
-					"SUSPENDED": true,
-				}
-
-				if !plain {
-					if goodStatuses[statusUpper] {
-						display += " [" + colorGreen + statusUpper + colorReset + "]"
-					} else if suspiciousStatuses[statusUpper] {
-						display += " [" + colorYellow + statusUpper + colorReset + "]"
-					} else {
-
-						display += " [" + colorRed + statusUpper + colorReset + "]"
-					}
-				} else {
-					display += " [" + statusUpper + "]"
-				}
+		return strings.Join(parts, " ")
+	case []any:
+		if len(v) == 0 {
+			return ""
+		}
+		items := []string{}
+		for _, item := range v {
+			itemStr := metadataValueString(item)
+			if itemStr != "" {
+				items = append(items, itemStr)
 			}
 		}
+		return strings.Join(items, ",")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func renderMetadataLabels(labels []string, plain bool) string {
+	sort.Strings(labels)
+	if plain {
+		return " {" + strings.Join(labels, ", ") + "}"
 	}
 
-	if len(labels) > 0 {
-		sort.Strings(labels)
-		metadataText := " {" + strings.Join(labels, ", ") + "}"
-		if plain {
-			display += metadataText
-		} else {
-			display += colorGray + metadataText + colorReset
+	colored := make([]string, 0, len(labels))
+	for _, label := range labels {
+		parts := strings.SplitN(label, "=", 2)
+		if len(parts) != 2 {
+			colored = append(colored, colorGray+label+colorReset)
+			continue
 		}
+		colored = append(colored, colorDim+colorGray+parts[0]+colorReset+colorLight+"="+colorReset+colorBold+colorGray+parts[1]+colorReset)
 	}
 
-	return display
+	return " {" + strings.Join(colored, ", ") + "}"
 }
 
 func truncateMultiline(s string) string {
