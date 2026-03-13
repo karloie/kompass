@@ -70,7 +70,7 @@ kompass
 │     └─ 🔌 endpoint [NOT-READY] {address=10.244.9.91, nodeName=psb-01-worker-055ceed2, targetName=petshop-db-5cb9cd8b74-qx7m2}
 └─ 📑 spec
    ├─ ♻️ environment
-   │  └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PBS-DATABASE-PASSWORD, secretStore=petshop-db-vault}
+   │  └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PSB-DATABASE-PASSWORD, secretStore=petshop-db-vault}
    ├─ 🐋 image docker-hub/neo4j:5.26.20-community-ubi9 {pullPolicy=Always}
    ├─ 💓 livenessprobe {failureThreshold=40, periodSeconds=5, port=7687, timeoutSeconds=10, type=tcpSocket}
    ├─ 🛡️ podsecuritycontext {fsGroup=7474, runAsGroup=7474, runAsUser=7474}
@@ -82,7 +82,7 @@ kompass
    │  └─ 🔐 external secret source secrets-store.csi.k8s.io {driver=secrets-store.csi.k8s.io, secretProviderClass=petshop-db-vault}
    │     ├─ 🔏 provider config petshop-db-vault {provider=azure, secretObjects=1}
    │     └─ 🔒 synced secret petshop-db-secrets {keys=1, type=Opaque}
-   │        └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PBS-DATABASE-PASSWORD}
+   │        └─ 💬 NEO_DB_PASSWORD=<SECRET> {key=PSB-DATABASE-PASSWORD}
    ├─ 🛡️ securitycontext {allowPrivilegeEscalation=false, capabilitiesDrop=[ALL], readOnlyRootFilesystem=false, runAsNonRoot=true, runAsUser=7474, seccompProfile=RuntimeDefault}
    ├─ ▶️ startupprobe {failureThreshold=1000, periodSeconds=5, port=7687, type=tcpSocket}
    └─ 💾 storage

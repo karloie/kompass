@@ -159,7 +159,7 @@ func TestApplyMetadataRules_SecretProviderClass(t *testing.T) {
 	resource := kube.Resource{
 		Type: "secretproviderclass",
 		Resource: map[string]any{
-			"metadata": map[string]any{"name": "ad-explore-db-petshopvault", "namespace": "tool"},
+			"metadata": map[string]any{"name": "ad-explore-db-petshopvault", "namespace": "test"},
 			"spec": map[string]any{
 				"provider": "azure",
 				"secretObjects": []any{
@@ -174,7 +174,7 @@ func TestApplyMetadataRules_SecretProviderClass(t *testing.T) {
 	if got, _ := meta["name"].(string); got != "ad-explore-db-petshopvault" {
 		t.Fatalf("expected name metadata, got %#v", meta)
 	}
-	if got, _ := meta["namespace"].(string); got != "tool" {
+	if got, _ := meta["namespace"].(string); got != "test" {
 		t.Fatalf("expected namespace metadata, got %#v", meta)
 	}
 	if got, _ := meta["provider"].(string); got != "azure" {

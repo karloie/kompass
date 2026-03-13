@@ -77,7 +77,7 @@ func addDBApp(model *kube.InMemoryModel) {
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			"PBS-DATABASE-PASSWORD": []byte("R1NYZ0xYMVI1WUlhbTNvOG5OaEQ1OWlUY0xia0Za"),
+			"PSB-DATABASE-PASSWORD": []byte("R1NYZ0xYMVI1WUlhbTNvOG5OaEQ1OWlUY0xia0Za"),
 		},
 	})
 
@@ -96,7 +96,7 @@ func addDBApp(model *kube.InMemoryModel) {
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: "petshop-db-secrets",
 						},
-						Key: "PBS-DATABASE-PASSWORD",
+						Key: "PSB-DATABASE-PASSWORD",
 					},
 				},
 			},
