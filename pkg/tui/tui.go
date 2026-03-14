@@ -44,26 +44,26 @@ func openInEditorCmd(content string) tea.Cmd {
 	return func() tea.Msg {
 		tmp, err := os.CreateTemp("", "kompass-yaml-*.yaml")
 		if err != nil {
-			return editorDoneMsg{err: err}
+			return editDoneMsg{err: err}
 		}
 		defer os.Remove(tmp.Name())
 
 		if _, err := tmp.WriteString(content); err != nil {
 			_ = tmp.Close()
-			return editorDoneMsg{err: err}
+			return editDoneMsg{err: err}
 		}
 		_ = tmp.Close()
 
-		editorCmd, editorArgs := resolveEditorCommand(os.Getenv("EDITOR"), tmp.Name())
+		editorCmd, editorArgs := resolveEditCommand(os.Getenv("EDITOR"), tmp.Name())
 		cmd := exec.Command(editorCmd, editorArgs...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return editorDoneMsg{err: cmd.Run()}
+		return editDoneMsg{err: cmd.Run()}
 	}
 }
 
-func resolveEditorCommand(editorEnv, filePath string) (string, []string) {
+func resolveEditCommand(editorEnv, filePath string) (string, []string) {
 	editor := strings.TrimSpace(editorEnv)
 	if editor == "" {
 		editor = "vi"

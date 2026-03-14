@@ -6,53 +6,53 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (m *Model) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.file.SearchMode {
-		return m.handleFileSearchKey(msg)
+func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.view.SearchMode {
+		return m.handleSearch(msg)
 	}
 
 	switch msg.String() {
 	case "ctrl+c":
 		return *m, tea.Quit
 	case "esc", "q":
-		m.file = nil
+		m.view = nil
 	case "enter":
-		m.file = nil
+		m.view = nil
 	case "left", "h":
-		m.file.ColScroll = maxInt(0, m.file.ColScroll-4)
+		m.view.ColScroll = maxInt(0, m.view.ColScroll-4)
 	case "right", "l":
-		m.file.ColScroll = minInt(m.fileMaxColScroll(), m.file.ColScroll+4)
+		m.view.ColScroll = minInt(m.maxColScroll(), m.view.ColScroll+4)
 	case "home":
-		m.file.ColScroll = 0
+		m.view.ColScroll = 0
 	case "end":
-		m.file.ColScroll = m.fileMaxColScroll()
+		m.view.ColScroll = m.maxColScroll()
 	case "g":
-		m.file.Scroll = 0
+		m.view.Scroll = 0
 	case "G":
-		m.file.Scroll = maxInt(0, len(m.file.Lines)-1)
+		m.view.Scroll = maxInt(0, len(m.view.Rows)-1)
 	case "up", "k":
-		if m.file.Scroll > 0 {
-			m.file.Scroll--
+		if m.view.Scroll > 0 {
+			m.view.Scroll--
 		}
 	case "down", "j":
-		if m.file.Scroll < maxInt(0, len(m.file.Lines)-1) {
-			m.file.Scroll++
+		if m.view.Scroll < maxInt(0, len(m.view.Rows)-1) {
+			m.view.Scroll++
 		}
 	case "pgup":
-		m.file.Scroll = maxInt(0, m.file.Scroll-10)
+		m.view.Scroll = maxInt(0, m.view.Scroll-10)
 	case "pgdown":
-		m.file.Scroll = minInt(maxInt(0, len(m.file.Lines)-1), m.file.Scroll+10)
+		m.view.Scroll = minInt(maxInt(0, len(m.view.Rows)-1), m.view.Scroll+10)
 	case "/":
-		m.file.SearchMode = true
-		m.file.ActionStatus = ""
+		m.view.SearchMode = true
+		m.view.ActionStatus = ""
 	case "y":
-		if err := copyToClipboard(m.file.Raw); err != nil {
-			m.file.ActionStatus = "copy failed: " + err.Error()
+		if err := copyToClipboard(m.view.Raw); err != nil {
+			m.view.ActionStatus = "copy failed: " + err.Error()
 		} else {
-			m.file.ActionStatus = "copied to clipboard"
+			m.view.ActionStatus = "copied to clipboard"
 		}
 	case "e":
-		return *m, openInEditorCmd(m.file.Raw)
+		return *m, openInEditorCmd(m.view.Raw)
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
@@ -60,25 +60,25 @@ func (m *Model) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
-func (m *Model) handleFileSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return *m, tea.Quit
 	case tea.KeyCtrlU:
-		m.file.SearchQuery = ""
+		m.view.SearchQuery = ""
 	case tea.KeyEsc:
-		m.file.SearchMode = false
+		m.view.SearchMode = false
 	case tea.KeyEnter:
-		m.file.SearchMode = false
+		m.view.SearchMode = false
 		m.applySearch()
 	case tea.KeyBackspace:
-		if len(m.file.SearchQuery) > 0 {
-			r := []rune(m.file.SearchQuery)
-			m.file.SearchQuery = string(r[:len(r)-1])
+		if len(m.view.SearchQuery) > 0 {
+			r := []rune(m.view.SearchQuery)
+			m.view.SearchQuery = string(r[:len(r)-1])
 		}
 	default:
 		if len(msg.Runes) > 0 {
-			m.file.SearchQuery += string(msg.Runes)
+			m.view.SearchQuery += string(msg.Runes)
 		}
 	}
 	return *m, nil
@@ -115,7 +115,7 @@ func (m Model) paneAvailable(pane int) bool {
 	return false
 }
 
-func (m Model) nextAvailablePane(direction int) int {
+func (m Model) paneNext(direction int) int {
 	if direction == 0 {
 		direction = 1
 	}
@@ -150,11 +150,11 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, tea.Quit
 	case "tab":
 		if m.mode == ModeSelector {
-			m.activePane = m.nextAvailablePane(1)
+			m.activePane = m.paneNext(1)
 		}
 	case "shift+tab":
 		if m.mode == ModeSelector {
-			m.activePane = m.nextAvailablePane(-1)
+			m.activePane = m.paneNext(-1)
 		}
 	case "1":
 		if m.paneAvailable(0) {
@@ -178,7 +178,8 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		step := 1
 		if m.lastNavDir == -1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
-			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
+			if delta >= doubleTapMin && delta <= doubleTapMax {
+				step = m.navJumpStep()
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
@@ -197,7 +198,8 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		step := 1
 		if m.lastNavDir == 1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
-			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
+			if delta >= doubleTapMin && delta <= doubleTapMax {
+				step = m.navJumpStep()
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
@@ -209,9 +211,9 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.navLastAt = now
 		maxCursor := maxInt(0, len(m.rowsByPane[m.activePane])-1)
 		m.cursorByPane[m.activePane] = minInt(maxCursor, m.cursorByPane[m.activePane]+step)
-	case "pgup", "pageup":
+	case "pgup":
 		m.cursorByPane[m.activePane] = maxInt(0, m.cursorByPane[m.activePane]-m.navPageStep())
-	case "pgdown", "pagedown":
+	case "pgdown":
 		maxCursor := maxInt(0, len(m.rowsByPane[m.activePane])-1)
 		m.cursorByPane[m.activePane] = minInt(maxCursor, m.cursorByPane[m.activePane]+m.navPageStep())
 	case " ":
@@ -233,13 +235,25 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); r != nil {
-			m.file = viewYaml(*r, m.resources[r.Key])
+			m.view = viewYaml(*r, m.resources[r.Key])
 		}
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
 	case "?":
-		m.file = viewHelp()
+		m.view = viewHelp()
 	}
 	return *m, nil
+}
+
+func (m Model) rowsHeight() int {
+	return maxInt(1, m.height-1-m.footerHeight)
+}
+
+func (m Model) navPageStep() int {
+	return maxInt(1, m.rowsHeight()-1)
+}
+
+func (m Model) navJumpStep() int {
+	return maxInt(1, m.rowsHeight()/2)
 }

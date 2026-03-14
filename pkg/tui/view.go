@@ -14,8 +14,8 @@ func (m Model) View() string {
 		return "loading..."
 	}
 
-	if m.file != nil {
-		return m.viewFile()
+	if m.view != nil {
+		return m.toString()
 	}
 
 	header := m.Header()
@@ -24,6 +24,19 @@ func (m Model) View() string {
 	rows := m.ViewRows(rowsHeight)
 
 	return strings.Join([]string{header, rows, footer}, "\n")
+}
+
+func (m Model) toString() string {
+	headerText := m.headerText()
+	footerText := m.footerText()
+	header := fit(headerStyle.Render(headerText), m.width)
+	footer := fit(footerStyle.Render(footerText), m.width)
+	rowsHeight := maxInt(1, m.height-2)
+	rows := m.renderRows(rowsHeight)
+	for len(rows) < rowsHeight {
+		rows = append(rows, "")
+	}
+	return strings.Join([]string{header, strings.Join(rows, "\n"), footer}, "\n")
 }
 
 func (m Model) Header() string {
@@ -107,86 +120,73 @@ func rowWindowStart(rowsLen, height, cursor int) int {
 	return clamp(start, 0, maxStart)
 }
 
-func (m Model) viewFile() string {
-	headerText := m.fileHeaderText()
-	footerText := m.fileFooterText()
-	header := fit(headerStyle.Render(headerText), m.width)
-	footer := fit(footerStyle.Render(footerText), m.width)
-	rowsHeight := maxInt(1, m.height-2)
-	rowsLines := m.fileRowsLines(rowsHeight)
-	for len(rowsLines) < rowsHeight {
-		rowsLines = append(rowsLines, "")
-	}
-	return strings.Join([]string{header, strings.Join(rowsLines, "\n"), footer}, "\n")
-}
-
-func (m Model) fileHeaderText() string {
-	headerText := fmt.Sprintf("FILE | %s | Esc close", m.file.Title)
-	if m.file.Kind == FileHelp {
+func (m Model) headerText() string {
+	headerText := fmt.Sprintf("FILE | %s | Esc close", m.view.Title)
+	if m.view.Kind == FileHelp {
 		return "HELP | Keybindings | Esc close"
 	}
-	if m.file.SearchMode {
+	if m.view.SearchMode {
 		headerText = "FILE | SEARCH | Enter apply | Esc cancel"
 	}
-	if m.file.Kind != FileYAML {
+	if m.view.Kind != FileYAML {
 		return headerText
 	}
 
-	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.file.Lines), m.file.Scroll+1), len(m.file.Lines), m.file.ColScroll+1)
-	if len(m.file.MatchLines) > 0 {
-		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.file.ActiveMatch+1, len(m.file.MatchLines))
+	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.view.Rows), m.view.Scroll+1), len(m.view.Rows), m.view.ColScroll+1)
+	if len(m.view.MatchRows) > 0 {
+		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.view.ActiveMatch+1, len(m.view.MatchRows))
 	}
 	return fmt.Sprintf("%s | %s", headerText, lineInfo)
 }
 
-func (m Model) fileFooterText() string {
+func (m Model) footerText() string {
 	footerText := "Up/Down scroll | PgUp/PgDn page | g/G top/bottom | Left/Right pan | Home/End line start/end | / search | n/N next/prev | y copy | e edit | Esc close"
-	if m.file.Kind == FileHelp {
+	if m.view.Kind == FileHelp {
 		footerText = "Tab/Shift+Tab panes | arrows rows | Space select | Enter inspect | Esc close"
-	} else if m.file.SearchMode {
-		footerText = "Search: " + m.file.SearchQuery
-	} else if len(m.file.MatchLines) > 0 {
-		footerText = fmt.Sprintf("%s | match %d/%d", footerText, m.file.ActiveMatch+1, len(m.file.MatchLines))
+	} else if m.view.SearchMode {
+		footerText = "Search: " + m.view.SearchQuery
+	} else if len(m.view.MatchRows) > 0 {
+		footerText = fmt.Sprintf("%s | match %d/%d", footerText, m.view.ActiveMatch+1, len(m.view.MatchRows))
 	}
-	if m.file.ActionStatus != "" {
-		footerText += " | " + m.file.ActionStatus
+	if m.view.ActionStatus != "" {
+		footerText += " | " + m.view.ActionStatus
 	}
 	return footerText
 }
 
-func (m Model) fileRowsLines(rowsHeight int) []string {
-	start := clamp(m.file.Scroll, 0, maxInt(0, len(m.file.Lines)-1))
-	end := minInt(len(m.file.Lines), start+rowsHeight)
-	rowsLines := make([]string, 0, rowsHeight)
-	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.file.Lines))))
+func (m Model) renderRows(rowsHeight int) []string {
+	start := clamp(m.view.Scroll, 0, maxInt(0, len(m.view.Rows)-1))
+	end := minInt(len(m.view.Rows), start+rowsHeight)
+	rowsRows := make([]string, 0, rowsHeight)
+	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.view.Rows))))
 	contentWidth := maxInt(1, m.width-lineNumberWidth-4)
-	activeMatchLine := m.file.activeMatchLine()
+	activeMatchRow := m.view.activeMatchRow()
 
 	for i := start; i < end; i++ {
-		line := visibleSegment(m.file.Lines[i], m.file.ColScroll, contentWidth)
-		line = highlightSearchTerm(line, m.file.SearchQuery, i == activeMatchLine)
-		line = styleFileLine(line, i, m.file.MatchLines, activeMatchLine)
-		prefix := fileLinePrefix(i, lineNumberWidth, m.file.MatchLines, activeMatchLine)
-		rowsLines = append(rowsLines, prefix+line)
+		line := visibleSegment(m.view.Rows[i], m.view.ColScroll, contentWidth)
+		line = highlightSearchTerm(line, m.view.SearchQuery, i == activeMatchRow)
+		line = rowStyle(line, i, m.view.MatchRows, activeMatchRow)
+		prefix := rowPrefix(i, lineNumberWidth, m.view.MatchRows, activeMatchRow)
+		rowsRows = append(rowsRows, prefix+line)
 	}
-	return rowsLines
+	return rowsRows
 }
 
 func (m Model) renderRow(r Row, fileed bool) string {
-	state := rowRenderState{Focused: fileed, Selected: m.selected[m.activePane][r.Key]}
+	state := rowState{Focused: fileed, Selected: m.selected[m.activePane][r.Key]}
 	rowContent := rowContent(r, state)
 	content := withSelectionMarkerOnRow(rowContent, rowSelectionMarker(state))
 	return m.styleRowContent(content, state)
 }
 
-func rowSelectionMarker(state rowRenderState) string {
+func rowSelectionMarker(state rowState) string {
 	if state.Selected {
 		return "⚠️"
 	}
 	return "[ ]"
 }
 
-func rowContent(r Row, state rowRenderState) string {
+func rowContent(r Row, state rowState) string {
 	rowContent := r.Text
 	if state.Focused || state.Selected {
 		rowContent = r.Plain
@@ -200,7 +200,7 @@ func rowContent(r Row, state rowRenderState) string {
 	return rowContent
 }
 
-func (m Model) styleRowContent(content string, state rowRenderState) string {
+func (m Model) styleRowContent(content string, state rowState) string {
 	if !state.Focused && !state.Selected {
 		return content
 	}
@@ -220,7 +220,7 @@ func withSelectionMarkerOnRow(rowContent, marker string) string {
 			tail := rowContent[insertPos:]
 			if marker == "[ ]" {
 				if emoji, rest, ok := consumeLeadingEmoji(tail); ok {
-					return rowContent[:insertPos] + "" + emoji + " " + rest
+					return rowContent[:insertPos] + "[" + emoji + "] " + rest
 				}
 			}
 			return rowContent[:insertPos] + marker + " " + tail

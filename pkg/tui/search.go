@@ -6,48 +6,48 @@ import (
 	"strings"
 )
 
-func styleFileLine(line string, lineIndex int, matchLines []int, activeMatchLine int) string {
-	if lineIndex == activeMatchLine {
-		return activeMatchStyle.Render(line)
+func rowStyle(row string, rowIndex int, matchRows []int, activeMatchRow int) string {
+	if rowIndex == activeMatchRow {
+		return activeMatchStyle.Render(row)
 	}
-	if containsInt(matchLines, lineIndex) {
-		return matchLineStyle.Render(line)
+	if containsInt(matchRows, rowIndex) {
+		return matchRowStyle.Render(row)
 	}
-	return line
+	return row
 }
 
-func fileLinePrefix(lineIndex, lineNumberWidth int, matchLines []int, activeMatchLine int) string {
-	marker := fileGutterMarker(lineIndex, matchLines, activeMatchLine)
+func rowPrefix(rowIndex, rowNumberWidth int, matchRows []int, activeMatchRow int) string {
+	marker := fileGutterMarker(rowIndex, matchRows, activeMatchRow)
 	switch marker {
 	case ">":
 		marker = gutterActiveStyle.Render(marker)
 	case "*":
 		marker = gutterMatchStyle.Render(marker)
 	}
-	lineNumber := lineNumberStyle.Render(fmt.Sprintf("%*d ", lineNumberWidth, lineIndex+1))
-	return marker + " " + lineNumber
+	rowNumber := rowNumberStyle.Render(fmt.Sprintf("%*d ", rowNumberWidth, rowIndex+1))
+	return marker + " " + rowNumber
 }
 
-func fileGutterMarker(lineIndex int, matchLines []int, activeMatchLine int) string {
-	if lineIndex == activeMatchLine {
+func fileGutterMarker(rowIndex int, matchRows []int, activeMatchRow int) string {
+	if rowIndex == activeMatchRow {
 		return ">"
 	}
-	if containsInt(matchLines, lineIndex) {
+	if containsInt(matchRows, rowIndex) {
 		return "*"
 	}
 	return " "
 }
 
-func highlightSearchTerm(line, query string, active bool) string {
+func highlightSearchTerm(row, query string, active bool) string {
 	q := strings.TrimSpace(query)
 	if q == "" {
-		return line
+		return row
 	}
 
-	lowerLine := strings.ToLower(line)
+	lowerRow := strings.ToLower(row)
 	lowerQuery := strings.ToLower(q)
-	if !strings.Contains(lowerLine, lowerQuery) {
-		return line
+	if !strings.Contains(lowerRow, lowerQuery) {
+		return row
 	}
 
 	style := termMatchStyle
@@ -58,18 +58,18 @@ func highlightSearchTerm(line, query string, active bool) string {
 	result := strings.Builder{}
 	start := 0
 	for {
-		idx := strings.Index(strings.ToLower(line[start:]), lowerQuery)
+		idx := strings.Index(strings.ToLower(row[start:]), lowerQuery)
 		if idx < 0 {
-			result.WriteString(line[start:])
+			result.WriteString(row[start:])
 			break
 		}
 		idx += start
-		result.WriteString(line[start:idx])
+		result.WriteString(row[start:idx])
 		end := idx + len(q)
-		if end > len(line) {
-			end = len(line)
+		if end > len(row) {
+			end = len(row)
 		}
-		result.WriteString(style.Render(line[idx:end]))
+		result.WriteString(style.Render(row[idx:end]))
 		start = end
 	}
 
@@ -97,29 +97,29 @@ func visibleSegment(row string, colScroll, width int) string {
 	return out
 }
 
-func matchColumn(line, query string) int {
+func matchColumn(row, query string) int {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		return -1
 	}
 
-	lineRunes := []rune(line)
-	lowerLineRunes := []rune(strings.ToLower(line))
+	rowRunes := []rune(row)
+	lowerRowRunes := []rune(strings.ToLower(row))
 	lowerQueryRunes := []rune(strings.ToLower(q))
-	if len(lowerQueryRunes) == 0 || len(lowerLineRunes) < len(lowerQueryRunes) {
+	if len(lowerQueryRunes) == 0 || len(lowerRowRunes) < len(lowerQueryRunes) {
 		return -1
 	}
 
-	for i := 0; i <= len(lowerLineRunes)-len(lowerQueryRunes); i++ {
+	for i := 0; i <= len(lowerRowRunes)-len(lowerQueryRunes); i++ {
 		matched := true
 		for j := 0; j < len(lowerQueryRunes); j++ {
-			if lowerLineRunes[i+j] != lowerQueryRunes[j] {
+			if lowerRowRunes[i+j] != lowerQueryRunes[j] {
 				matched = false
 				break
 			}
 		}
 		if matched {
-			return len(lineRunes[:i])
+			return len(rowRunes[:i])
 		}
 	}
 
@@ -147,79 +147,79 @@ func (m Model) keysForOutput() []string {
 }
 
 func (m *Model) applySearch() {
-	if m.file == nil || m.file.Kind != FileYAML {
+	if m.view == nil || m.view.Kind != FileYAML {
 		return
 	}
-	query := strings.TrimSpace(strings.ToLower(m.file.SearchQuery))
+	query := strings.TrimSpace(strings.ToLower(m.view.SearchQuery))
 	if query == "" {
-		m.file.MatchLines = nil
-		m.file.ActiveMatch = 0
-		m.file.ActionStatus = ""
+		m.view.MatchRows = nil
+		m.view.ActiveMatch = 0
+		m.view.ActionStatus = ""
 		return
 	}
 
 	matches := make([]int, 0)
-	for i, line := range m.file.Lines {
-		if strings.Contains(strings.ToLower(line), query) {
+	for i, row := range m.view.Rows {
+		if strings.Contains(strings.ToLower(row), query) {
 			matches = append(matches, i)
 		}
 	}
-	m.file.MatchLines = matches
-	m.file.ActiveMatch = 0
+	m.view.MatchRows = matches
+	m.view.ActiveMatch = 0
 	if len(matches) == 0 {
-		m.file.ActionStatus = "no matches"
+		m.view.ActionStatus = "no matches"
 		return
 	}
-	m.file.Scroll = matches[0]
+	m.view.Scroll = matches[0]
 	m.ensureActiveMatchVisible()
-	m.file.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
+	m.view.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
 }
 
 func (m *Model) ensureActiveMatchVisible() {
-	if m.file == nil || len(m.file.MatchLines) == 0 {
+	if m.view == nil || len(m.view.MatchRows) == 0 {
 		return
 	}
-	activeLine := m.file.activeMatchLine()
-	if activeLine < 0 || activeLine >= len(m.file.Lines) {
+	activeRow := m.view.activeMatchRow()
+	if activeRow < 0 || activeRow >= len(m.view.Rows) {
 		return
 	}
 
-	query := strings.TrimSpace(m.file.SearchQuery)
+	query := strings.TrimSpace(m.view.SearchQuery)
 	if query == "" {
 		return
 	}
 
-	matchCol := matchColumn(m.file.Lines[activeLine], query)
+	matchCol := matchColumn(m.view.Rows[activeRow], query)
 	if matchCol < 0 {
 		return
 	}
 
-	contentWidth := m.fileContentWidth()
+	contentWidth := m.contentWidth()
 	if contentWidth <= 0 {
 		return
 	}
 
 	matchStart := matchCol
 	matchEnd := matchCol + len([]rune(query)) - 1
-	viewStart := m.file.ColScroll
+	viewStart := m.view.ColScroll
 	viewEnd := viewStart + contentWidth - 1
 
 	if matchStart < viewStart {
-		m.file.ColScroll = matchStart
+		m.view.ColScroll = matchStart
 	} else if matchEnd > viewEnd {
-		m.file.ColScroll = matchEnd - contentWidth + 1
+		m.view.ColScroll = matchEnd - contentWidth + 1
 	}
-	m.file.ColScroll = clamp(m.file.ColScroll, 0, m.fileMaxColScroll())
+	m.view.ColScroll = clamp(m.view.ColScroll, 0, m.maxColScroll())
 }
 
-func (m *Model) fileMaxColScroll() int {
-	if m.file == nil || len(m.file.Lines) == 0 {
+func (m *Model) maxColScroll() int {
+	if m.view == nil || len(m.view.Rows) == 0 {
 		return 0
 	}
-	contentWidth := m.fileContentWidth()
+	contentWidth := m.contentWidth()
 	longest := 0
-	for _, line := range m.file.Lines {
-		l := len([]rune(line))
+	for _, row := range m.view.Rows {
+		l := len([]rune(row))
 		if l > longest {
 			longest = l
 		}
@@ -227,20 +227,20 @@ func (m *Model) fileMaxColScroll() int {
 	return maxInt(0, longest-contentWidth)
 }
 
-func (m *Model) fileContentWidth() int {
-	if m.file == nil {
+func (m *Model) contentWidth() int {
+	if m.view == nil {
 		return 1
 	}
-	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.file.Lines))))
-	return maxInt(1, m.width-lineNumberWidth-4)
+	rowNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.view.Rows))))
+	return maxInt(1, m.width-rowNumberWidth-4)
 }
 
-func (m *View) activeMatchLine() int {
-	if m == nil || len(m.MatchLines) == 0 {
+func (m *View) activeMatchRow() int {
+	if m == nil || len(m.MatchRows) == 0 {
 		return -1
 	}
-	if m.ActiveMatch < 0 || m.ActiveMatch >= len(m.MatchLines) {
+	if m.ActiveMatch < 0 || m.ActiveMatch >= len(m.MatchRows) {
 		return -1
 	}
-	return m.MatchLines[m.ActiveMatch]
+	return m.MatchRows[m.ActiveMatch]
 }

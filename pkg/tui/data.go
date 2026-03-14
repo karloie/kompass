@@ -7,63 +7,7 @@ import (
 
 	kube "github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/tree"
-	"go.yaml.in/yaml/v2"
 )
-
-func viewYaml(r Row, resource *kube.Resource) *View {
-	var content any
-	if resource != nil && resource.Resource != nil {
-		content = resource.Resource
-	} else {
-		content = map[string]any{
-			"key":      r.Key,
-			"type":     r.Type,
-			"name":     r.Name,
-			"status":   r.Status,
-			"metadata": r.Metadata,
-		}
-	}
-	b, err := yaml.Marshal(content)
-	if err != nil {
-		b = []byte("error: failed to render yaml")
-	}
-	raw := strings.TrimRight(string(b), "\n")
-	lines := strings.Split(raw, "\n")
-	return &View{Kind: FileYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Lines: lines, Raw: raw}
-}
-
-func viewHelp() *View {
-	lines := []string{
-		"Rows",
-		"  Up/Down or j/k  move Row",
-		"  Tab             next pane",
-		"  Shift+Tab       previous pane",
-		"  1/2             jump to Tree/Single",
-		"",
-		"Actions",
-		"  Space           toggle Row selection",
-		"  Enter           open YAML file for current Row",
-		"  o               output selected/current keys and quit",
-		"  + / -           increase/decrease footer panel height",
-		"",
-		"File",
-		"  Up/Down, PgUp/PgDn  scroll",
-		"  g / G               jump to top/bottom",
-		"  Left/Right or h/l   pan long lines",
-		"  Home/End            pan to line start/end",
-		"  /                    start search",
-		"  Ctrl+U               clear search query",
-		"  n / N                next/previous match",
-		"  y                    copy file content",
-		"  e                    open in $EDITOR (read-only where supported)",
-		"  Esc or q            close file",
-		"",
-		"Exit",
-		"  Esc / Ctrl+C     quit application",
-	}
-	raw := strings.Join(lines, "\n")
-	return &View{Kind: FileHelp, Title: "Keybindings", Lines: lines, Raw: raw}
-}
 
 func flattenTrees(trees *kube.Trees) []Row {
 	rows := make([]Row, 0, 128)
@@ -128,7 +72,7 @@ func stringMeta(meta map[string]any, key, fallback string) string {
 	return fallback
 }
 
-func summarizeMetadata(meta map[string]any) string {
+func stringMetadata(meta map[string]any) string {
 	if len(meta) == 0 {
 		return ""
 	}

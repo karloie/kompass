@@ -24,7 +24,7 @@ type Model struct {
 	resources    map[string]*kube.Resource
 
 	footerHeight  int
-	file          *View
+	view          *View
 	emitSelection bool
 	lastNavDir    int
 	navRepeat     int
@@ -69,12 +69,12 @@ func newRun(opts Options) Model {
 }
 
 type UpdateConfig struct {
-	OnWindowSize     func(tea.WindowSizeMsg)
-	HasOpenFile      func() bool
-	HandleFileKey    func(tea.KeyMsg) (tea.Model, tea.Cmd)
-	HandleMainKey    func(tea.KeyMsg) (tea.Model, tea.Cmd)
-	HandleEditorDone func(error)
-	CurrentModel     func() tea.Model
+	OnWindowSize   func(tea.WindowSizeMsg)
+	HasOpenFile    func() bool
+	HandleKey      func(tea.KeyMsg) (tea.Model, tea.Cmd)
+	HandleMainKey  func(tea.KeyMsg) (tea.Model, tea.Cmd)
+	HandleEditDone func(error)
+	Current        func() tea.Model
 }
 
 func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
@@ -85,8 +85,8 @@ func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		if cfg.HasOpenFile != nil && cfg.HasOpenFile() {
-			if cfg.HandleFileKey != nil {
-				return cfg.HandleFileKey(v)
+			if cfg.HandleKey != nil {
+				return cfg.HandleKey(v)
 			}
 			break
 		}
@@ -96,13 +96,13 @@ func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
 	}
 
 	if done, ok := msg.(interface{ doneErr() error }); ok {
-		if cfg.HandleEditorDone != nil {
-			cfg.HandleEditorDone(done.doneErr())
+		if cfg.HandleEditDone != nil {
+			cfg.HandleEditDone(done.doneErr())
 		}
 	}
 
-	if cfg.CurrentModel != nil {
-		return cfg.CurrentModel(), nil
+	if cfg.Current != nil {
+		return cfg.Current(), nil
 	}
 	return nil, nil
 }
@@ -114,32 +114,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.height = v.Height
 		},
 		HasOpenFile: func() bool {
-			return m.file != nil
+			return m.view != nil
 		},
-		HandleFileKey: func(v tea.KeyMsg) (tea.Model, tea.Cmd) {
-			return m.handleFileKey(v)
+		HandleKey: func(v tea.KeyMsg) (tea.Model, tea.Cmd) {
+			return m.handleKey(v)
 		},
 		HandleMainKey: func(v tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.handleMainKey(v)
 		},
-		HandleEditorDone: func(err error) {
-			if m.file == nil {
+		HandleEditDone: func(err error) {
+			if m.view == nil {
 				return
 			}
 			if err != nil {
-				m.file.ActionStatus = "editor failed: " + err.Error()
+				m.view.ActionStatus = "editor failed: " + err.Error()
 				return
 			}
-			m.file.ActionStatus = "editor closed"
+			m.view.ActionStatus = "editor closed"
 		},
-		CurrentModel: func() tea.Model {
+		Current: func() tea.Model {
 			return m
 		},
 	})
-}
-
-func (m Model) navPageStep() int {
-	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
-	// Keep one row overlap between pages for orientation.
-	return maxInt(1, rowsHeight-1)
 }

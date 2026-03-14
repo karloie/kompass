@@ -48,35 +48,34 @@ const (
 type View struct {
 	Kind      Kind
 	Title     string
-	Lines     []string
+	Rows      []string
 	Raw       string
 	Scroll    int
 	ColScroll int
 
 	SearchMode   bool
 	SearchQuery  string
-	MatchLines   []int
+	MatchRows    []int
 	ActiveMatch  int
 	ActionStatus string
 }
 
-type editorDoneMsg struct {
+type editDoneMsg struct {
 	err error
 }
 
-func (m editorDoneMsg) doneErr() error {
+func (m editDoneMsg) doneErr() error {
 	return m.err
 }
 
-type rowRenderState struct {
+type rowState struct {
 	Focused  bool
 	Selected bool
 }
 
 const (
-	navDoubleTapMin = 120 * time.Millisecond
-	navDoubleTapMax = 240 * time.Millisecond
-	navJumpDivisor  = 2
+	doubleTapMin = 120 * time.Millisecond
+	doubleTapMax = 240 * time.Millisecond
 )
 
 var (
@@ -86,9 +85,9 @@ var (
 	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
 	fileedCell        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
 	selectedRowStyle  = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
-	matchLineStyle    = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	matchRowStyle     = lipgloss.NewStyle().Background(lipgloss.Color("236"))
 	activeMatchStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
-	lineNumberStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	rowNumberStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	gutterMatchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	gutterActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("166"))
 	termMatchStyle    = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("227"))
