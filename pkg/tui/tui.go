@@ -19,153 +19,6 @@ import (
 	"go.yaml.in/yaml/v2"
 )
 
-type editorDoneMsg struct {
-	err error
-}
-
-func (m editorDoneMsg) doneErr() error {
-	return m.err
-}
-
-type rowRenderState struct {
-	Focused  bool
-	Selected bool
-}
-
-const (
-	navDoubleTapMin = 120 * time.Millisecond
-	navDoubleTapMax = 240 * time.Millisecond
-	navJumpDivisor  = 2
-)
-
-var (
-	accentForeground  = lipgloss.Color("230")
-	accentBackground  = lipgloss.Color("24")
-	headerStyle       = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground).Padding(0, 1)
-	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
-	fileedCell        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
-	selectedRowStyle  = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
-	matchLineStyle    = lipgloss.NewStyle().Background(lipgloss.Color("236"))
-	activeMatchStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
-	lineNumberStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	gutterMatchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	gutterActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("166"))
-	termMatchStyle    = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("227"))
-	termActiveStyle   = lipgloss.NewStyle().Underline(true).Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
-	unselectedMarker  = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("[ ]")
-)
-
-func hasArg(args []string, needle string) bool {
-	for _, arg := range args {
-		if arg == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func newRun(opts Options) FileModel {
-	m := FileModel{
-		mode:         opts.Mode,
-		context:      opts.Context,
-		namespace:    opts.Namespace,
-		footerHeight: 1,
-		now:          time.Now,
-	}
-	m.selected[0] = map[string]bool{}
-	m.selected[1] = map[string]bool{}
-	m.resources = map[string]*kube.Resource{}
-
-	if opts.Mode == ModeSelector && opts.Trees != nil {
-		allRows := flattenTrees(opts.Trees)
-		m.rowsByPane[0] = allRows
-		m.rowsByPane[1] = singleRows(allRows)
-		for k, v := range opts.Trees.Nodes {
-			m.resources[k] = v
-		}
-	}
-
-	if opts.Mode == ModeDashboard {
-		m.rowsByPane[0] = []Row{
-			{Key: "todo/1", Type: "todo", Name: "Review recent requests", Status: "new", Metadata: map[string]any{"owner": "you"}},
-			{Key: "todo/2", Type: "todo", Name: "Investigate cache misses", Status: "in-progress", Metadata: map[string]any{"area": "cache"}},
-			{Key: "todo/3", Type: "todo", Name: "Verify release artifacts", Status: "new", Metadata: map[string]any{"priority": "high"}},
-		}
-	}
-
-	return m
-}
-
-// helpers
-
-func fit(s string, width int) string {
-	if width <= 0 {
-		return s
-	}
-	return truncate(s, width)
-}
-
-func truncate(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= width {
-		return s
-	}
-	if width == 1 {
-		return string(r[:1])
-	}
-	if width <= 3 {
-		return string(r[:width])
-	}
-	return string(r[:width-3]) + "..."
-}
-
-func pad(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) >= width {
-		return string(r[:width])
-	}
-	return s + strings.Repeat(" ", width-len(r))
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func clamp(v, minV, maxV int) int {
-	if v < minV {
-		return minV
-	}
-	if v > maxV {
-		return maxV
-	}
-	return v
-}
-
-func containsInt(values []int, needle int) bool {
-	for _, v := range values {
-		if v == needle {
-			return true
-		}
-	}
-	return false
-}
-
 type Mode int
 
 const (
@@ -197,17 +50,15 @@ type Row struct {
 	Depth     int
 }
 
-type FileKind string
+type Kind string
 
 const (
-	FileYAML FileKind = "yaml"
-	FileHelp FileKind = "help"
-	fileYAML FileKind = FileYAML
-	fileHelp FileKind = FileHelp
+	FileYAML Kind = "yaml"
+	FileHelp Kind = "help"
 )
 
-type ViewFile struct {
-	Kind      FileKind
+type View struct {
+	Kind      Kind
 	Title     string
 	Lines     []string
 	Raw       string
@@ -221,7 +72,7 @@ type ViewFile struct {
 	ActionStatus string
 }
 
-type FileModel struct {
+type Model struct {
 	mode      Mode
 	context   string
 	namespace string
@@ -238,7 +89,7 @@ type FileModel struct {
 	resources    map[string]*kube.Resource
 
 	footerHeight  int
-	file          *ViewFile
+	file          *View
 	emitSelection bool
 	lastNavDir    int
 	navRepeat     int
@@ -246,11 +97,11 @@ type FileModel struct {
 	now           func() time.Time
 }
 
-func (m FileModel) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m *FileModel) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.file.SearchMode {
 		return m.handleFileSearchKey(msg)
 	}
@@ -289,10 +140,6 @@ func (m *FileModel) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.file.SearchMode = true
 		m.file.ActionStatus = ""
-	case "n":
-		m.jumpMatch(1)
-	case "N":
-		m.jumpMatch(-1)
 	case "y":
 		if err := copyToClipboard(m.file.Raw); err != nil {
 			m.file.ActionStatus = "copy failed: " + err.Error()
@@ -308,7 +155,7 @@ func (m *FileModel) handleFileKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
-func (m *FileModel) handleFileSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleFileSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return *m, tea.Quit
@@ -332,7 +179,7 @@ func (m *FileModel) handleFileSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
-func (m FileModel) viewFile() string {
+func (m Model) viewFile() string {
 	headerText := m.fileHeaderText()
 	footerText := m.fileFooterText()
 	header := fit(headerStyle.Render(headerText), m.width)
@@ -345,7 +192,7 @@ func (m FileModel) viewFile() string {
 	return strings.Join([]string{header, strings.Join(rowsLines, "\n"), footer}, "\n")
 }
 
-func (m FileModel) fileHeaderText() string {
+func (m Model) fileHeaderText() string {
 	headerText := fmt.Sprintf("FILE | %s | Esc close", m.file.Title)
 	if m.file.Kind == FileHelp {
 		return "HELP | Keybindings | Esc close"
@@ -364,7 +211,7 @@ func (m FileModel) fileHeaderText() string {
 	return fmt.Sprintf("%s | %s", headerText, lineInfo)
 }
 
-func (m FileModel) fileFooterText() string {
+func (m Model) fileFooterText() string {
 	footerText := "Up/Down scroll | PgUp/PgDn page | g/G top/bottom | Left/Right pan | Home/End line start/end | / search | n/N next/prev | y copy | e edit | Esc close"
 	if m.file.Kind == FileHelp {
 		footerText = "Tab/Shift+Tab panes | arrows rows | Space select | Enter inspect | Esc close"
@@ -379,7 +226,7 @@ func (m FileModel) fileFooterText() string {
 	return footerText
 }
 
-func (m FileModel) fileRowsLines(rowsHeight int) []string {
+func (m Model) fileRowsLines(rowsHeight int) []string {
 	start := clamp(m.file.Scroll, 0, maxInt(0, len(m.file.Lines)-1))
 	end := minInt(len(m.file.Lines), start+rowsHeight)
 	rowsLines := make([]string, 0, rowsHeight)
@@ -397,6 +244,74 @@ func (m FileModel) fileRowsLines(rowsHeight int) []string {
 	return rowsLines
 }
 
+type editorDoneMsg struct {
+	err error
+}
+
+func (m editorDoneMsg) doneErr() error {
+	return m.err
+}
+
+type rowRenderState struct {
+	Focused  bool
+	Selected bool
+}
+
+const (
+	navDoubleTapMin = 120 * time.Millisecond
+	navDoubleTapMax = 240 * time.Millisecond
+	navJumpDivisor  = 2
+)
+
+var (
+	accentForeground  = lipgloss.Color("230")
+	accentBackground  = lipgloss.Color("24")
+	headerStyle       = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground).Padding(0, 1)
+	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
+	fileedCell        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
+	selectedRowStyle  = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
+	matchLineStyle    = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	activeMatchStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
+	lineNumberStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	gutterMatchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	gutterActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("166"))
+	termMatchStyle    = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("227"))
+	termActiveStyle   = lipgloss.NewStyle().Underline(true).Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
+	unselectedMarker  = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("[ ]")
+)
+
+func newRun(opts Options) Model {
+	m := Model{
+		mode:         opts.Mode,
+		context:      opts.Context,
+		namespace:    opts.Namespace,
+		footerHeight: 1,
+		now:          time.Now,
+	}
+	m.selected[0] = map[string]bool{}
+	m.selected[1] = map[string]bool{}
+	m.resources = map[string]*kube.Resource{}
+
+	if opts.Mode == ModeSelector && opts.Trees != nil {
+		allRows := flattenTrees(opts.Trees)
+		m.rowsByPane[0] = allRows
+		m.rowsByPane[1] = singleRows(allRows)
+		for k, v := range opts.Trees.Nodes {
+			m.resources[k] = v
+		}
+	}
+
+	if opts.Mode == ModeDashboard {
+		m.rowsByPane[0] = []Row{
+			{Key: "todo/1", Type: "todo", Name: "Review recent requests", Status: "new", Metadata: map[string]any{"owner": "you"}},
+			{Key: "todo/2", Type: "todo", Name: "Investigate cache misses", Status: "in-progress", Metadata: map[string]any{"area": "cache"}},
+			{Key: "todo/3", Type: "todo", Name: "Verify release artifacts", Status: "new", Metadata: map[string]any{"priority": "high"}},
+		}
+	}
+
+	return m
+}
+
 type RunConfig struct {
 	NewModel     func(Options) tea.Model
 	ShouldEmit   func(tea.Model) bool
@@ -411,11 +326,11 @@ func Run(opts Options) error {
 			return newRun(o)
 		},
 		ShouldEmit: func(model tea.Model) bool {
-			fm, ok := model.(FileModel)
+			fm, ok := model.(Model)
 			return ok && fm.emitSelection
 		},
 		OutputKeys: func(model tea.Model) []string {
-			fm, ok := model.(FileModel)
+			fm, ok := model.(Model)
 			if !ok {
 				return nil
 			}
@@ -507,7 +422,7 @@ func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
 	return nil, nil
 }
 
-func (m FileModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return Update(msg, UpdateConfig{
 		OnWindowSize: func(v tea.WindowSizeMsg) {
 			m.width = v.Width
@@ -538,7 +453,7 @@ func (m FileModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	})
 }
 
-func (m FileModel) View() string {
+func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading..."
 	}
@@ -547,15 +462,15 @@ func (m FileModel) View() string {
 		return m.viewFile()
 	}
 
-	header := m.viewHeader()
-	footer := m.viewFooter()
+	header := m.Header()
+	footer := m.Footer()
 	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
-	rows := m.viewRows(rowsHeight)
+	rows := m.ViewRows(rowsHeight)
 
 	return strings.Join([]string{header, rows, footer}, "\n")
 }
 
-func (m FileModel) viewHeader() string {
+func (m Model) Header() string {
 	paneName := "SELECT"
 	if m.mode == ModeDashboard {
 		paneName = "Dashboard"
@@ -576,7 +491,7 @@ func renderFullWidthBar(style lipgloss.Style, text string, width int) string {
 	return style.Render(content)
 }
 
-func (m FileModel) viewFooter() string {
+func (m Model) Footer() string {
 	r := m.currentRow()
 	if r == nil {
 		return renderFullWidthBar(footerStyle, "No items", m.width)
@@ -603,7 +518,7 @@ func footerSummary(context, namespace string, r *Row) string {
 	return fmt.Sprintf("%s key=%s", base, r.Key)
 }
 
-func (m FileModel) viewRows(height int) string {
+func (m Model) ViewRows(height int) string {
 	rows := m.rowsByPane[m.activePane]
 	if len(rows) == 0 {
 		return strings.Repeat("\n", maxInt(0, height-1)) + "No items"
@@ -623,11 +538,6 @@ func (m FileModel) viewRows(height int) string {
 	return strings.Join(newRows, "\n")
 }
 
-func (m FileModel) navJumpStep() int {
-	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
-	return maxInt(1, rowsHeight/navJumpDivisor)
-}
-
 func rowWindowStart(rowsLen, height, cursor int) int {
 	if rowsLen <= 0 || height <= 0 {
 		return 0
@@ -641,7 +551,7 @@ func rowWindowStart(rowsLen, height, cursor int) int {
 	return clamp(start, 0, maxStart)
 }
 
-func (m FileModel) renderRow(r Row, fileed bool) string {
+func (m Model) renderRow(r Row, fileed bool) string {
 	state := rowRenderState{Focused: fileed, Selected: m.selected[m.activePane][r.Key]}
 	rowContent := rowContent(r, state)
 	content := withSelectionMarkerOnRow(rowContent, rowSelectionMarker(state))
@@ -669,7 +579,7 @@ func rowContent(r Row, state rowRenderState) string {
 	return rowContent
 }
 
-func (m FileModel) styleRowContent(content string, state rowRenderState) string {
+func (m Model) styleRowContent(content string, state rowRenderState) string {
 	if !state.Focused && !state.Selected {
 		return content
 	}
@@ -716,7 +626,7 @@ func consumeLeadingEmoji(s string) (string, string, bool) {
 	return string(r), rest, true
 }
 
-func (m FileModel) currentRow() *Row {
+func (m Model) currentRow() *Row {
 	rows := m.rowsByPane[m.activePane]
 	if len(rows) == 0 {
 		return nil
@@ -725,7 +635,7 @@ func (m FileModel) currentRow() *Row {
 	return &rows[idx]
 }
 
-func (m *FileModel) clearActiveSelection() bool {
+func (m *Model) clearActiveSelection() bool {
 	if len(m.selected[m.activePane]) == 0 {
 		return false
 	}
@@ -733,7 +643,7 @@ func (m *FileModel) clearActiveSelection() bool {
 	return true
 }
 
-func (m FileModel) paneAvailable(pane int) bool {
+func (m Model) paneAvailable(pane int) bool {
 	if pane < 0 || pane >= len(m.rowsByPane) {
 		return false
 	}
@@ -747,7 +657,7 @@ func (m FileModel) paneAvailable(pane int) bool {
 	return false
 }
 
-func (m FileModel) nextAvailablePane(direction int) int {
+func (m Model) nextAvailablePane(direction int) int {
 	if direction == 0 {
 		direction = 1
 	}
@@ -764,7 +674,7 @@ func (m FileModel) nextAvailablePane(direction int) int {
 	return 0
 }
 
-func (m *FileModel) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if key != "up" && key != "k" && key != "down" && key != "j" {
 		m.lastNavDir = 0
@@ -811,7 +721,7 @@ func (m *FileModel) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.lastNavDir == -1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
-				step = m.navJumpStep()
+				//step = m.navJumpStep()
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
@@ -831,7 +741,7 @@ func (m *FileModel) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.lastNavDir == 1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
-				step = m.navJumpStep()
+				//step = m.navJumpStep()
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
@@ -862,15 +772,93 @@ func (m *FileModel) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); r != nil {
-			m.file = openYAML(*r, m.resources[r.Key])
+			m.file = viewYaml(*r, m.resources[r.Key])
 		}
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
 	case "?":
-		m.file = openHelp()
+		m.file = viewHelp()
 	}
 	return *m, nil
+}
+
+// helpers
+
+func fit(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	return truncate(s, width)
+}
+
+func hasArg(args []string, needle string) bool {
+	for _, arg := range args {
+		if arg == needle {
+			return true
+		}
+	}
+	return false
+}
+func truncate(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= width {
+		return s
+	}
+	if width == 1 {
+		return string(r[:1])
+	}
+	if width <= 3 {
+		return string(r[:width])
+	}
+	return string(r[:width-3]) + "..."
+}
+
+func pad(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) >= width {
+		return string(r[:width])
+	}
+	return s + strings.Repeat(" ", width-len(r))
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func clamp(v, minV, maxV int) int {
+	if v < minV {
+		return minV
+	}
+	if v > maxV {
+		return maxV
+	}
+	return v
+}
+
+func containsInt(values []int, needle int) bool {
+	for _, v := range values {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func formatSelectionOutput(keys []string, outputJSON bool) (string, error) {
@@ -943,7 +931,7 @@ func singleRows(rows []Row) []Row {
 	return out
 }
 
-func openYAML(r Row, resource *kube.Resource) *ViewFile {
+func viewYaml(r Row, resource *kube.Resource) *View {
 	var content any
 	if resource != nil && resource.Resource != nil {
 		content = resource.Resource
@@ -962,10 +950,10 @@ func openYAML(r Row, resource *kube.Resource) *ViewFile {
 	}
 	raw := strings.TrimRight(string(b), "\n")
 	lines := strings.Split(raw, "\n")
-	return &ViewFile{Kind: FileYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Lines: lines, Raw: raw}
+	return &View{Kind: FileYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Lines: lines, Raw: raw}
 }
 
-func openHelp() *ViewFile {
+func viewHelp() *View {
 	lines := []string{
 		"Rows",
 		"  Up/Down or j/k  move Row",
@@ -995,10 +983,10 @@ func openHelp() *ViewFile {
 		"  Esc / Ctrl+C     quit application",
 	}
 	raw := strings.Join(lines, "\n")
-	return &ViewFile{Kind: FileHelp, Title: "Keybindings", Lines: lines, Raw: raw}
+	return &View{Kind: FileHelp, Title: "Keybindings", Lines: lines, Raw: raw}
 }
 
-func (m FileModel) keysForOutput() []string {
+func (m Model) keysForOutput() []string {
 	keysSet := map[string]bool{}
 	for pane := range m.selected {
 		for key := range m.selected[pane] {
@@ -1018,7 +1006,7 @@ func (m FileModel) keysForOutput() []string {
 	return keys
 }
 
-func (m *FileModel) applySearch() {
+func (m *Model) applySearch() {
 	if m.file == nil || m.file.Kind != FileYAML {
 		return
 	}
@@ -1047,22 +1035,7 @@ func (m *FileModel) applySearch() {
 	m.file.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
 }
 
-func (m *FileModel) jumpMatch(direction int) {
-	if m.file == nil || len(m.file.MatchLines) == 0 {
-		if m.file != nil {
-			m.file.ActionStatus = "no matches"
-		}
-		return
-	}
-	count := len(m.file.MatchLines)
-	idx := (m.file.ActiveMatch + direction + count) % count
-	m.file.ActiveMatch = idx
-	m.file.Scroll = m.file.MatchLines[idx]
-	m.ensureActiveMatchVisible()
-	m.file.ActionStatus = ""
-}
-
-func (m *FileModel) ensureActiveMatchVisible() {
+func (m *Model) ensureActiveMatchVisible() {
 	if m.file == nil || len(m.file.MatchLines) == 0 {
 		return
 	}
@@ -1099,7 +1072,7 @@ func (m *FileModel) ensureActiveMatchVisible() {
 	m.file.ColScroll = clamp(m.file.ColScroll, 0, m.fileMaxColScroll())
 }
 
-func (m *FileModel) fileMaxColScroll() int {
+func (m *Model) fileMaxColScroll() int {
 	if m.file == nil || len(m.file.Lines) == 0 {
 		return 0
 	}
@@ -1114,7 +1087,7 @@ func (m *FileModel) fileMaxColScroll() int {
 	return maxInt(0, longest-contentWidth)
 }
 
-func (m *FileModel) fileContentWidth() int {
+func (m *Model) fileContentWidth() int {
 	if m.file == nil {
 		return 1
 	}
@@ -1242,7 +1215,7 @@ func matchColumn(line, query string) int {
 	return -1
 }
 
-func (m *ViewFile) activeMatchLine() int {
+func (m *View) activeMatchLine() int {
 	if m == nil || len(m.MatchLines) == 0 {
 		return -1
 	}
