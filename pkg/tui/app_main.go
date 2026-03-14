@@ -120,6 +120,7 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastNavDir = 0
 		m.navRepeat = 0
 		m.navLastAt = time.Time{}
+		m.navAnchorDir = 0
 	}
 
 	switch msg.String() {
@@ -158,11 +159,13 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			now = m.now()
 		}
 		step := 1
+		jumpDetected := false
 		if m.lastNavDir == -1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
 				step = navJumpRows
 				m.navRepeat = 0
+				jumpDetected = true
 			} else {
 				m.navRepeat = 1
 			}
@@ -171,6 +174,11 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.lastNavDir = -1
 		m.navLastAt = now
+		if jumpDetected {
+			m.navAnchorDir = -1
+		} else {
+			m.navAnchorDir = 0
+		}
 		m.cursorByPane[m.activePane] = maxInt(0, m.cursorByPane[m.activePane]-step)
 	case "down", "j":
 		now := time.Now()
@@ -178,11 +186,13 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			now = m.now()
 		}
 		step := 1
+		jumpDetected := false
 		if m.lastNavDir == 1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
 				step = navJumpRows
 				m.navRepeat = 0
+				jumpDetected = true
 			} else {
 				m.navRepeat = 1
 			}
@@ -191,6 +201,11 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.lastNavDir = 1
 		m.navLastAt = now
+		if jumpDetected {
+			m.navAnchorDir = 1
+		} else {
+			m.navAnchorDir = 0
+		}
 		maxCursor := maxInt(0, len(m.rowsByPane[m.activePane])-1)
 		m.cursorByPane[m.activePane] = minInt(maxCursor, m.cursorByPane[m.activePane]+step)
 	case " ":
@@ -295,20 +310,38 @@ func (m model) viewRows(height int) string {
 	}
 
 	cursor := clamp(m.cursorByPane[m.activePane], 0, len(rows)-1)
-	start := maxInt(0, cursor-height/2)
+	start := rowWindowStart(len(rows), height, cursor, m.navAnchorDir)
 	end := minInt(len(rows), start+height)
-	if end-start < height {
-		start = maxInt(0, end-height)
-	}
 
-	lines := make([]string, 0, height)
+	newRows := make([]string, 0, height)
 	for i := start; i < end; i++ {
-		lines = append(lines, m.renderRow(rows[i], i == cursor))
+		newRows = append(newRows, m.renderRow(rows[i], i == cursor))
 	}
-	for len(lines) < height {
-		lines = append(lines, "")
+	for len(newRows) < height {
+		newRows = append(newRows, "")
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(newRows, "\n")
+}
+
+func rowWindowStart(rowsLen, height, cursor, anchorDir int) int {
+	if rowsLen <= 0 || height <= 0 {
+		return 0
+	}
+	maxStart := maxInt(0, rowsLen-height)
+
+	switch anchorDir {
+	case 1:
+		return clamp(cursor, 0, maxStart)
+	case -1:
+		return clamp(cursor-height+1, 0, maxStart)
+	default:
+		start := maxInt(0, cursor-height/2)
+		end := minInt(rowsLen, start+height)
+		if end-start < height {
+			start = maxInt(0, end-height)
+		}
+		return clamp(start, 0, maxStart)
+	}
 }
 
 func (m model) renderRow(r row, fileed bool) string {

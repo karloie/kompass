@@ -90,6 +90,7 @@ type model struct {
 	lastNavDir    int
 	navRepeat     int
 	navLastAt     time.Time
+	navAnchorDir  int
 	now           func() time.Time
 }
 

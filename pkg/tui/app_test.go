@@ -317,6 +317,54 @@ func TestHeldDownDoesNotTriggerJump(t *testing.T) {
 	}
 }
 
+func TestRowWindowStartAnchorsOnJumpDirection(t *testing.T) {
+	if got := rowWindowStart(30, 8, 11, 1); got != 11 {
+		t.Fatalf("expected down jump anchor to place cursor row at top start=11, got %d", got)
+	}
+	if got := rowWindowStart(30, 8, 11, -1); got != 4 {
+		t.Fatalf("expected up jump anchor to place cursor row at bottom start=4, got %d", got)
+	}
+}
+
+func TestNavJumpSetsAnchorDirection(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = make([]row, 30)
+	t0 := time.Unix(0, 0)
+	step := 0
+	m.now = func() time.Time {
+		if step == 0 {
+			step++
+			return t0
+		}
+		return t0.Add(150 * time.Millisecond)
+	}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m1 := updated.(model)
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m2 := updated.(model)
+	if m2.navAnchorDir != 1 {
+		t.Fatalf("expected down jump to set navAnchorDir=1, got %d", m2.navAnchorDir)
+	}
+
+	t1 := time.Unix(0, 0)
+	step2 := 0
+	m2.now = func() time.Time {
+		if step2 == 0 {
+			step2++
+			return t1
+		}
+		return t1.Add(150 * time.Millisecond)
+	}
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m3 := updated.(model)
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m4 := updated.(model)
+	if m4.navAnchorDir != -1 {
+		t.Fatalf("expected up jump to set navAnchorDir=-1, got %d", m4.navAnchorDir)
+	}
+}
+
 func TestOQuitsAndEnablesOutput(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []row{{Key: "pod/ns/api"}}
