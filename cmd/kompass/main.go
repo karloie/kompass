@@ -149,7 +149,7 @@ func main() {
 
 	switch resolveExecutionMode(*tuiArg, serviceArg.set) {
 	case modeTUIDashboard:
-		if err := tui.Run(tui.Options{Mode: tui.ModeServerDashboard, OutputJSON: *jsonArg, Plain: *plainArg}); err != nil {
+		if err := tui.Run(tui.Options{Mode: tui.ModeDashboard, OutputJSON: *jsonArg, Plain: *plainArg}); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
