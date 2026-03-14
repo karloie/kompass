@@ -12,17 +12,17 @@ import (
 
 func TestTabAndShiftTabSwitchPanes(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = []row{{Key: "selector/a"}}
-	m.rowsByPane[1] = []row{{Key: "single/a"}}
+	m.rowsByPane[0] = []Row{{Key: "selector/a"}}
+	m.rowsByPane[1] = []Row{{Key: "single/a"}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.activePane != 1 {
 		t.Fatalf("expected active pane 1 after Tab, got %d", m1.activePane)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.activePane != 0 {
 		t.Fatalf("expected active pane 0 after Shift+Tab, got %d", m2.activePane)
 	}
@@ -33,13 +33,13 @@ func TestTabSkipsSingleWhenEmpty(t *testing.T) {
 	m.activePane = 0
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.activePane != 0 {
 		t.Fatalf("expected Tab to stay on pane 0 when no single rows, got %d", m1.activePane)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.activePane != 0 {
 		t.Fatalf("expected Shift+Tab to stay on pane 0 when no single rows, got %d", m2.activePane)
 	}
@@ -48,23 +48,23 @@ func TestTabSkipsSingleWhenEmpty(t *testing.T) {
 func TestTabSkipsSelectorWhenEmpty(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = nil
-	m.rowsByPane[1] = []row{{Key: "single/a"}}
+	m.rowsByPane[1] = []Row{{Key: "single/a"}}
 	m.activePane = 0
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.activePane != 1 {
 		t.Fatalf("expected Tab to move to pane 1 when selector is empty, got %d", m1.activePane)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.activePane != 1 {
 		t.Fatalf("expected Shift+Tab to stay on pane 1 when selector is empty, got %d", m2.activePane)
 	}
 
 	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-	m3 := updated.(model)
+	m3 := updated.(FileModel)
 	if m3.activePane != 1 {
 		t.Fatalf("expected key 1 to fall back to pane 1 when selector is empty, got %d", m3.activePane)
 	}
@@ -74,7 +74,7 @@ func TestQuestionMarkOpensHelpFile(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file == nil {
 		t.Fatalf("expected help file to open")
 	}
@@ -84,9 +84,9 @@ func TestQuestionMarkOpensHelpFile(t *testing.T) {
 }
 
 func TestOpenYAMLFilePrefersResourceData(t *testing.T) {
-	r := row{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running", Metadata: map[string]any{"name": "foo"}}
+	r := Row{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running", Metadata: map[string]any{"name": "foo"}}
 	res := map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": "foo"}}
-	file := openYAMLFile(r, &kube.Resource{Resource: res})
+	file := openYAML(r, &kube.Resource{Resource: res})
 	if file == nil {
 		t.Fatalf("expected yaml file")
 	}
@@ -98,10 +98,10 @@ func TestOpenYAMLFilePrefersResourceData(t *testing.T) {
 
 func TestEscClosesFileBeforeQuit(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = openHelpFile()
+	m.file = openHelp()
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file != nil {
 		t.Fatalf("expected Esc to close file first")
 	}
@@ -117,10 +117,10 @@ func TestEscClosesFileBeforeQuit(t *testing.T) {
 
 func TestDoubleEnterReturnsToSelector(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = []row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if cmd != nil {
 		t.Fatalf("expected Enter to open file without quitting")
 	}
@@ -129,7 +129,7 @@ func TestDoubleEnterReturnsToSelector(t *testing.T) {
 	}
 
 	updated, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if cmd != nil {
 		t.Fatalf("expected second Enter to close file without quitting")
 	}
@@ -139,7 +139,7 @@ func TestDoubleEnterReturnsToSelector(t *testing.T) {
 }
 
 func TestFooterSummaryByColumn(t *testing.T) {
-	r := &row{
+	r := &Row{
 		Key:    "pod/ns/foo",
 		Type:   "pod",
 		Name:   "foo",
@@ -151,13 +151,30 @@ func TestFooterSummaryByColumn(t *testing.T) {
 		},
 	}
 
+	row := withSelectionMarkerOnRow("└─ service child", "[ ]")
+	if !strings.Contains(row, "└─ [ ] service child") {
+		t.Fatalf("expected marker inserted after branch prefix, got %q", row)
+	}
 	if got := footerSummary("ctx", "ns", r); !strings.Contains(got, "key=pod/ns/foo") {
 		t.Fatalf("expected footer summary to include key, got %q", got)
 	}
 }
 
+func TestWithSelectionMarkerOnRowEmbedsEmojiWhenUnchecked(t *testing.T) {
+	line := withSelectionMarkerOnRow("└─ 💬 secret value", "[ ]")
+	if !strings.Contains(line, "└─ [💬] secret value") {
+		t.Fatalf("expected unchecked marker to embed emoji, got %q", line)
+	}
+}
+
+func TestWithSelectionMarkerOnRowKeepsEmojiOutsideWhenChecked(t *testing.T) {
+	line := withSelectionMarkerOnRow("└─ 💬 secret value", "[x]")
+	if !strings.Contains(line, "└─ [x] 💬 secret value") {
+		t.Fatalf("expected checked marker to keep emoji outside marker, got %q", line)
+	}
+}
 func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
-	r := row{Key: "k", Type: "pod", Name: "foo"}
+	r := Row{Key: "k", Type: "pod", Name: "foo"}
 	resource := &kube.Resource{Resource: map[string]any{
 		"kind": "Pod",
 		"metadata": map[string]any{
@@ -165,12 +182,12 @@ func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
 		},
 	}}
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = openYAMLFile(r, resource)
+	m.file = openYAML(r, resource)
 	m.file.SearchMode = true
 	m.file.SearchQuery = "name"
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file.SearchMode {
 		t.Fatalf("expected search mode to close after Enter")
 	}
@@ -180,7 +197,7 @@ func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
 
 	before := m1.file.ActiveMatch
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if len(m2.file.MatchLines) > 1 && m2.file.ActiveMatch == before {
 		t.Fatalf("expected n to change active match when multiple matches exist")
 	}
@@ -188,11 +205,11 @@ func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
 
 func TestEscInSearchModeClosesSearchNotFile(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = openHelpFile()
+	m.file = openHelp()
 	m.file.SearchMode = true
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file == nil {
 		t.Fatalf("expected file to remain open when Esc closes search mode")
 	}
@@ -203,18 +220,19 @@ func TestEscInSearchModeClosesSearchNotFile(t *testing.T) {
 
 func TestCtrlASelectsAllRowsInActivePane(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = []row{{Key: "a"}, {Key: "b"}, {Key: "c"}}
+	m.rowsByPane[0] = []Row{{Key: "a"}, {Key: "b"}, {Key: "c"}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if len(m1.selected[0]) != 3 {
 		t.Fatalf("expected 3 selected rows after Ctrl+A, got %d", len(m1.selected[0]))
 	}
 }
 
-func TestDoubleDownJumpsFiveRows(t *testing.T) {
+func TestDoubleDownJumpsHalfBodyRows(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]row, 30)
+	m.rowsByPane[0] = make([]Row, 30)
+	m.height = 30
 	t0 := time.Unix(0, 0)
 	step := 0
 	m.now = func() time.Time {
@@ -226,21 +244,22 @@ func TestDoubleDownJumpsFiveRows(t *testing.T) {
 	}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.cursorByPane[0] != 1 {
 		t.Fatalf("expected first down to move 1 row, got %d", m1.cursorByPane[0])
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m2 := updated.(model)
-	if m2.cursorByPane[0] != 6 {
-		t.Fatalf("expected second down to jump to row 6, got %d", m2.cursorByPane[0])
+	m2 := updated.(FileModel)
+	if m2.cursorByPane[0] != 15 {
+		t.Fatalf("expected second down to jump to row 15, got %d", m2.cursorByPane[0])
 	}
 }
 
-func TestDoubleUpJumpsFiveRows(t *testing.T) {
+func TestDoubleUpJumpsHalfBodyRows(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]row, 30)
+	m.rowsByPane[0] = make([]Row, 30)
+	m.height = 30
 	m.cursorByPane[0] = 20
 	t0 := time.Unix(0, 0)
 	step := 0
@@ -253,21 +272,21 @@ func TestDoubleUpJumpsFiveRows(t *testing.T) {
 	}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.cursorByPane[0] != 19 {
 		t.Fatalf("expected first up to move 1 row, got %d", m1.cursorByPane[0])
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m2 := updated.(model)
-	if m2.cursorByPane[0] != 14 {
-		t.Fatalf("expected second up to jump to row 14, got %d", m2.cursorByPane[0])
+	m2 := updated.(FileModel)
+	if m2.cursorByPane[0] != 5 {
+		t.Fatalf("expected second up to jump to row 5, got %d", m2.cursorByPane[0])
 	}
 }
 
 func TestNavJumpResetsAfterOtherKey(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]row, 30)
+	m.rowsByPane[0] = make([]Row, 30)
 	t0 := time.Unix(0, 0)
 	step := 0
 	m.now = func() time.Time {
@@ -279,13 +298,13 @@ func TestNavJumpResetsAfterOtherKey(t *testing.T) {
 	}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 
 	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m3 := updated.(model)
+	m3 := updated.(FileModel)
 	if m3.cursorByPane[0] != 2 {
 		t.Fatalf("expected down after other key to move 1 row, got %d", m3.cursorByPane[0])
 	}
@@ -293,7 +312,7 @@ func TestNavJumpResetsAfterOtherKey(t *testing.T) {
 
 func TestHeldDownDoesNotTriggerJump(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]row, 30)
+	m.rowsByPane[0] = make([]Row, 30)
 	t0 := time.Unix(0, 0)
 	step := 0
 	m.now = func() time.Time {
@@ -305,72 +324,30 @@ func TestHeldDownDoesNotTriggerJump(t *testing.T) {
 	}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.cursorByPane[0] != 1 {
 		t.Fatalf("expected first down to move 1 row, got %d", m1.cursorByPane[0])
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.cursorByPane[0] != 2 {
 		t.Fatalf("expected held down repeat to move 1 row, got %d", m2.cursorByPane[0])
 	}
 }
 
-func TestRowWindowStartAnchorsOnJumpDirection(t *testing.T) {
-	if got := rowWindowStart(30, 8, 11, 1); got != 11 {
-		t.Fatalf("expected down jump anchor to place cursor row at top start=11, got %d", got)
-	}
-	if got := rowWindowStart(30, 8, 11, -1); got != 4 {
-		t.Fatalf("expected up jump anchor to place cursor row at bottom start=4, got %d", got)
-	}
-}
-
-func TestNavJumpSetsAnchorDirection(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]row, 30)
-	t0 := time.Unix(0, 0)
-	step := 0
-	m.now = func() time.Time {
-		if step == 0 {
-			step++
-			return t0
-		}
-		return t0.Add(150 * time.Millisecond)
-	}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(model)
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m2 := updated.(model)
-	if m2.navAnchorDir != 1 {
-		t.Fatalf("expected down jump to set navAnchorDir=1, got %d", m2.navAnchorDir)
-	}
-
-	t1 := time.Unix(0, 0)
-	step2 := 0
-	m2.now = func() time.Time {
-		if step2 == 0 {
-			step2++
-			return t1
-		}
-		return t1.Add(150 * time.Millisecond)
-	}
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m3 := updated.(model)
-	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m4 := updated.(model)
-	if m4.navAnchorDir != -1 {
-		t.Fatalf("expected up jump to set navAnchorDir=-1, got %d", m4.navAnchorDir)
+func TestRowWindowStartCentersAroundCursor(t *testing.T) {
+	if got := rowWindowStart(30, 8, 11); got != 7 {
+		t.Fatalf("expected centered row window start=7, got %d", got)
 	}
 }
 
 func TestOQuitsAndEnablesOutput(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = []row{{Key: "pod/ns/api"}}
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/api"}}
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if cmd == nil {
 		t.Fatalf("expected o to quit")
 	}
@@ -386,7 +363,7 @@ func TestOQuitsAndEnablesOutput(t *testing.T) {
 func TestRenderRowFileedLongNameStaysSingleLine(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 24
-	r := row{Key: "k", Name: "deployment/applikasjonsplattform/ad-explore-webservice-config"}
+	r := Row{Key: "k", Name: "deployment/applikasjonsplattform/ad-explore-webservice-config"}
 
 	row := m.renderRow(r, true)
 	if strings.Contains(row, "\n") {
@@ -400,7 +377,7 @@ func TestRenderRowFileedLongNameStaysSingleLine(t *testing.T) {
 func TestRenderRowSelectedUsesPlainText(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 40
-	r := row{Key: "k", Text: "└─ colored-row", PlainText: "└─ plain-row"}
+	r := Row{Key: "k", Text: "└─ colored-row", PlainText: "└─ plain-row"}
 	m.selected[0][r.Key] = true
 
 	row := m.renderRow(r, false)
@@ -415,7 +392,7 @@ func TestRenderRowSelectedUsesPlainText(t *testing.T) {
 func TestRenderRowSelectedFillsFullWidth(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 32
-	r := row{Key: "k", PlainText: "└─ pod short"}
+	r := Row{Key: "k", PlainText: "└─ pod short"}
 	m.selected[0][r.Key] = true
 
 	row := m.renderRow(r, false)
@@ -437,7 +414,7 @@ func TestViewHeaderFillsViewportWidth(t *testing.T) {
 func TestViewFooterFillsViewportWidth(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 64
-	m.rowsByPane[0] = []row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
 
 	footer := m.viewFooter()
 	if got := lipgloss.Width(footer); got != m.width {
@@ -489,11 +466,11 @@ func TestFlattenTreesUsesASCIITreeLines(t *testing.T) {
 
 func TestEscClearsSelectionBeforeQuit(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = []row{{Key: "a"}}
+	m.rowsByPane[0] = []Row{{Key: "a"}}
 	m.selected[0]["a"] = true
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if cmd != nil {
 		t.Fatalf("expected no quit command when Esc clears selection")
 	}
@@ -508,7 +485,7 @@ func TestEscClearsSelectionBeforeQuit(t *testing.T) {
 }
 
 func TestViewerFileActiveMatchLine(t *testing.T) {
-	file := &viewerFile{MatchLines: []int{3, 7, 11}, ActiveMatch: 1}
+	file := &ViewFile{MatchLines: []int{3, 7, 11}, ActiveMatch: 1}
 	if got := file.activeMatchLine(); got != 7 {
 		t.Fatalf("expected active match row 7, got %d", got)
 	}
@@ -553,16 +530,16 @@ func TestHighlightSearchTerm(t *testing.T) {
 func TestFileHomeEndNavigation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 20
-	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
+	m.file = &ViewFile{Kind: FileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file.ColScroll != 0 {
 		t.Fatalf("expected Home to jump to row start, got %d", m1.file.ColScroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyEnd})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.file.ColScroll == 0 {
 		t.Fatalf("expected End to jump to row end, got %d", m2.file.ColScroll)
 	}
@@ -570,16 +547,16 @@ func TestFileHomeEndNavigation(t *testing.T) {
 
 func TestFileGAndGNavigation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a", "b", "c", "d"}, Scroll: 2}
+	m.file = &ViewFile{Kind: FileYAML, Lines: []string{"a", "b", "c", "d"}, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file.Scroll != 0 {
 		t.Fatalf("expected g to jump to top, got %d", m1.file.Scroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.file.Scroll != 3 {
 		t.Fatalf("expected G to jump to bottom, got %d", m2.file.Scroll)
 	}
@@ -637,22 +614,22 @@ func TestResolveEditorCommandForUnknownKeepsArgs(t *testing.T) {
 
 func TestFileHorizontalPanning(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz"}}
+	m.file = &ViewFile{Kind: FileYAML, Lines: []string{"abcdefghijklmnopqrstuvwxyz"}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file.ColScroll != 4 {
 		t.Fatalf("expected right to increase col scroll to 4, got %d", m1.file.ColScroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	m2 := updated.(model)
+	m2 := updated.(FileModel)
 	if m2.file.ColScroll != 0 {
 		t.Fatalf("expected left to decrease col scroll to 0, got %d", m2.file.ColScroll)
 	}
 
 	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	m3 := updated.(model)
+	m3 := updated.(FileModel)
 	if m3.file.ColScroll != 0 {
 		t.Fatalf("expected left at boundary to stay at 0, got %d", m3.file.ColScroll)
 	}
@@ -673,14 +650,14 @@ func TestVisibleSegment(t *testing.T) {
 func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 18
-	m.file = &viewerFile{
-		Kind:        fileYAML,
+	m.file = &ViewFile{
+		Kind:        FileYAML,
 		Lines:       []string{"abcdefghijTARGETxyz"},
 		SearchQuery: "target",
 		ColScroll:   0,
 	}
 
-	m.applyFileSearch()
+	m.applySearch()
 	if len(m.file.MatchLines) != 1 {
 		t.Fatalf("expected one match row, got %d", len(m.file.MatchLines))
 	}
@@ -692,8 +669,8 @@ func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
 func TestJumpFileMatchKeepsNextMatchVisible(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 20
-	m.file = &viewerFile{
-		Kind:        fileYAML,
+	m.file = &ViewFile{
+		Kind:        FileYAML,
 		Lines:       []string{"TARGET", "abcdefghijklmnopTARGET"},
 		SearchQuery: "target",
 		MatchLines:  []int{0, 1},
@@ -701,7 +678,7 @@ func TestJumpFileMatchKeepsNextMatchVisible(t *testing.T) {
 		ColScroll:   0,
 	}
 
-	m.jumpFileMatch(1)
+	m.jumpMatch(1)
 	if m.file.ActiveMatch != 1 {
 		t.Fatalf("expected active match to move to second row, got %d", m.file.ActiveMatch)
 	}
@@ -721,10 +698,10 @@ func TestMatchColumn(t *testing.T) {
 
 func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a"}, SearchQuery: "name"}
+	m.file = &ViewFile{Kind: FileYAML, Lines: []string{"a"}, SearchQuery: "name"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if !m1.file.SearchMode {
 		t.Fatalf("expected slash to enter search mode")
 	}
@@ -735,10 +712,10 @@ func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
 
 func TestCtrlUClearsSearchQuery(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.file = &viewerFile{Kind: fileYAML, Lines: []string{"a"}, SearchMode: true, SearchQuery: "status"}
+	m.file = &ViewFile{Kind: FileYAML, Lines: []string{"a"}, SearchMode: true, SearchQuery: "status"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
-	m1 := updated.(model)
+	m1 := updated.(FileModel)
 	if m1.file.SearchQuery != "" {
 		t.Fatalf("expected Ctrl+U to clear search query, got %q", m1.file.SearchQuery)
 	}

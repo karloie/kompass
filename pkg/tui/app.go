@@ -10,12 +10,12 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-type Mode int
-
 const (
 	ModeSelector Mode = iota
 	ModeDashboard
 )
+
+type Mode int
 
 type Options struct {
 	Mode       Mode
@@ -26,7 +26,7 @@ type Options struct {
 	Plain      bool
 }
 
-type row struct {
+type Row struct {
 	Key       string
 	Type      string
 	Name      string
@@ -37,67 +37,19 @@ type row struct {
 	Depth     int
 }
 
-type fileKind string
-
-const (
-	fileYAML fileKind = "yaml"
-	fileHelp fileKind = "help"
-)
-
-type viewerFile struct {
-	Kind      fileKind
-	Title     string
-	Lines     []string
-	Raw       string
-	Scroll    int
-	ColScroll int
-
-	SearchMode   bool
-	SearchQuery  string
-	MatchLines   []int
-	ActiveMatch  int
-	ActionStatus string
-}
-
 type editorDoneMsg struct {
 	err error
 }
 
 type rowRenderState struct {
-	focused  bool
-	selected bool
-}
-
-type model struct {
-	mode      Mode
-	context   string
-	namespace string
-
-	width  int
-	height int
-
-	activePane   int
-	activeColumn int
-
-	rowsByPane   [2][]row
-	cursorByPane [2]int
-	selected     [2]map[string]bool
-	resources    map[string]*kube.Resource
-
-	footerHeight  int
-	file          *viewerFile
-	emitSelection bool
-	lastNavDir    int
-	navRepeat     int
-	navLastAt     time.Time
-	navAnchorDir  int
-	now           func() time.Time
+	Focused  bool
+	Selected bool
 }
 
 const (
 	navDoubleTapMin = 120 * time.Millisecond
 	navDoubleTapMax = 240 * time.Millisecond
-	navJumpRows     = 5
+	navJumpDivisor  = 2
 )
 
 var (
@@ -117,10 +69,6 @@ var (
 	unselectedMarker  = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("[ ]")
 )
 
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
 func hasArg(args []string, needle string) bool {
 	for _, arg := range args {
 		if arg == needle {
@@ -130,8 +78,8 @@ func hasArg(args []string, needle string) bool {
 	return false
 }
 
-func newRun(opts Options) model {
-	m := model{
+func newRun(opts Options) FileModel {
+	m := FileModel{
 		mode:         opts.Mode,
 		context:      opts.Context,
 		namespace:    opts.Namespace,
@@ -152,7 +100,7 @@ func newRun(opts Options) model {
 	}
 
 	if opts.Mode == ModeDashboard {
-		m.rowsByPane[0] = []row{
+		m.rowsByPane[0] = []Row{
 			{Key: "todo/1", Type: "todo", Name: "Review recent requests", Status: "new", Metadata: map[string]any{"owner": "you"}},
 			{Key: "todo/2", Type: "todo", Name: "Investigate cache misses", Status: "in-progress", Metadata: map[string]any{"area": "cache"}},
 			{Key: "todo/3", Type: "todo", Name: "Verify release artifacts", Status: "new", Metadata: map[string]any{"priority": "high"}},
@@ -172,7 +120,7 @@ func Run(opts Options) error {
 	if opts.Mode != ModeSelector {
 		return nil
 	}
-	fm, ok := finalModel.(model)
+	fm, ok := finalModel.(FileModel)
 	if !ok || !fm.emitSelection {
 		return nil
 	}
@@ -186,7 +134,7 @@ func Run(opts Options) error {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m FileModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -271,4 +219,13 @@ func clamp(v, minV, maxV int) int {
 		return maxV
 	}
 	return v
+}
+
+func containsInt(values []int, needle int) bool {
+	for _, v := range values {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
