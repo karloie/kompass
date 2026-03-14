@@ -94,8 +94,9 @@ type model struct {
 }
 
 const (
-	navDoubleTapMin = 80 * time.Millisecond
-	navDoubleTapMax = 320 * time.Millisecond
+	navDoubleTapMin = 120 * time.Millisecond
+	navDoubleTapMax = 240 * time.Millisecond
+	navJumpRows     = 5
 )
 
 var (

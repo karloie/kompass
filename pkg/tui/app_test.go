@@ -212,7 +212,7 @@ func TestCtrlASelectsAllRowsInActivePane(t *testing.T) {
 	}
 }
 
-func TestDoubleDownJumpsTenRows(t *testing.T) {
+func TestDoubleDownJumpsFiveRows(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = make([]row, 30)
 	t0 := time.Unix(0, 0)
@@ -233,12 +233,12 @@ func TestDoubleDownJumpsTenRows(t *testing.T) {
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m2 := updated.(model)
-	if m2.cursorByPane[0] != 11 {
-		t.Fatalf("expected second down to jump to row 11, got %d", m2.cursorByPane[0])
+	if m2.cursorByPane[0] != 6 {
+		t.Fatalf("expected second down to jump to row 6, got %d", m2.cursorByPane[0])
 	}
 }
 
-func TestDoubleUpJumpsTenRows(t *testing.T) {
+func TestDoubleUpJumpsFiveRows(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = make([]row, 30)
 	m.cursorByPane[0] = 20
@@ -260,8 +260,8 @@ func TestDoubleUpJumpsTenRows(t *testing.T) {
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyUp})
 	m2 := updated.(model)
-	if m2.cursorByPane[0] != 9 {
-		t.Fatalf("expected second up to jump to row 9, got %d", m2.cursorByPane[0])
+	if m2.cursorByPane[0] != 14 {
+		t.Fatalf("expected second up to jump to row 14, got %d", m2.cursorByPane[0])
 	}
 }
 

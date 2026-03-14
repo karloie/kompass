@@ -161,7 +161,7 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.lastNavDir == -1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
-				step = 10
+				step = navJumpRows
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
@@ -181,7 +181,7 @@ func (m *model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.lastNavDir == 1 && m.navRepeat == 1 {
 			delta := now.Sub(m.navLastAt)
 			if delta >= navDoubleTapMin && delta <= navDoubleTapMax {
-				step = 10
+				step = navJumpRows
 				m.navRepeat = 0
 			} else {
 				m.navRepeat = 1
