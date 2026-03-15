@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -62,7 +62,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
 	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
-	mux.HandleFunc("/api/stats", srv.handleStats)
+	mux.HandleFunc("/api/metadata", srv.handleMetadata)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
@@ -107,7 +107,7 @@ func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 	}
 }
 
-func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	if s.client == nil {
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
@@ -141,6 +141,7 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Vary", "Accept")
 	accept := r.Header.Get("Accept")
 	switch {
 	case strings.Contains(accept, "text/plain"):
@@ -213,7 +214,8 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
-	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors)))
+	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
+	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, !staticMode)))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {

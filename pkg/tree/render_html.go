@@ -22,16 +22,17 @@ var treeHTMLScriptSource string
 var treeHTMLTemplate = template.Must(template.New("tree-html").Parse(treeHTMLTemplateSource))
 
 type treeHTMLView struct {
-	Context    string
-	Namespace  string
-	Namespaces []string
-	Header     string
-	TreeHTML   template.HTML
-	Script     template.JS
+	Context             string
+	Namespace           string
+	Namespaces          []string
+	ShowNamespaceSelect bool
+	Header              string
+	TreeHTML            template.HTML
+	Script              template.JS
 }
 
 // RenderHTML renders all trees as a self-contained HTML document.
-func RenderHTML(result *kube.Response, context_, namespace, configPath string, selectors []string) string {
+func RenderHTML(result *kube.Response, context_, namespace, configPath string, selectors []string, showNamespaceSelect bool) string {
 	if result == nil {
 		result = &kube.Response{}
 	}
@@ -44,15 +45,19 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 	treeHTML.WriteString(`</ul>`)
 
 	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace, selectors, configPath)
-	namespaces := collectTreeNamespaces(result, namespace)
+	namespaces := []string{}
+	if showNamespaceSelect {
+		namespaces = collectTreeNamespaces(result, namespace)
+	}
 	var out bytes.Buffer
 	view := treeHTMLView{
-		Context:    context_,
-		Namespace:  namespace,
-		Namespaces: namespaces,
-		Header:     header,
-		TreeHTML:   template.HTML(treeHTML.String()),
-		Script:     template.JS(treeHTMLScriptSource),
+		Context:             context_,
+		Namespace:           namespace,
+		Namespaces:          namespaces,
+		ShowNamespaceSelect: showNamespaceSelect,
+		Header:              header,
+		TreeHTML:            template.HTML(treeHTML.String()),
+		Script:              template.JS(treeHTMLScriptSource),
 	}
 	if err := treeHTMLTemplate.Execute(&out, view); err != nil {
 		return "<html><body><p>failed to render tree html</p></body></html>"

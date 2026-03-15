@@ -30,12 +30,14 @@ select{cursor:pointer}
 </head>
 <body>
 <p>{{.Header}}</p>
+{{if .ShowNamespaceSelect}}
 <label for="namespace-select">Namespace</label>
 <select id="namespace-select" aria-label="Namespace">
 {{range .Namespaces}}
 	<option value="{{.}}" {{if eq . $.Namespace}}selected{{end}}>{{.}}</option>
 {{end}}
 </select>
+{{end}}
 <label for="tree-filter">Filter tree (text, * wildcard, ? single-char, ! exclude)</label>
 <input id="tree-filter" type="text" placeholder="Examples: kafka* pod/?/api !crash" autocomplete="off" />
 {{.TreeHTML}}

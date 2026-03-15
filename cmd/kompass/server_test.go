@@ -34,28 +34,28 @@ func TestHandleHealthReadyWithMockClient(t *testing.T) {
 	}
 }
 
-func TestHandleStatsNoClient(t *testing.T) {
+func TestHandleMetadataNoClient(t *testing.T) {
 	s := &server{}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metadata", nil)
 
-	s.handleStats(rr, req)
+	s.handleMetadata(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status 503, got %d", rr.Code)
 	}
 }
 
-func TestHandleStatsWithClient(t *testing.T) {
+func TestHandleMetadataWithClient(t *testing.T) {
 	s := &server{client: kube.NewMockClient(mock.GenerateMock())}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metadata", nil)
 
-	s.handleStats(rr, req)
+	s.handleMetadata(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
 	if !strings.Contains(rr.Body.String(), "cacheEnabled") {
-		t.Fatalf("expected stats JSON body, got %q", rr.Body.String())
+		t.Fatalf("expected metadata JSON body, got %q", rr.Body.String())
 	}
 }
 
@@ -224,6 +224,49 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "🫛") {
 		t.Fatalf("expected rich /tree/text output to keep emojis, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop", nil)
+	req.Header.Set("Accept", "text/html")
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "id=\"namespace-select\"") {
+		t.Fatalf("expected default HTML tree to include namespace selector")
+	}
+}
+
+func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop&static=1", nil)
+	req.Header.Set("Accept", "text/html")
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if strings.Contains(body, "id=\"namespace-select\"") {
+		t.Fatalf("expected static HTML tree to hide namespace selector")
+	}
+	if !strings.Contains(body, "id=\"tree-filter\"") {
+		t.Fatalf("expected static HTML tree to keep filter input")
 	}
 }
 

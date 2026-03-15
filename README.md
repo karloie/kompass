@@ -164,10 +164,10 @@ The Docker image is intended to be deployed inside a Kubernetes cluster as a ser
 
 ```bash
 # Run API server
-docker run -p 8080:8080 karloie/kompass:latest --service
+docker run -p 8080:8080 karloie/kompass:latest --service 0.0.0.0:8080
 
 # With mock data
-docker run -p 8080:8080 karloie/kompass:latest --service --mock
+docker run -p 8080:8080 karloie/kompass:latest --service 0.0.0.0:8080 --mock
 ```
 
 > **Note:** Direct cluster access from containers may fail with OIDC or exec-based authentication plugins (AWS, GKE, Azure). Use binary installation for CLI usage.
@@ -240,34 +240,38 @@ Endpoints accept query parameters:
 | `namespace` | Target namespace |
 | `mock` | Use mock data when set to `mock` |
 | `q` | HTML tree filter query (`Accept: text/html`) |
+| `static` | Hide namespace selector in HTML output (`Accept: text/html`) |
 
 ### API Examples
 
 ```bash
 # JSON graph
-curl "http://localhost:8080/api/graph?selector=deployment/myapp/frontend&namespace=default"
+curl "http://my.service.net/api/graph?selector=deployment/myapp/frontend&namespace=default"
 
 # JSON graph in mock mode
-curl "http://localhost:8080/api/graph?mock=mock&selector=*/petshop/*"
+curl "http://my.service.net/api/graph?mock=mock&selector=*/petshop/*"
 
 # JSON tree
-curl -H "Accept: application/json" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+curl -H "Accept: application/json" "http://my.service.net/api/tree?namespace=production&selector=pod/production/myapp"
 
 # ASCII tree
-curl -H "Accept: text/plain" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+curl -H "Accept: text/plain" "http://my.service.net/api/tree?namespace=production&selector=pod/production/myapp"
 
 # HTML tree
-curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production"
+curl -H "Accept: text/html" "http://my.service.net/api/tree?namespace=production"
 
 # HTML tree with prefilled filter query
-curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production&q=kafka*"
+curl -H "Accept: text/html" "http://my.service.net/api/tree?namespace=production&q=kafka*"
+
+# Static/embed HTML tree (no namespace switcher)
+curl -H "Accept: text/html" "http://my.service.net/api/tree?namespace=production&static=1"
 
 # Cache metadata
-curl "http://localhost:8080/api/stats"
+curl "http://my.service.net/api/metadata"
 
 # Health check
-curl "http://localhost:8080/api/healthz"  # Liveness
-curl "http://localhost:8080/api/readyz"   # Readiness
+curl "http://my.service.net/api/healthz"  # Liveness
+curl "http://my.service.net/api/readyz"   # Readiness
 ```
 
 ## Development
