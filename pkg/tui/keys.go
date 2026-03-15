@@ -213,31 +213,31 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, tea.Quit
 	}
 
-	if m.confirmQuit {
+	if m.submode == SubmodeConfirmQuit {
 		switch msg.String() {
 		case "enter", "y":
 			return *m, tea.Quit
 		case "esc", "n":
-			m.confirmQuit = false
+			m.submode = SubmodeNone
 			return *m, nil
 		default:
 			return *m, nil
 		}
 	}
 
-	if m.contextList.Open {
+	if m.submode == SubmodeContextList {
 		return m.handleListPickerInput(&m.contextList, func(selected string) {
 			m.context = selected
 		}, msg)
 	}
 
-	if m.namespaceList.Open {
+	if m.submode == SubmodeNamespaceList {
 		return m.handleListPickerInput(&m.namespaceList, func(selected string) {
 			m.namespace = selected
 		}, msg)
 	}
 
-	if m.filterMode {
+	if m.submode == SubmodeFilter {
 		return m.handleFilterInput(msg)
 	}
 
@@ -246,16 +246,14 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.clearActiveSelection() {
 			return *m, nil
 		}
-		m.confirmQuit = true
+		m.submode = SubmodeConfirmQuit
 		return *m, nil
 	case "ctrl+t":
 		cycleTheme()
 	case "c":
-		m.openContextList()
-		return *m, nil
+		return *m, m.openContextList()
 	case "n":
-		m.openNamespaceList()
-		return *m, nil
+		return *m, m.openNamespaceList()
 	case "tab":
 		m.jumpRoot(1)
 	case "shift+tab":
@@ -409,16 +407,16 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, tea.Quit
 	case tea.KeyEsc:
 		m.filterQuery = m.filterSaved
-		m.filterMode = false
+		m.submode = SubmodeNone
 		m.applyMainFilter()
 		return *m, nil
 	case tea.KeyEnter:
-		m.filterMode = false
+		m.submode = SubmodeNone
 		return *m, nil
 	case tea.KeyCtrlL:
 		m.filterQuery = ""
 		m.filterSaved = ""
-		m.filterMode = false
+		m.submode = SubmodeNone
 		m.applyMainFilter()
 		return *m, nil
 	case tea.KeyCtrlU:
@@ -444,33 +442,26 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) openFilterModal() {
 	m.filterSaved = m.filterQuery
-	m.filterMode = true
+	m.submode = SubmodeFilter
 }
 
-func (m *Model) openContextList() {
-	options, _ := listScopeOptions("context", m.context)
-	m.openListPicker(&m.contextList, &m.namespaceList, options, m.context)
-}
-
-func (m *Model) openNamespaceList() {
-	options, _ := listScopeOptions("namespace", m.context)
-	m.openListPicker(&m.namespaceList, &m.contextList, options, m.namespace)
-}
-
-func (m *Model) openListPicker(target, other *listPickerState, options []string, currentValue string) {
-	current := strings.TrimSpace(currentValue)
-	if len(options) == 0 && current != "" {
-		options = []string{current}
+func (m *Model) openContextList() tea.Cmd {
+	m.submode = SubmodeContextList
+	m.contextList = listPickerState{Loading: true}
+	ctx := m.context
+	return func() tea.Msg {
+		options, err := listScopeOptions("context", ctx)
+		return scopeListResultMsg{mode: "context", options: options, err: err}
 	}
-	other.Open = false
-	target.Open = true
-	target.Options = options
-	target.Index = 0
-	for i, option := range options {
-		if option == current {
-			target.Index = i
-			break
-		}
+}
+
+func (m *Model) openNamespaceList() tea.Cmd {
+	m.submode = SubmodeNamespaceList
+	m.namespaceList = listPickerState{Loading: true}
+	ctx := m.context
+	return func() tea.Msg {
+		options, err := listScopeOptions("namespace", ctx)
+		return scopeListResultMsg{mode: "namespace", options: options, err: err}
 	}
 }
 
@@ -479,7 +470,7 @@ func (m *Model) handleListPickerInput(state *listPickerState, apply func(string)
 	case tea.KeyCtrlC:
 		return *m, tea.Quit
 	case tea.KeyEsc:
-		state.Open = false
+		m.submode = SubmodeNone
 		return *m, nil
 	case tea.KeyUp:
 		if len(state.Options) > 0 {
@@ -499,7 +490,7 @@ func (m *Model) handleListPickerInput(state *listPickerState, apply func(string)
 		if len(state.Options) > 0 {
 			apply(strings.TrimSpace(state.Options[state.Index]))
 		}
-		state.Open = false
+		m.submode = SubmodeNone
 		return *m, nil
 	}
 

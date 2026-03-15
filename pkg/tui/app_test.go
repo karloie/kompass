@@ -326,7 +326,7 @@ func TestEscClosesFileBeforeQuit(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("expected second Esc to open quit confirmation, not quit immediately")
 	}
-	if !m2.confirmQuit {
+	if m2.submode != SubmodeConfirmQuit {
 		t.Fatalf("expected second Esc to enable quit confirmation")
 	}
 }
@@ -414,27 +414,35 @@ func TestCOpensContextListAndAppliesValue(t *testing.T) {
 	})
 
 	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns-a"})
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	m1 := updated.(Model)
-	if !m1.contextList.Open {
+	if m1.submode != SubmodeContextList {
 		t.Fatalf("expected context list to open")
 	}
-	if len(m1.contextList.Options) != 2 {
-		t.Fatalf("expected two context options, got %d", len(m1.contextList.Options))
+	if !m1.contextList.Loading {
+		t.Fatalf("expected context list to be loading")
 	}
-	if m1.contextList.Index != 0 {
-		t.Fatalf("expected current context selected, got %d", m1.contextList.Index)
+	if cmd == nil {
+		t.Fatalf("expected a load command")
+	}
+	updated, _ = m1.Update(cmd())
+	m2 := updated.(Model)
+	if len(m2.contextList.Options) != 2 {
+		t.Fatalf("expected two context options, got %d", len(m2.contextList.Options))
+	}
+	if m2.contextList.Index != 0 {
+		t.Fatalf("expected current context selected, got %d", m2.contextList.Index)
 	}
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m2 := updated.(Model)
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m3 := updated.(Model)
-	if m3.contextList.Open {
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m4 := updated.(Model)
+	if m4.submode == SubmodeContextList {
 		t.Fatalf("expected list modal closed on Enter")
 	}
-	if m3.context != "ctx-b" {
-		t.Fatalf("expected context updated to ctx-b, got %q", m3.context)
+	if m4.context != "ctx-b" {
+		t.Fatalf("expected context updated to ctx-b, got %q", m4.context)
 	}
 }
 
@@ -447,30 +455,36 @@ func TestNOpensNamespaceListAndEscCancels(t *testing.T) {
 	})
 
 	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns-a"})
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m1 := updated.(Model)
-	if !m1.namespaceList.Open {
+	if m1.submode != SubmodeNamespaceList {
 		t.Fatalf("expected namespace list to open")
 	}
-	if len(m1.namespaceList.Options) != 2 {
-		t.Fatalf("expected two namespace options, got %d", len(m1.namespaceList.Options))
-	}
-	if m1.namespaceList.Index != 0 {
-		t.Fatalf("expected current namespace selected, got %d", m1.namespaceList.Index)
+	if cmd == nil {
+		t.Fatalf("expected a load command")
 	}
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m1.Update(cmd())
 	m2 := updated.(Model)
-	if m2.namespaceList.Index != 1 {
-		t.Fatalf("expected down arrow to select second namespace option, got %d", m2.namespaceList.Index)
+	if len(m2.namespaceList.Options) != 2 {
+		t.Fatalf("expected two namespace options, got %d", len(m2.namespaceList.Options))
 	}
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m2.namespaceList.Index != 0 {
+		t.Fatalf("expected current namespace selected, got %d", m2.namespaceList.Index)
+	}
+
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m3 := updated.(Model)
-	if m3.namespaceList.Open {
+	if m3.namespaceList.Index != 1 {
+		t.Fatalf("expected down arrow to select second namespace option, got %d", m3.namespaceList.Index)
+	}
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m4 := updated.(Model)
+	if m4.submode == SubmodeNamespaceList {
 		t.Fatalf("expected namespace list modal to close on Esc")
 	}
-	if m3.namespace != "ns-a" {
-		t.Fatalf("expected namespace unchanged after cancel, got %q", m3.namespace)
+	if m4.namespace != "ns-a" {
+		t.Fatalf("expected namespace unchanged after cancel, got %q", m4.namespace)
 	}
 }
 
@@ -497,23 +511,27 @@ func TestScopeListAppliesClientLocalKubectlFlagsOnly(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/foo"] = &kube.Resource{Key: "pod/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	m1 := updated.(Model)
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m1.Update(cmd())
 	m2 := updated.(Model)
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m3 := updated.(Model)
-
-	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m4 := updated.(Model)
-	updated, _ = m4.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m5 := updated.(Model)
-	updated, _ = m5.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m6 := updated.(Model)
 
-	updated, _ = m6.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = m4.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m5 := updated.(Model)
+	updated, _ = m5.Update(cmd())
+	m6 := updated.(Model)
+	updated, _ = m6.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m7 := updated.(Model)
-	if m7.view == nil {
+	updated, _ = m7.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m8 := updated.(Model)
+
+	updated, _ = m8.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m9 := updated.(Model)
+	if m9.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
 	if calledName != "kubectl" {
@@ -811,7 +829,7 @@ func TestFilterInputModeAndApply(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	m1 := updated.(Model)
-	if !m1.filterMode {
+	if m1.submode != SubmodeFilter {
 		t.Fatalf("expected f to enable filter mode")
 	}
 
@@ -826,7 +844,7 @@ func TestFilterInputModeAndApply(t *testing.T) {
 
 	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m3 := updated.(Model)
-	if m3.filterMode {
+	if m3.submode == SubmodeFilter {
 		t.Fatalf("expected Enter to exit filter mode")
 	}
 	if m3.filterQuery != "pod" {
@@ -843,7 +861,7 @@ func TestFilterModalEscRestoresPreviousQuery(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	m1 := updated.(Model)
-	if !m1.filterMode {
+	if m1.submode != SubmodeFilter {
 		t.Fatalf("expected / to enable filter mode")
 	}
 
@@ -857,7 +875,7 @@ func TestFilterModalEscRestoresPreviousQuery(t *testing.T) {
 
 	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m4 := updated.(Model)
-	if m4.filterMode {
+	if m4.submode == SubmodeFilter {
 		t.Fatalf("expected Esc to close filter modal")
 	}
 	if m4.filterQuery != "svc" {
@@ -1168,7 +1186,7 @@ func TestEscClearsSelectionBeforeQuitConfirmation(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("expected second Esc to open quit confirmation")
 	}
-	if !m2.confirmQuit {
+	if m2.submode != SubmodeConfirmQuit {
 		t.Fatalf("expected confirmQuit modal state to be enabled")
 	}
 }
@@ -1179,7 +1197,7 @@ func TestQuitConfirmationEscCancels(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m1 := updated.(Model)
-	if !m1.confirmQuit {
+	if m1.submode != SubmodeConfirmQuit {
 		t.Fatalf("expected quit confirmation enabled")
 	}
 
@@ -1188,7 +1206,7 @@ func TestQuitConfirmationEscCancels(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("expected Esc in confirmation to cancel, not quit")
 	}
-	if m2.confirmQuit {
+	if m2.submode == SubmodeConfirmQuit {
 		t.Fatalf("expected confirmation to be canceled")
 	}
 }
@@ -1199,7 +1217,7 @@ func TestQuitConfirmationEnterQuits(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m1 := updated.(Model)
-	if !m1.confirmQuit {
+	if m1.submode != SubmodeConfirmQuit {
 		t.Fatalf("expected quit confirmation enabled")
 	}
 

@@ -19,7 +19,7 @@ func TestRenderSelectionListOverlayKeepsLineWidth(t *testing.T) {
 		strings.Repeat("G", contentWidth),
 	}
 
-	overlay := renderSelectionListOverlay(strings.Join(contentLines, "\n"), contentWidth, "Context", []string{"ctx-a", "ctx-b"}, 0)
+	overlay := renderSelectionListOverlay(strings.Join(contentLines, "\n"), contentWidth, "Context", listPickerState{Options: []string{"ctx-a", "ctx-b"}, Index: 0})
 	for _, line := range strings.Split(overlay, "\n") {
 		plain := ansiEscapePattern.ReplaceAllString(line, "")
 		if got := lipgloss.Width(plain); got != contentWidth {
@@ -88,7 +88,7 @@ func TestRenderSelectionListOverlayShowsScrollingWindow(t *testing.T) {
 	}, "\n")
 	options := []string{"opt-00", "opt-01", "opt-02", "opt-03", "opt-04", "opt-05", "opt-06", "opt-07", "opt-08", "opt-09"}
 
-	overlay := renderSelectionListOverlay(content, 40, "Namespace", options, 8)
+	overlay := renderSelectionListOverlay(content, 40, "Namespace", listPickerState{Options: options, Index: 8})
 	plain := ansiEscapePattern.ReplaceAllString(overlay, "")
 
 	if !strings.Contains(plain, "> opt-08") {
@@ -111,7 +111,7 @@ func TestRenderSelectionListOverlayCollapsesForShortHeights(t *testing.T) {
 		strings.Repeat("-", 30),
 	}, "\n")
 
-	overlay := renderSelectionListOverlay(content, 30, "Context", []string{"ctx-a", "ctx-b", "ctx-c"}, 1)
+	overlay := renderSelectionListOverlay(content, 30, "Context", listPickerState{Options: []string{"ctx-a", "ctx-b", "ctx-c"}, Index: 1})
 	lines := strings.Split(overlay, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected overlay to keep screen line count 2, got %d", len(lines))

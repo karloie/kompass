@@ -27,16 +27,14 @@ func (m Model) View() string {
 	rows := m.ViewRows(rowsHeight)
 	parts = append(parts, rows, footer)
 	out := strings.Join(parts, "\n")
-	if m.confirmQuit {
+	switch m.submode {
+	case SubmodeConfirmQuit:
 		return renderQuitConfirmOverlay(out, m.width)
-	}
-	if m.contextList.Open {
-		return renderSelectionListOverlay(out, m.width, "Context", m.contextList.Options, m.contextList.Index)
-	}
-	if m.namespaceList.Open {
-		return renderSelectionListOverlay(out, m.width, "Namespace", m.namespaceList.Options, m.namespaceList.Index)
-	}
-	if m.filterMode {
+	case SubmodeContextList:
+		return renderSelectionListOverlay(out, m.width, "Context", m.contextList)
+	case SubmodeNamespaceList:
+		return renderSelectionListOverlay(out, m.width, "Namespace", m.namespaceList)
+	case SubmodeFilter:
 		return renderFilterOverlay(out, m.width, m.filterQuery)
 	}
 	return out
@@ -57,12 +55,28 @@ func renderFilterOverlay(content string, width int, query string) string {
 	)
 }
 
-func renderSelectionListOverlay(content string, width int, title string, options []string, activeIdx int) string {
+func renderSelectionListOverlay(content string, width int, title string, state listPickerState) string {
+	if state.Loading {
+		return renderModalOverlay(content, width,
+			modalLine{text: title, style: modalTitleStyle},
+			modalLine{text: "Loading\u2026", style: modalBodyStyle},
+		)
+	}
 	availableLines := maxInt(1, len(strings.Split(content, "\n")))
+	if state.Error != "" {
+		lines := []modalLine{
+			{text: title, style: modalTitleStyle},
+			{text: state.Error, style: modalBodyStyle},
+		}
+		if availableLines >= 3 {
+			lines = append(lines, modalLine{text: "Esc close", style: modalHintStyle})
+		}
+		return renderModalOverlay(content, width, lines...)
+	}
 	if availableLines == 1 {
 		return renderModalOverlay(content, width, modalLine{text: title, style: modalTitleStyle})
 	}
-	if len(options) == 0 {
+	if len(state.Options) == 0 {
 		lines := []modalLine{
 			{text: title, style: modalTitleStyle},
 			{text: "(no options)", style: modalBodyStyle},
@@ -75,7 +89,7 @@ func renderSelectionListOverlay(content string, width int, title string, options
 		)
 	}
 
-	activeIdx = clamp(activeIdx, 0, len(options)-1)
+	activeIdx := clamp(state.Index, 0, len(state.Options)-1)
 	lines := []modalLine{{text: title, style: modalTitleStyle}}
 	optionRows := maxInt(1, availableLines-2)
 	includeHint := true
@@ -83,10 +97,10 @@ func renderSelectionListOverlay(content string, width int, title string, options
 		optionRows = 1
 		includeHint = false
 	}
-	start := rowWindowStart(len(options), optionRows, activeIdx)
-	end := minInt(len(options), start+optionRows)
+	start := rowWindowStart(len(state.Options), optionRows, activeIdx)
+	end := minInt(len(state.Options), start+optionRows)
 	for i := start; i < end; i++ {
-		option := options[i]
+		option := state.Options[i]
 		lineStyle := modalOptionDefaultStyle
 		label := "  " + option
 		if i == activeIdx {

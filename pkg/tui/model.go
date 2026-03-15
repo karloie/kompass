@@ -30,9 +30,8 @@ type Model struct {
 
 	footerHeight   int
 	view           *View
-	confirmQuit    bool
+	submode        Submode
 	emitSelection  bool
-	filterMode     bool
 	filterQuery    string
 	filterSaved    string
 	contextList    listPickerState
@@ -43,10 +42,21 @@ type Model struct {
 	selectedAction string
 }
 
+type Submode int
+
+const (
+	SubmodeNone Submode = iota
+	SubmodeConfirmQuit
+	SubmodeContextList
+	SubmodeNamespaceList
+	SubmodeFilter
+)
+
 type listPickerState struct {
-	Open    bool
 	Options []string
 	Index   int
+	Loading bool
+	Error   string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -124,6 +134,12 @@ type refreshResultMsg struct {
 	err   error
 }
 
+type scopeListResultMsg struct {
+	mode    string
+	options []string
+	err     error
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case refreshTickMsg:
@@ -142,6 +158,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.canAutoRefresh() {
 			return m, m.nextRefreshTick()
+		}
+		return m, nil
+	case scopeListResultMsg:
+		expected := SubmodeContextList
+		state := &m.contextList
+		current := strings.TrimSpace(m.context)
+		if v.mode == "namespace" {
+			expected = SubmodeNamespaceList
+			state = &m.namespaceList
+			current = strings.TrimSpace(m.namespace)
+		}
+		if m.submode != expected {
+			return m, nil
+		}
+		state.Loading = false
+		if v.err != nil {
+			state.Error = v.err.Error()
+		} else {
+			state.Error = ""
+			state.Options = v.options
+			if len(state.Options) == 0 && current != "" {
+				state.Options = []string{current}
+			}
+			for i, opt := range state.Options {
+				if opt == current {
+					state.Index = i
+					break
+				}
+			}
 		}
 		return m, nil
 	}
