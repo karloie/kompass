@@ -661,6 +661,33 @@ func TestFileScrollDoesNotOvershootVisibleEnd(t *testing.T) {
 	}
 }
 
+func TestFilePageDownUsesViewportStep(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.height = 8 // file viewport height = 6, page step = 5
+	m.view = &View{Kind: FileOutput, Rows: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}, Scroll: 0}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	m1 := updated.(Model)
+	if m1.view.Scroll != 4 {
+		t.Fatalf("expected PgDn to clamp to last visible page at 4, got %d", m1.view.Scroll)
+	}
+}
+
+func TestTreePageDownUsesVisibleRowsStep(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.height = 10
+	m.footerHeight = 1
+	m.rowsByPane[0] = []Row{
+		{Key: "a"}, {Key: "b"}, {Key: "c"}, {Key: "d"}, {Key: "e"}, {Key: "f"}, {Key: "g"}, {Key: "h"},
+	}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	m1 := updated.(Model)
+	if m1.cursorByPane[0] != 6 {
+		t.Fatalf("expected PgDn to move by visible page step to row 6, got %d", m1.cursorByPane[0])
+	}
+}
+
 func TestFileGutterMarker(t *testing.T) {
 	matchRows := []int{2, 5, 8}
 

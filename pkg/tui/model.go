@@ -13,8 +13,7 @@ type Model struct {
 	width  int
 	height int
 
-	activePane   int
-	activeColumn int
+	activePane int
 
 	sourceTrees   *kube.Response
 	allRowsByPane [2][]Row

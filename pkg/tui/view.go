@@ -36,11 +36,8 @@ func (m Model) toString() string {
 	footerText := m.footerText()
 	header := fit(headerStyle.Render(headerText), m.width)
 	footer := fit(footerStyle.Render(footerText), m.width)
-	rowsHeight := maxInt(1, m.height-2)
-	rows := m.renderRows(rowsHeight)
-	for len(rows) < rowsHeight {
-		rows = append(rows, "")
-	}
+	rowsHeight := m.viewRowsHeight()
+	rows := fillLines(m.renderRows(rowsHeight), rowsHeight)
 	return strings.Join([]string{header, strings.Join(rows, "\n"), footer}, "\n")
 }
 
@@ -117,10 +114,15 @@ func (m Model) ViewRows(height int) string {
 	for i := start; i < end; i++ {
 		newRows = append(newRows, m.renderRow(rows[i], i == cursor))
 	}
-	for len(newRows) < height {
-		newRows = append(newRows, "")
-	}
+	newRows = fillLines(newRows, height)
 	return strings.Join(newRows, "\n")
+}
+
+func fillLines(lines []string, height int) []string {
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	return lines
 }
 
 func rowWindowStart(rowsLen, height, cursor int) int {
@@ -147,26 +149,16 @@ func (m Model) headerText() string {
 	if m.view.Kind != FileOutput {
 		return headerText
 	}
-	if commandTitle := describeCommandTitle(m.view.Rows); commandTitle != "" {
-		headerText = fmt.Sprintf("%s | Esc close", commandTitle)
-	}
 
-	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.view.Rows), m.view.Scroll+1), len(m.view.Rows), m.view.ColScroll+1)
-	if len(m.view.MatchRows) > 0 {
-		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.view.ActiveMatch+1, len(m.view.MatchRows))
-	}
-	return fmt.Sprintf("%s | %s", headerText, lineInfo)
+	return fmt.Sprintf("%s | %s", headerText, m.fileLineInfo())
 }
 
-func describeCommandTitle(rows []string) string {
-	if len(rows) == 0 {
-		return ""
+func (m Model) fileLineInfo() string {
+	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.view.Rows), m.view.Scroll+1), len(m.view.Rows), m.view.ColScroll+1)
+	if len(m.view.MatchRows) == 0 {
+		return lineInfo
 	}
-	first := strings.TrimSpace(rows[0])
-	if !strings.HasPrefix(first, "$ kubectl ") {
-		return ""
-	}
-	return strings.TrimPrefix(first, "$ ")
+	return fmt.Sprintf("%s | match %d/%d", lineInfo, m.view.ActiveMatch+1, len(m.view.MatchRows))
 }
 
 func (m Model) footerText() string {
@@ -215,17 +207,13 @@ func (m Model) renderRow(r Row, fileed bool) string {
 	if state.Selected {
 		return m.styleRowContent(rowContent, state)
 	}
-	hideUncheckedMarker := !state.Selected
-	content := withSelectionMarkerOnRowState(rowContent, rowSelectionMarker(state), hideUncheckedMarker)
+	content := withSelectionMarkerOnRowState(rowContent, rowSelectionMarker(state), true)
 	return m.styleRowContent(content, state)
 }
 
 func rowSelectionMarker(state rowState) string {
 	if !state.Describable {
 		return disabledMarker
-	}
-	if state.Selected {
-		return "[x]"
 	}
 	return "[ ]"
 }

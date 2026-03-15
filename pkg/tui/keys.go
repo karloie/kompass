@@ -15,42 +15,34 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return *m, tea.Quit
 	case "esc", "q":
-		m.view = nil
+		m.closeView()
 	case "enter":
-		m.view = nil
+		m.closeView()
 	case "left", "h":
-		m.view.ColScroll = maxInt(0, m.view.ColScroll-4)
+		m.panView(-4)
 	case "right", "l":
-		m.view.ColScroll = minInt(m.maxColScroll(), m.view.ColScroll+4)
+		m.panView(4)
 	case "home":
-		m.view.ColScroll = 0
+		m.panViewToStart()
 	case "end":
-		m.view.ColScroll = m.maxColScroll()
+		m.panViewToEnd()
 	case "g":
-		m.view.Scroll = 0
+		m.scrollViewToTop()
 	case "G":
-		m.view.Scroll = m.maxViewScroll()
+		m.scrollViewToBottom()
 	case "up", "k":
-		if m.view.Scroll > 0 {
-			m.view.Scroll--
-		}
+		m.scrollView(-1)
 	case "down", "j":
-		if m.view.Scroll < m.maxViewScroll() {
-			m.view.Scroll++
-		}
+		m.scrollView(1)
 	case "pgup":
-		m.view.Scroll = maxInt(0, m.view.Scroll-10)
+		m.scrollView(-m.viewPageStep())
 	case "pgdown":
-		m.view.Scroll = minInt(m.maxViewScroll(), m.view.Scroll+10)
+		m.scrollView(m.viewPageStep())
 	case "/":
 		m.view.SearchMode = true
 		m.view.ActionStatus = ""
 	case "y":
-		if err := copyToClipboard(m.view.Raw); err != nil {
-			m.view.ActionStatus = "copy failed: " + err.Error()
-		} else {
-			m.view.ActionStatus = "copied to clipboard"
-		}
+		m.copyViewRaw()
 	case "e":
 		return *m, openInEditorCmd(m.view.Raw)
 	case "o":
@@ -60,12 +52,55 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return *m, nil
 }
 
+func (m *Model) closeView() {
+	m.view = nil
+}
+
+func (m *Model) panView(delta int) {
+	m.view.ColScroll = clamp(m.view.ColScroll+delta, 0, m.maxColScroll())
+}
+
+func (m *Model) panViewToStart() {
+	m.view.ColScroll = 0
+}
+
+func (m *Model) panViewToEnd() {
+	m.view.ColScroll = m.maxColScroll()
+}
+
+func (m *Model) scrollView(delta int) {
+	m.view.Scroll = clamp(m.view.Scroll+delta, 0, m.maxViewScroll())
+}
+
+func (m *Model) scrollViewToTop() {
+	m.view.Scroll = 0
+}
+
+func (m *Model) scrollViewToBottom() {
+	m.view.Scroll = m.maxViewScroll()
+}
+
+func (m *Model) copyViewRaw() {
+	if err := copyToClipboard(m.view.Raw); err != nil {
+		m.view.ActionStatus = "copy failed: " + err.Error()
+		return
+	}
+	m.view.ActionStatus = "copied to clipboard"
+}
+
 func (m Model) maxViewScroll() int {
 	if m.view == nil {
 		return 0
 	}
-	rowsHeight := maxInt(1, m.height-2)
-	return maxInt(0, len(m.view.Rows)-rowsHeight)
+	return maxInt(0, len(m.view.Rows)-m.viewRowsHeight())
+}
+
+func (m Model) viewPageStep() int {
+	return maxInt(1, m.viewRowsHeight()-1)
+}
+
+func (m Model) viewRowsHeight() int {
+	return maxInt(1, m.height-2)
 }
 
 func (m *Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -80,16 +115,26 @@ func (m *Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.view.SearchMode = false
 		m.applySearch()
 	case tea.KeyBackspace:
-		if len(m.view.SearchQuery) > 0 {
-			r := []rune(m.view.SearchQuery)
-			m.view.SearchQuery = string(r[:len(r)-1])
-		}
+		m.view.SearchQuery = trimLastRune(m.view.SearchQuery)
 	default:
-		if len(msg.Runes) > 0 {
-			m.view.SearchQuery += string(msg.Runes)
-		}
+		m.view.SearchQuery = appendRunes(m.view.SearchQuery, msg.Runes)
 	}
 	return *m, nil
+}
+
+func trimLastRune(value string) string {
+	if value == "" {
+		return value
+	}
+	r := []rune(value)
+	return string(r[:len(r)-1])
+}
+
+func appendRunes(value string, runes []rune) string {
+	if len(runes) == 0 {
+		return value
+	}
+	return value + string(runes)
 }
 
 func (m Model) currentRow() *Row {
@@ -122,33 +167,45 @@ func (m *Model) moveCursor(direction, step int) {
 	target := clamp(current+direction*step, 0, len(rows)-1)
 
 	if direction > 0 {
-		for i := target; i < len(rows); i++ {
-			if !rows[i].Separator {
-				m.cursorByPane[m.activePane] = i
-				return
-			}
+		if next, ok := findNonSeparatorIndex(rows, target, len(rows)-1, 1); ok {
+			m.cursorByPane[m.activePane] = next
+			return
 		}
-		for i := target; i > current; i-- {
-			if !rows[i].Separator {
-				m.cursorByPane[m.activePane] = i
-				return
-			}
+		if next, ok := findNonSeparatorIndex(rows, target, current+1, -1); ok {
+			m.cursorByPane[m.activePane] = next
+			return
 		}
 		return
 	}
 
-	for i := target; i >= 0; i-- {
-		if !rows[i].Separator {
-			m.cursorByPane[m.activePane] = i
-			return
+	if next, ok := findNonSeparatorIndex(rows, target, 0, -1); ok {
+		m.cursorByPane[m.activePane] = next
+		return
+	}
+	if next, ok := findNonSeparatorIndex(rows, target, current-1, 1); ok {
+		m.cursorByPane[m.activePane] = next
+		return
+	}
+}
+
+func findNonSeparatorIndex(rows []Row, start, end, direction int) (int, bool) {
+	if direction == 0 || len(rows) == 0 {
+		return 0, false
+	}
+	if direction > 0 {
+		for i := start; i <= end && i < len(rows); i++ {
+			if i >= 0 && !rows[i].Separator {
+				return i, true
+			}
+		}
+		return 0, false
+	}
+	for i := start; i >= end && i >= 0; i-- {
+		if i < len(rows) && !rows[i].Separator {
+			return i, true
 		}
 	}
-	for i := target; i < current; i++ {
-		if !rows[i].Separator {
-			m.cursorByPane[m.activePane] = i
-			return
-		}
-	}
+	return 0, false
 }
 
 func (m *Model) clearActiveSelection() bool {
@@ -171,23 +228,6 @@ func (m Model) paneAvailable(pane int) bool {
 		return true
 	}
 	return false
-}
-
-func (m Model) paneNext(direction int) int {
-	if direction == 0 {
-		direction = 1
-	}
-	current := m.activePane
-	for i := 0; i < len(m.rowsByPane); i++ {
-		candidate := (current + direction*(i+1) + len(m.rowsByPane)*2) % len(m.rowsByPane)
-		if m.paneAvailable(candidate) {
-			return candidate
-		}
-	}
-	if m.paneAvailable(current) {
-		return current
-	}
-	return 0
 }
 
 func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -230,23 +270,9 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "pgdown":
 		m.moveCursor(1, m.navPageStep())
 	case " ":
-		if r := m.currentRow(); m.canDescribeRow(r) {
-			if m.selected[m.activePane][r.Key] {
-				delete(m.selected[m.activePane], r.Key)
-			} else {
-				m.selected[m.activePane][r.Key] = true
-			}
-		}
+		m.toggleCurrentSelection()
 	case "ctrl+a":
-		for _, r := range m.rowsByPane[m.activePane] {
-			if r.Separator {
-				continue
-			}
-			if !m.canDescribeRow(&r) {
-				continue
-			}
-			m.selected[m.activePane][r.Key] = true
-		}
+		m.selectAllDescribableRows()
 	case "+", "=":
 		maxHeight := maxInt(1, m.height/3)
 		m.footerHeight = minInt(maxHeight, m.footerHeight+1)
@@ -292,45 +318,45 @@ func (m *Model) jumpRoot(direction int) {
 
 	current := clamp(m.cursorByPane[m.activePane], 0, len(rows)-1)
 	if direction > 0 {
-		for i := current + 1; i < len(rows); i++ {
-			if rows[i].Separator {
-				continue
-			}
-			if rows[i].Depth == 0 {
-				m.cursorByPane[m.activePane] = i
-				return
-			}
+		if next, ok := findRootIndex(rows, current+1, len(rows)-1, 1); ok {
+			m.cursorByPane[m.activePane] = next
+			return
 		}
-		for i := 0; i <= current; i++ {
-			if rows[i].Separator {
-				continue
-			}
-			if rows[i].Depth == 0 {
-				m.cursorByPane[m.activePane] = i
-				return
-			}
+		if next, ok := findRootIndex(rows, 0, current, 1); ok {
+			m.cursorByPane[m.activePane] = next
+			return
 		}
 		return
 	}
 
-	for i := current - 1; i >= 0; i-- {
-		if rows[i].Separator {
-			continue
+	if next, ok := findRootIndex(rows, current-1, 0, -1); ok {
+		m.cursorByPane[m.activePane] = next
+		return
+	}
+	if next, ok := findRootIndex(rows, len(rows)-1, current, -1); ok {
+		m.cursorByPane[m.activePane] = next
+		return
+	}
+}
+
+func findRootIndex(rows []Row, start, end, direction int) (int, bool) {
+	if direction == 0 || len(rows) == 0 {
+		return 0, false
+	}
+	if direction > 0 {
+		for i := start; i <= end && i < len(rows); i++ {
+			if i >= 0 && !rows[i].Separator && rows[i].Depth == 0 {
+				return i, true
+			}
 		}
-		if rows[i].Depth == 0 {
-			m.cursorByPane[m.activePane] = i
-			return
+		return 0, false
+	}
+	for i := start; i >= end && i >= 0; i-- {
+		if i < len(rows) && !rows[i].Separator && rows[i].Depth == 0 {
+			return i, true
 		}
 	}
-	for i := len(rows) - 1; i >= current; i-- {
-		if rows[i].Separator {
-			continue
-		}
-		if rows[i].Depth == 0 {
-			m.cursorByPane[m.activePane] = i
-			return
-		}
-	}
+	return 0, false
 }
 
 func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -349,15 +375,16 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applyMainFilter()
 		return *m, nil
 	case tea.KeyBackspace:
-		if len(m.filterQuery) > 0 {
-			r := []rune(m.filterQuery)
-			m.filterQuery = string(r[:len(r)-1])
+		next := trimLastRune(m.filterQuery)
+		if next != m.filterQuery {
+			m.filterQuery = next
 			m.applyMainFilter()
 		}
 		return *m, nil
 	default:
-		if len(msg.Runes) > 0 {
-			m.filterQuery += string(msg.Runes)
+		next := appendRunes(m.filterQuery, msg.Runes)
+		if next != m.filterQuery {
+			m.filterQuery = next
 			m.applyMainFilter()
 		}
 		return *m, nil
@@ -458,9 +485,34 @@ func (m Model) rowKeyVisible(pane int, key string) bool {
 }
 
 func (m Model) rowsHeight() int {
-	return maxInt(1, m.height-1-m.footerHeight)
+	height := m.height - 1 - m.footerHeight
+	if m.mode == ModeSelector {
+		height--
+	}
+	return maxInt(1, height)
 }
 
 func (m Model) navPageStep() int {
 	return maxInt(1, m.rowsHeight()-1)
+}
+
+func (m *Model) toggleCurrentSelection() {
+	r := m.currentRow()
+	if !m.canDescribeRow(r) {
+		return
+	}
+	if m.selected[m.activePane][r.Key] {
+		delete(m.selected[m.activePane], r.Key)
+		return
+	}
+	m.selected[m.activePane][r.Key] = true
+}
+
+func (m *Model) selectAllDescribableRows() {
+	for _, r := range m.rowsByPane[m.activePane] {
+		if r.Separator || !m.canDescribeRow(&r) {
+			continue
+		}
+		m.selected[m.activePane][r.Key] = true
+	}
 }
