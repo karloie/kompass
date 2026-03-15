@@ -127,12 +127,13 @@
 
 	function matchNode(node, matcher, queryActive) {
 		const label = node.getAttribute("data-label") || "";
+		const searchText = node.getAttribute("data-search") || label;
 		const children = nodeChildren.get(node) || [];
 		let childMatched = false;
 		for (const child of children) {
 			if (matchNode(child, matcher, queryActive)) childMatched = true;
 		}
-		const selfMatched = !queryActive || matcher.test(label);
+		const selfMatched = !queryActive || matcher.test(searchText);
 		const visible = selfMatched || childMatched;
 		node.hidden = !visible;
 		if (queryActive && visible && childMatched) {

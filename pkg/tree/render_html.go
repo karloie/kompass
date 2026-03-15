@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/karloie/kompass/pkg/graph"
@@ -106,9 +108,12 @@ func renderTreeHTMLNode(sb *strings.Builder, treeNode *kube.Tree, nodeMap map[st
 	} else {
 		label = graph.GetResourceEmoji(treeNode.Type) + " " + treeNode.Type
 	}
+	searchText := buildNodeSearchText(treeNode.Type, label, meta)
 
 	sb.WriteString(`<li data-label="`)
 	sb.WriteString(html.EscapeString(label))
+	sb.WriteString(`" data-search="`)
+	sb.WriteString(html.EscapeString(searchText))
 	sb.WriteString(`" data-user-collapsed="false"><div class="row">`)
 	if len(treeNode.Children) > 0 {
 		sb.WriteString(`<button type="button" class="toggle" aria-label="Toggle branch">▼</button>`)
@@ -130,4 +135,93 @@ func renderTreeHTMLNode(sb *strings.Builder, treeNode *kube.Tree, nodeMap map[st
 	}
 
 	sb.WriteString(`</li>`)
+}
+
+func buildNodeSearchText(nodeType, label string, meta map[string]any) string {
+	tokens := []string{nodeType, label}
+	appendSearchTokens(&tokens, "", meta)
+	return strings.Join(tokens, " ")
+}
+
+var noisyMetadataKeys = map[string]bool{
+	"__nodetype":         true,
+	"annotations":        true,
+	"creationtimestamp":  true,
+	"managedfields":      true,
+	"ownerreferences":    true,
+	"resourceversion":    true,
+	"uid":                true,
+	"lasttransitiontime": true,
+	"containerid":        true,
+}
+
+var hashLikeToken = regexp.MustCompile(`^[a-f0-9]{24,}$`)
+
+func appendSearchTokens(tokens *[]string, keyHint string, value any) {
+	switch v := value.(type) {
+	case nil:
+		return
+	case string:
+		if shouldIndexToken(v) {
+			*tokens = append(*tokens, v)
+		}
+	case bool:
+		*tokens = append(*tokens, strconv.FormatBool(v))
+	case int:
+		*tokens = append(*tokens, strconv.Itoa(v))
+	case int64:
+		*tokens = append(*tokens, strconv.FormatInt(v, 10))
+	case float64:
+		*tokens = append(*tokens, strconv.FormatFloat(v, 'f', -1, 64))
+	case []any:
+		for _, item := range v {
+			appendSearchTokens(tokens, keyHint, item)
+		}
+	case []string:
+		for _, item := range v {
+			appendSearchTokens(tokens, keyHint, item)
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for key := range v {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if isNoisyMetadataKey(key) {
+				continue
+			}
+			if shouldIndexToken(key) {
+				*tokens = append(*tokens, key)
+			}
+			appendSearchTokens(tokens, key, v[key])
+		}
+	default:
+		raw := fmt.Sprint(v)
+		if shouldIndexToken(raw) {
+			*tokens = append(*tokens, raw)
+		}
+	}
+}
+
+func isNoisyMetadataKey(key string) bool {
+	return noisyMetadataKeys[strings.ToLower(strings.TrimSpace(key))]
+}
+
+func shouldIndexToken(value string) bool {
+	token := strings.TrimSpace(value)
+	if token == "" {
+		return false
+	}
+	if len(token) > 140 {
+		return false
+	}
+	lower := strings.ToLower(token)
+	if strings.Contains(lower, "sha256:") {
+		return false
+	}
+	if hashLikeToken.MatchString(lower) {
+		return false
+	}
+	return true
 }
