@@ -18,7 +18,7 @@ Options:
   --service [addr]         Start web server (format: host:port, default localhost:8080)
   --tui                    Start interactive terminal UI
   --json                   JSON output
-  --mock <name>            Mock provider (mock)
+  --mock                   Mock provider
   --plain                  Plain output without ANSI colors
   -d, --debug              Enable debug logging
   -h, --help               Show help
@@ -70,6 +70,6 @@ func printGraphs(result *kube.Response, context, namespace, configPath string, s
 }
 
 func printTrees(result *kube.Response, context, namespace, configPath string, selectors []string, plain bool) {
-	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context, namespace, selectors, configPath)
+	header := "🌍 " + tree.FormatTreeHeader(context, namespace, configPath, selectors)
 	fmt.Print(tree.RenderText(result, header, plain))
 }

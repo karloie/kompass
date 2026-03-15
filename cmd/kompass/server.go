@@ -187,14 +187,6 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 
-	plain := true
-	switch strings.ToLower(r.URL.Query().Get("plain")) {
-	case "0", "false", "no":
-		plain = false
-	case "1", "true", "yes":
-		plain = true
-	}
-
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -204,8 +196,9 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
-	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
-	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, plain)))
+	header := "🌍 " + tree.FormatTreeHeader(context_, namespace_, configPath, selectors)
+	// HTTP text output is always plain; ANSI colors are a CLI-only concern.
+	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, true)))
 }
 
 func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {

@@ -29,7 +29,7 @@ func flattenTrees(trees *kube.Response) []Row {
 			plainRows = strings.Split(plainRendered, "\n")
 		}
 		rowIndex := 0
-		flattenNode(&rows, root, 0, coloredRows, plainRows, &rowIndex)
+		flattenNode(&rows, root, 0, nodeMap, coloredRows, plainRows, &rowIndex, nil)
 		if i < len(trees.Trees)-1 {
 			rows = append(rows, Row{Separator: true})
 		}
@@ -108,13 +108,13 @@ func treeNodeSearchText(node *kube.Tree) string {
 	return strings.Join(parts, " ")
 }
 
-func flattenNode(rows *[]Row, n *kube.Tree, depth int, coloredRows, plainRows []string, rowIndex *int) {
+func flattenNode(rows *[]Row, n *kube.Tree, depth int, nodeMap map[string]*kube.Resource, coloredRows, plainRows []string, rowIndex *int, parentMeta map[string]any) {
 	if n == nil {
 		return
 	}
-	meta := map[string]any{}
-	for k, v := range n.Meta {
-		meta[k] = v
+	meta := tree.ResolveNodeMetadata(n, nodeMap)
+	if meta == nil {
+		meta = map[string]any{}
 	}
 	name := stringMeta(meta, "name", n.Key)
 	status := stringMeta(meta, "status", "")
@@ -130,10 +130,12 @@ func flattenNode(rows *[]Row, n *kube.Tree, depth int, coloredRows, plainRows []
 		*rowIndex++
 	}
 	row := Row{Key: n.Key, Type: n.Type, Name: name, Text: rowText, Plain: plainRowText, PlainText: plainRowText, Status: status, Metadata: meta, Depth: depth}
-	row.SearchText = buildRowSearchText(row)
+	searchLabel := tree.RenderNodeLabel(n, nodeMap, true, parentMeta)
+	row.SearchText = strings.Join([]string{n.Key, tree.BuildNodeSearchText(n.Type, searchLabel, meta)}, " ")
 	*rows = append(*rows, row)
+	childParentMeta := tree.BuildChildParentMeta(n.Type, meta, parentMeta)
 	for _, c := range n.Children {
-		flattenNode(rows, c, depth+1, coloredRows, plainRows, rowIndex)
+		flattenNode(rows, c, depth+1, nodeMap, coloredRows, plainRows, rowIndex, childParentMeta)
 	}
 }
 

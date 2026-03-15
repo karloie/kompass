@@ -10,6 +10,8 @@ import (
 
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
+	"github.com/karloie/kompass/pkg/pipeline"
+	"github.com/karloie/kompass/pkg/tree"
 )
 
 func TestHandleHealthReadyNoClient(t *testing.T) {
@@ -216,7 +218,7 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 	}
 }
 
-func TestHandleTreeTextRichQuery(t *testing.T) {
+func TestHandleTreeTextIgnoresPlainFalseQuery(t *testing.T) {
 	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
@@ -231,7 +233,50 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
 	if !strings.Contains(rr.Body.String(), "🫛") {
-		t.Fatalf("expected rich /tree/text output to keep emojis, got %q", rr.Body.String())
+		t.Fatalf("expected /tree/text output to keep emojis, got %q", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "\x1b[") {
+		t.Fatalf("expected plain /tree/text output even with plain=false query, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleTreeTextHeaderMatchesCLIPrintTrees(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=1", nil)
+	req.Header.Set("Accept", "text/plain")
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+
+	serverHeader := strings.SplitN(rr.Body.String(), "\n", 2)[0]
+
+	cliProvider := kube.NewMockClient(mock.GenerateMock())
+	cliProvider.SetNamespace("petshop")
+	cliGraph, err := pipeline.InferGraphs(cliProvider, []string{"*/petshop/*"})
+	if err != nil {
+		t.Fatalf("expected cli infer graph success, got err: %v", err)
+	}
+	cliTree := tree.BuildResponseTree(cliGraph)
+	cliOutput := captureStdout(t, func() {
+		printTrees(cliTree, "mock-cluster", "petshop", "mock", []string{"*/petshop/*"}, true)
+	})
+	cliHeader := strings.SplitN(cliOutput, "\n", 2)[0]
+
+	if serverHeader != cliHeader {
+		t.Fatalf("expected server and CLI headers to be byte-identical\nserver: %q\ncli:    %q", serverHeader, cliHeader)
+	}
+
+	sharedPrefix := "🌍 " + tree.FormatTreeHeader("mock-cluster", "petshop", "mock", []string{"*/petshop/*"})
+	if !strings.HasPrefix(serverHeader, sharedPrefix) {
+		t.Fatalf("expected shared formatted header prefix\nwant prefix: %q\nactual:      %q", sharedPrefix, serverHeader)
 	}
 }
 

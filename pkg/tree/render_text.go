@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -53,20 +52,8 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 
 	var displayKey string
 
-	meta := treeNode.Meta
-	if len(meta) == 0 {
-
-		if resource, ok := nodeMap[treeNode.Key]; ok {
-			meta = extractMetadataFromResource(*resource, nodeMap)
-		}
-	}
-
-	if len(meta) > 0 {
-		displayKey = formatNodeName(treeNode.Type, meta, nil, plain, parentMeta)
-	} else {
-		emoji := graph.GetResourceEmoji(treeNode.Type) + " "
-		displayKey = emoji + treeNode.Type
-	}
+	meta := ResolveNodeMetadata(treeNode, nodeMap)
+	displayKey = RenderNodeLabel(treeNode, nodeMap, plain, parentMeta)
 
 	var treeBranch string
 	if isRoot {
@@ -91,35 +78,7 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 			childPrefix = prefix + "│  "
 		}
 
-		childParentMeta := meta
-		if childParentMeta != nil {
-			if _, hasNodeType := childParentMeta["__nodeType"]; !hasNodeType {
-				cloned := make(map[string]any, len(childParentMeta)+1)
-				for k, v := range childParentMeta {
-					cloned[k] = v
-				}
-				cloned["__nodeType"] = treeNode.Type
-				childParentMeta = cloned
-			}
-			if _, hasNamespace := childParentMeta["namespace"]; !hasNamespace && parentMeta != nil {
-				if ns, ok := parentMeta["namespace"].(string); ok {
-
-					childParentMeta = make(map[string]any)
-					for k, v := range meta {
-						childParentMeta[k] = v
-					}
-					childParentMeta["__nodeType"] = treeNode.Type
-					childParentMeta["namespace"] = ns
-				}
-			}
-		} else if parentMeta != nil {
-
-			if ns, ok := parentMeta["namespace"].(string); ok {
-				childParentMeta = map[string]any{"namespace": ns, "__nodeType": treeNode.Type}
-			}
-		} else {
-			childParentMeta = map[string]any{"__nodeType": treeNode.Type}
-		}
+		childParentMeta := BuildChildParentMeta(treeNode.Type, meta, parentMeta)
 		renderTreeNode(sb, child, childPrefix, childIsLast, false, nodeMap, visited, plain, childParentMeta)
 	}
 }
