@@ -29,19 +29,19 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "g":
 		m.view.Scroll = 0
 	case "G":
-		m.view.Scroll = maxInt(0, len(m.view.Rows)-1)
+		m.view.Scroll = m.maxViewScroll()
 	case "up", "k":
 		if m.view.Scroll > 0 {
 			m.view.Scroll--
 		}
 	case "down", "j":
-		if m.view.Scroll < maxInt(0, len(m.view.Rows)-1) {
+		if m.view.Scroll < m.maxViewScroll() {
 			m.view.Scroll++
 		}
 	case "pgup":
 		m.view.Scroll = maxInt(0, m.view.Scroll-10)
 	case "pgdown":
-		m.view.Scroll = minInt(maxInt(0, len(m.view.Rows)-1), m.view.Scroll+10)
+		m.view.Scroll = minInt(m.maxViewScroll(), m.view.Scroll+10)
 	case "/":
 		m.view.SearchMode = true
 		m.view.ActionStatus = ""
@@ -58,6 +58,14 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, tea.Quit
 	}
 	return *m, nil
+}
+
+func (m Model) maxViewScroll() int {
+	if m.view == nil {
+		return 0
+	}
+	rowsHeight := maxInt(1, m.height-2)
+	return maxInt(0, len(m.view.Rows)-rowsHeight)
 }
 
 func (m *Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -222,7 +230,7 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "pgdown":
 		m.moveCursor(1, m.navPageStep())
 	case " ":
-		if r := m.currentRow(); r != nil {
+		if r := m.currentRow(); m.canDescribeRow(r) {
 			if m.selected[m.activePane][r.Key] {
 				delete(m.selected[m.activePane], r.Key)
 			} else {
@@ -234,6 +242,9 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if r.Separator {
 				continue
 			}
+			if !m.canDescribeRow(&r) {
+				continue
+			}
 			m.selected[m.activePane][r.Key] = true
 		}
 	case "+", "=":
@@ -242,8 +253,8 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "-":
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
-		if r := m.currentRow(); r != nil {
-			m.view = viewYaml(*r, m.resources[r.Key])
+		if r := m.currentRow(); m.canDescribeRow(r) {
+			m.view = viewDescribe(*r, m.context, m.namespace)
 		}
 	case "o":
 		m.emitSelection = true
@@ -254,6 +265,20 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterMode = true
 	}
 	return *m, nil
+}
+
+func (m Model) canDescribeRow(r *Row) bool {
+	if r == nil {
+		return false
+	}
+	if m.mode != ModeSelector {
+		return false
+	}
+	if len(m.resources) == 0 {
+		return false
+	}
+	_, ok := m.resources[r.Key]
+	return ok
 }
 
 func (m *Model) jumpRoot(direction int) {
@@ -276,10 +301,28 @@ func (m *Model) jumpRoot(direction int) {
 				return
 			}
 		}
+		for i := 0; i <= current; i++ {
+			if rows[i].Separator {
+				continue
+			}
+			if rows[i].Depth == 0 {
+				m.cursorByPane[m.activePane] = i
+				return
+			}
+		}
 		return
 	}
 
 	for i := current - 1; i >= 0; i-- {
+		if rows[i].Separator {
+			continue
+		}
+		if rows[i].Depth == 0 {
+			m.cursorByPane[m.activePane] = i
+			return
+		}
+	}
+	for i := len(rows) - 1; i >= current; i-- {
 		if rows[i].Separator {
 			continue
 		}

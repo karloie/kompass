@@ -1,33 +1,62 @@
 package tui
 
 import (
-	"fmt"
+	"os/exec"
 	"strings"
 
-	kube "github.com/karloie/kompass/pkg/kube"
-	"go.yaml.in/yaml/v2"
+	"github.com/karloie/kompass/pkg/tree"
 )
 
-func viewYaml(r Row, resource *kube.Resource) *View {
-	var content any
-	if resource != nil && resource.Resource != nil {
-		content = resource.Resource
-	} else {
-		content = map[string]any{
-			"key":      r.Key,
-			"type":     r.Type,
-			"name":     r.Name,
-			"status":   r.Status,
-			"metadata": r.Metadata,
-		}
+func viewDescribe(r Row, context, defaultNamespace string) *View {
+	args, _ := buildDescribeArgs(r, context, defaultNamespace)
+	out, err := exec.Command("kubectl", args...).CombinedOutput()
+
+	body := strings.TrimRight(string(out), "\n")
+	if body == "" {
+		body = "(no output)"
 	}
-	b, err := yaml.Marshal(content)
 	if err != nil {
-		b = []byte("error: failed to render yaml")
+		body = body + "\n\nerror: " + err.Error()
 	}
-	raw := strings.TrimRight(string(b), "\n")
+
+	title := "kubectl " + strings.Join(args, " ")
+	raw := body
 	rows := strings.Split(raw, "\n")
-	return &View{Kind: FileYAML, Title: fmt.Sprintf("%s/%s", r.Type, r.Name), Rows: rows, Raw: raw}
+	return &View{Kind: FileOutput, Title: title, Rows: rows, Raw: raw}
+}
+
+func buildDescribeArgs(r Row, context, defaultNamespace string) ([]string, string) {
+	ref := tree.ParseResourceKeyRef(r.Key)
+	resourceType := strings.TrimSpace(ref.Type)
+	if resourceType == "" {
+		resourceType = strings.TrimSpace(r.Type)
+	}
+	name := strings.TrimSpace(ref.Name)
+	if name == "" {
+		name = strings.TrimSpace(r.Name)
+	}
+	namespace := strings.TrimSpace(ref.Namespace)
+	if namespace == "" {
+		namespace = strings.TrimSpace(defaultNamespace)
+	}
+
+	args := make([]string, 0, 8)
+	if strings.TrimSpace(context) != "" {
+		args = append(args, "--context", strings.TrimSpace(context))
+	}
+	args = append(args, "describe", resourceType)
+	if name != "" {
+		args = append(args, name)
+	}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+
+	title := resourceType
+	if name != "" {
+		title += "/" + name
+	}
+	return args, title
 }
 
 func viewHelp() *View {
@@ -40,7 +69,7 @@ func viewHelp() *View {
 		"",
 		"Actions",
 		"  Space           toggle Row selection",
-		"  Enter           open YAML file for current Row",
+		"  Enter           run kubectl describe and open result",
 		"  o               output selected/current keys and quit",
 		"  + / -           increase/decrease footer panel height",
 		"",

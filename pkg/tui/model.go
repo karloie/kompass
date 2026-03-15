@@ -16,12 +16,12 @@ type Model struct {
 	activePane   int
 	activeColumn int
 
-	sourceTrees  *kube.Response
+	sourceTrees   *kube.Response
 	allRowsByPane [2][]Row
-	rowsByPane   [2][]Row
-	cursorByPane [2]int
-	selected     [2]map[string]bool
-	resources    map[string]*kube.Resource
+	rowsByPane    [2][]Row
+	cursorByPane  [2]int
+	selected      [2]map[string]bool
+	resources     map[string]*kube.Resource
 
 	footerHeight  int
 	view          *View

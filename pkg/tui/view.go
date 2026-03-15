@@ -137,15 +137,18 @@ func rowWindowStart(rowsLen, height, cursor int) int {
 }
 
 func (m Model) headerText() string {
-	headerText := fmt.Sprintf("FILE | %s | Esc close", m.view.Title)
+	headerText := fmt.Sprintf("%s | Esc close", m.view.Title)
 	if m.view.Kind == FileHelp {
 		return "HELP | Keybindings | Esc close"
 	}
 	if m.view.SearchMode {
 		headerText = "FILE | SEARCH | Enter apply | Esc cancel"
 	}
-	if m.view.Kind != FileYAML {
+	if m.view.Kind != FileOutput {
 		return headerText
+	}
+	if commandTitle := describeCommandTitle(m.view.Rows); commandTitle != "" {
+		headerText = fmt.Sprintf("%s | Esc close", commandTitle)
 	}
 
 	lineInfo := fmt.Sprintf("line %d/%d col %d", minInt(len(m.view.Rows), m.view.Scroll+1), len(m.view.Rows), m.view.ColScroll+1)
@@ -153,6 +156,17 @@ func (m Model) headerText() string {
 		lineInfo = fmt.Sprintf("%s | match %d/%d", lineInfo, m.view.ActiveMatch+1, len(m.view.MatchRows))
 	}
 	return fmt.Sprintf("%s | %s", headerText, lineInfo)
+}
+
+func describeCommandTitle(rows []string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	first := strings.TrimSpace(rows[0])
+	if !strings.HasPrefix(first, "$ kubectl ") {
+		return ""
+	}
+	return strings.TrimPrefix(first, "$ ")
 }
 
 func (m Model) footerText() string {
@@ -171,7 +185,7 @@ func (m Model) footerText() string {
 }
 
 func (m Model) renderRows(rowsHeight int) []string {
-	start := clamp(m.view.Scroll, 0, maxInt(0, len(m.view.Rows)-1))
+	start := clamp(m.view.Scroll, 0, m.maxViewScroll())
 	end := minInt(len(m.view.Rows), start+rowsHeight)
 	rowsRows := make([]string, 0, rowsHeight)
 	lineNumberWidth := len(fmt.Sprintf("%d", maxInt(1, len(m.view.Rows))))
@@ -192,15 +206,26 @@ func (m Model) renderRow(r Row, fileed bool) string {
 	if r.Separator {
 		return ""
 	}
-	state := rowState{Focused: fileed, Selected: m.selected[m.activePane][r.Key]}
+	state := rowState{
+		Focused:     fileed,
+		Selected:    m.selected[m.activePane][r.Key],
+		Describable: m.canDescribeRow(&r),
+	}
 	rowContent := rowContent(r, state)
-	content := withSelectionMarkerOnRow(rowContent, rowSelectionMarker(state))
+	if state.Selected {
+		return m.styleRowContent(rowContent, state)
+	}
+	hideUncheckedMarker := !state.Selected
+	content := withSelectionMarkerOnRowState(rowContent, rowSelectionMarker(state), hideUncheckedMarker)
 	return m.styleRowContent(content, state)
 }
 
 func rowSelectionMarker(state rowState) string {
+	if !state.Describable {
+		return disabledMarker
+	}
 	if state.Selected {
-		return "⚠️"
+		return "[x]"
 	}
 	return "[ ]"
 }
@@ -227,17 +252,27 @@ func (m Model) styleRowContent(content string, state rowState) string {
 	width := maxInt(1, m.width)
 	content = pad(truncate(content, width), width)
 	if state.Focused {
+		if !state.Describable {
+			return disabledFocusedRowStyle.Render(content)
+		}
 		return fileedCell.Render(content)
+	}
+	if !state.Describable {
+		return disabledSelectedRowStyle.Render(content)
 	}
 	return selectedRowStyle.Render(content)
 }
 
 func withSelectionMarkerOnRow(rowContent, marker string) string {
+	return withSelectionMarkerOnRowState(rowContent, marker, marker == "[ ]")
+}
+
+func withSelectionMarkerOnRowState(rowContent, marker string, hideUncheckedMarker bool) string {
 	for _, branch := range []string{"├─ ", "└─ "} {
 		if idx := strings.Index(rowContent, branch); idx >= 0 {
 			insertPos := idx + len(branch)
 			tail := rowContent[insertPos:]
-			if marker == "[ ]" {
+			if hideUncheckedMarker {
 				if emoji, rest, ok := consumeLeadingEmoji(tail); ok {
 					return rowContent[:insertPos] + emoji + " " + rest
 				}
@@ -245,7 +280,7 @@ func withSelectionMarkerOnRow(rowContent, marker string) string {
 			return rowContent[:insertPos] + marker + " " + tail
 		}
 	}
-	if marker == "[ ]" {
+	if hideUncheckedMarker {
 		if emoji, rest, ok := consumeLeadingEmoji(rowContent); ok {
 			return emoji + " " + rest
 		}

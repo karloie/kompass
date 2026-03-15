@@ -40,8 +40,8 @@ type Row struct {
 type Kind string
 
 const (
-	FileYAML Kind = "yaml"
-	FileHelp Kind = "help"
+	FileOutput Kind = "output"
+	FileHelp   Kind = "help"
 )
 
 type View struct {
@@ -68,23 +68,27 @@ func (m editDoneMsg) doneErr() error {
 }
 
 type rowState struct {
-	Focused  bool
-	Selected bool
+	Focused     bool
+	Selected    bool
+	Describable bool
 }
 
 var (
-	accentForeground  = lipgloss.Color("230")
-	accentBackground  = lipgloss.Color("24")
-	headerStyle       = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground).Padding(0, 1)
-	footerStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
-	fileedCell        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
-	selectedRowStyle  = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
-	matchRowStyle     = lipgloss.NewStyle().Background(lipgloss.Color("236"))
-	activeMatchStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
-	rowNumberStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	gutterMatchStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	gutterActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("166"))
-	termMatchStyle    = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("227"))
-	termActiveStyle   = lipgloss.NewStyle().Underline(true).Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
-	unselectedMarker  = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("[ ]")
+	accentForeground         = lipgloss.Color("230")
+	accentBackground         = lipgloss.Color("24")
+	headerStyle              = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground).Padding(0, 1)
+	footerStyle              = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
+	fileedCell               = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
+	disabledFocusedRowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238"))
+	selectedRowStyle         = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
+	disabledSelectedRowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238"))
+	matchRowStyle            = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	activeMatchStyle         = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
+	rowNumberStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	gutterMatchStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	gutterActiveStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("166"))
+	termMatchStyle           = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("227"))
+	termActiveStyle          = lipgloss.NewStyle().Underline(true).Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("166"))
+	unselectedMarker         = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("[ ]")
+	disabledMarker           = "[-]"
 )

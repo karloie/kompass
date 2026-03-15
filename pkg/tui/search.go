@@ -254,7 +254,7 @@ func (m Model) keysForOutput() []string {
 }
 
 func (m *Model) applySearch() {
-	if m.view == nil || m.view.Kind != FileYAML {
+	if m.view == nil || m.view.Kind != FileOutput {
 		return
 	}
 	query := strings.TrimSpace(strings.ToLower(m.view.SearchQuery))

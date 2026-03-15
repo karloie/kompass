@@ -30,17 +30,23 @@ func TestTabAndShiftTabJumpBetweenRoots(t *testing.T) {
 	if m2.cursorByPane[0] != 0 {
 		t.Fatalf("expected Shift+Tab to jump to previous root row (0), got %d", m2.cursorByPane[0])
 	}
+
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m3 := updated.(Model)
+	if m3.cursorByPane[0] != 2 {
+		t.Fatalf("expected Shift+Tab to wrap to last root row (2), got %d", m3.cursorByPane[0])
+	}
 }
 
-func TestTabNoOpWhenNoFurtherRoot(t *testing.T) {
+func TestTabWrapsWhenNoFurtherRoot(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "root/a", Depth: 0}, {Key: "child/a1", Depth: 1}}
 	m.cursorByPane[0] = 1
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m1 := updated.(Model)
-	if m1.cursorByPane[0] != 1 {
-		t.Fatalf("expected Tab to stay on current row when no next root, got %d", m1.cursorByPane[0])
+	if m1.cursorByPane[0] != 0 {
+		t.Fatalf("expected Tab to wrap to first root row (0), got %d", m1.cursorByPane[0])
 	}
 }
 
@@ -76,16 +82,18 @@ func TestQuestionMarkOpensHelpFile(t *testing.T) {
 	}
 }
 
-func TestOpenYAMLFilePrefersResourceData(t *testing.T) {
+func TestViewDescribeIncludesCommand(t *testing.T) {
 	r := Row{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running", Metadata: map[string]any{"name": "foo"}}
-	res := map[string]any{"apiVersion": "v1", "kind": "Pod", "metadata": map[string]any{"name": "foo"}}
-	view := viewYaml(r, &kube.Resource{Resource: res})
+	view := viewDescribe(r, "ctx-a", "ns")
 	if view == nil {
-		t.Fatalf("expected yaml view")
+		t.Fatalf("expected describe view")
+	}
+	if view.Title != "kubectl --context ctx-a describe pod foo -n ns" {
+		t.Fatalf("expected command in title, got %q", view.Title)
 	}
 	joined := strings.Join(view.Rows, "\n")
-	if !strings.Contains(joined, "kind: Pod") {
-		t.Fatalf("expected yaml view to include resource kind, got:\n%s", joined)
+	if strings.Contains(joined, "$ kubectl --context ctx-a describe pod foo -n ns") {
+		t.Fatalf("expected command removed from output body, got:\n%s", joined)
 	}
 }
 
@@ -111,6 +119,7 @@ func TestEscClosesFileBeforeQuit(t *testing.T) {
 func TestDoubleEnterReturnsToSelector(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+	m.resources["pod/ns/a"] = &kube.Resource{Key: "pod/ns/a", Type: "pod"}
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m1 := updated.(Model)
@@ -128,6 +137,21 @@ func TestDoubleEnterReturnsToSelector(t *testing.T) {
 	}
 	if m2.view != nil {
 		t.Fatalf("expected second Enter to return to selector (close view)")
+	}
+}
+
+func TestEnterDoesNotDescribeUnsupportedRow(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a/container/0/environment/env/0", Type: "env", Name: "API_KEY"}}
+	m.resources["pod/ns/a"] = &kube.Resource{Key: "pod/ns/a", Type: "pod"}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if cmd != nil {
+		t.Fatalf("expected Enter on unsupported row to not quit")
+	}
+	if m1.view != nil {
+		t.Fatalf("expected Enter on unsupported row to keep selector view")
 	}
 }
 
@@ -166,16 +190,33 @@ func TestWithSelectionMarkerOnRowKeepsEmojiOutsideWhenChecked(t *testing.T) {
 		t.Fatalf("expected checked marker to keep emoji outside marker, got %q", line)
 	}
 }
-func TestFileSearchFindsMatchesAndAdvances(t *testing.T) {
-	r := Row{Key: "k", Type: "pod", Name: "foo"}
-	resource := &kube.Resource{Resource: map[string]any{
-		"kind": "Pod",
-		"metadata": map[string]any{
-			"name": "foo",
-		},
-	}}
+
+func TestRenderRowShowsExplicitMarkerForNonK8sNode(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.view = viewYaml(r, resource)
+	m.width = 120
+	r := Row{Key: "pod/ns/a/container/0/environment/env/0", Text: "└─ 💬 env API_KEY", Plain: "└─ 💬 env API_KEY"}
+
+	line := m.renderRow(r, false)
+	if strings.Contains(line, "[-]") {
+		t.Fatalf("expected non-k8s row to hide selector marker, got %q", line)
+	}
+}
+
+func TestRenderRowKeepsDisabledMarkerForSelectedNonK8sNode(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.width = 120
+	r := Row{Key: "pod/ns/a/container/0/environment/env/0", Text: "└─ 💬 env API_KEY", Plain: "└─ 💬 env API_KEY"}
+	m.selected[0][r.Key] = true
+
+	line := m.renderRow(r, false)
+	if strings.Contains(line, "[-]") || strings.Contains(line, "[x]") {
+		t.Fatalf("expected selected non-k8s row to hide selector marker, got %q", line)
+	}
+}
+
+func TestFileSearchFindsMatchesAndAdvances(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.view = &View{Kind: FileOutput, Rows: []string{"kind: Pod", "metadata:", "  name: foo"}, Raw: "kind: Pod\nmetadata:\n  name: foo"}
 	m.view.SearchMode = true
 	m.view.SearchQuery = "name"
 
@@ -214,11 +255,40 @@ func TestEscInSearchModeClosesSearchNotFile(t *testing.T) {
 func TestCtrlASelectsAllRowsInActivePane(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "a"}, {Key: "b"}, {Key: "c"}}
+	m.resources["a"] = &kube.Resource{Key: "a"}
+	m.resources["b"] = &kube.Resource{Key: "b"}
+	m.resources["c"] = &kube.Resource{Key: "c"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
 	m1 := updated.(Model)
 	if len(m1.selected[0]) != 3 {
 		t.Fatalf("expected 3 selected rows after Ctrl+A, got %d", len(m1.selected[0]))
+	}
+}
+
+func TestSpaceDoesNotSelectNonK8sRow(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a/container/0/environment/env/0", Type: "env"}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m1 := updated.(Model)
+	if len(m1.selected[0]) != 0 {
+		t.Fatalf("expected non-k8s row to remain unselected, got %d selected", len(m1.selected[0]))
+	}
+}
+
+func TestCtrlASkipsNonK8sRows(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod"}, {Key: "pod/ns/a/container/0/environment/env/0", Type: "env"}}
+	m.resources["pod/ns/a"] = &kube.Resource{Key: "pod/ns/a", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	m1 := updated.(Model)
+	if len(m1.selected[0]) != 1 {
+		t.Fatalf("expected Ctrl+A to select only describable rows, got %d", len(m1.selected[0]))
+	}
+	if !m1.selected[0]["pod/ns/a"] {
+		t.Fatalf("expected describable row to be selected")
 	}
 }
 
@@ -541,7 +611,7 @@ func TestHighlightSearchTerm(t *testing.T) {
 func TestFileHomeEndNavigation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 20
-	m.view = &View{Kind: FileYAML, Rows: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
+	m.view = &View{Kind: FileOutput, Rows: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
 	m1 := updated.(Model)
@@ -558,7 +628,7 @@ func TestFileHomeEndNavigation(t *testing.T) {
 
 func TestFileGAndGNavigation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileYAML, Rows: []string{"a", "b", "c", "d"}, Scroll: 2}
+	m.view = &View{Kind: FileOutput, Rows: []string{"a", "b", "c", "d"}, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	m1 := updated.(Model)
@@ -570,6 +640,24 @@ func TestFileGAndGNavigation(t *testing.T) {
 	m2 := updated.(Model)
 	if m2.view.Scroll != 3 {
 		t.Fatalf("expected G to move to bottom, got %d", m2.view.Scroll)
+	}
+}
+
+func TestFileScrollDoesNotOvershootVisibleEnd(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.height = 8 // file rows viewport is height-2 => 6, so all 4 rows fit
+	m.view = &View{Kind: FileOutput, Rows: []string{"a", "b", "c", "d"}, Scroll: 0}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m1 := updated.(Model)
+	if m1.view.Scroll != 0 {
+		t.Fatalf("expected Down to stay at 0 when all rows fit, got %d", m1.view.Scroll)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	m2 := updated.(Model)
+	if m2.view.Scroll != 0 {
+		t.Fatalf("expected G to stay at 0 when all rows fit, got %d", m2.view.Scroll)
 	}
 }
 
@@ -588,20 +676,20 @@ func TestFileGutterMarker(t *testing.T) {
 }
 
 func TestResolveEditorCommandDefaultsToReadOnlyVi(t *testing.T) {
-	bin, args := resolveEditCommand("", "/tmp/sample.yaml")
+	bin, args := resolveEditCommand("", "/tmp/sample.txt")
 	if bin != "vi" {
 		t.Fatalf("expected default editor vi, got %q", bin)
 	}
 	if !containsString(args, "-R") {
 		t.Fatalf("expected vi to include -R for read-only mode, args=%v", args)
 	}
-	if args[len(args)-1] != "/tmp/sample.yaml" {
+	if args[len(args)-1] != "/tmp/sample.txt" {
 		t.Fatalf("expected view path as last arg, args=%v", args)
 	}
 }
 
 func TestResolveEditorCommandForNanoUsesViewerMode(t *testing.T) {
-	bin, args := resolveEditCommand("nano", "/tmp/sample.yaml")
+	bin, args := resolveEditCommand("nano", "/tmp/sample.txt")
 	if bin != "nano" {
 		t.Fatalf("expected nano editor, got %q", bin)
 	}
@@ -611,7 +699,7 @@ func TestResolveEditorCommandForNanoUsesViewerMode(t *testing.T) {
 }
 
 func TestResolveEditorCommandForUnknownKeepsArgs(t *testing.T) {
-	bin, args := resolveEditCommand("cat -n", "/tmp/sample.yaml")
+	bin, args := resolveEditCommand("cat -n", "/tmp/sample.txt")
 	if bin != "cat" {
 		t.Fatalf("expected cat editor command, got %q", bin)
 	}
@@ -625,7 +713,7 @@ func TestResolveEditorCommandForUnknownKeepsArgs(t *testing.T) {
 
 func TestFileHorizontalPanning(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileYAML, Rows: []string{"abcdefghijklmnopqrstuvwxyz"}}
+	m.view = &View{Kind: FileOutput, Rows: []string{"abcdefghijklmnopqrstuvwxyz"}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m1 := updated.(Model)
@@ -662,7 +750,7 @@ func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 18
 	m.view = &View{
-		Kind:        FileYAML,
+		Kind:        FileOutput,
 		Rows:        []string{"abcdefghijTARGETxyz"},
 		SearchQuery: "target",
 		ColScroll:   0,
@@ -681,7 +769,7 @@ func TestActiveFileMatchKeepsNextMatchVisible(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 20
 	m.view = &View{
-		Kind:        FileYAML,
+		Kind:        FileOutput,
 		Rows:        []string{"TARGET", "abcdefghijklmnopTARGET"},
 		SearchQuery: "target",
 		MatchRows:   []int{0, 1},
@@ -712,7 +800,7 @@ func TestMatchColumn(t *testing.T) {
 
 func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileYAML, Rows: []string{"a"}, SearchQuery: "name"}
+	m.view = &View{Kind: FileOutput, Rows: []string{"a"}, SearchQuery: "name"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	m1 := updated.(Model)
@@ -726,7 +814,7 @@ func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
 
 func TestCtrlUClearsSearchQuery(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileYAML, Rows: []string{"a"}, SearchMode: true, SearchQuery: "status"}
+	m.view = &View{Kind: FileOutput, Rows: []string{"a"}, SearchMode: true, SearchQuery: "status"}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
 	m1 := updated.(Model)
@@ -752,6 +840,20 @@ func TestFormatSelectionOutputJSON(t *testing.T) {
 	}
 	if out != "[\"pod/ns/a\",\"svc/ns/b\"]\n" {
 		t.Fatalf("unexpected JSON output: %q", out)
+	}
+}
+
+func TestBuildDescribeArgs(t *testing.T) {
+	r := Row{Key: "pod/default/nginx", Type: "pod", Name: "nginx"}
+	args, title := buildDescribeArgs(r, "ctx-a", "default")
+
+	got := strings.Join(args, " ")
+	want := "--context ctx-a describe pod nginx -n default"
+	if got != want {
+		t.Fatalf("unexpected describe args: got %q want %q", got, want)
+	}
+	if title != "pod/nginx" {
+		t.Fatalf("unexpected title: %q", title)
 	}
 }
 

@@ -42,7 +42,7 @@ func copyToClipboard(content string) error {
 
 func openInEditorCmd(content string) tea.Cmd {
 	return func() tea.Msg {
-		tmp, err := os.CreateTemp("", "kompass-yaml-*.yaml")
+		tmp, err := os.CreateTemp("", "kompass-output-*.txt")
 		if err != nil {
 			return editDoneMsg{err: err}
 		}
