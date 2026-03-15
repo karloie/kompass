@@ -11,4 +11,4 @@ WORKDIR /app
 COPY --from=builder /build/kompass .
 EXPOSE 8080
 ENTRYPOINT ["/app/kompass"]
-CMD ["--service", ":8080"]
+CMD ["--service", "0.0.0.0:8080"]
