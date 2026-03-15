@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/karloie/kompass/pkg/diagnostics"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -23,8 +24,8 @@ type Options struct {
 	RefreshInterval time.Duration
 	Context         string
 	Namespace       string
-	NetpolProvider  NetpolProvider
-	HubbleProvider  HubbleProvider
+	NetpolProvider  diagnostics.NetpolProvider
+	HubbleProvider  diagnostics.HubbleProvider
 	OutputJSON      bool
 	JSON            bool
 	Plain           bool
@@ -89,13 +90,6 @@ func (v *View) currentPage() *ViewPage {
 	}
 	idx := clamp(v.ActivePage, 0, len(v.Pages)-1)
 	return &v.Pages[idx]
-}
-
-func (v *View) pageCount() int {
-	if v == nil || len(v.Pages) == 0 {
-		return 1
-	}
-	return len(v.Pages)
 }
 
 func (v *View) hasMultiplePages() bool {

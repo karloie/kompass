@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	kube "github.com/karloie/kompass/pkg/kube"
@@ -154,29 +153,4 @@ func stringMeta(meta map[string]any, key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func stringMetadata(meta map[string]any) string {
-	if len(meta) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		if k == "name" || k == "status" || k == "orphaned" {
-			continue
-		}
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	if len(keys) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, minInt(3, len(keys)))
-	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, meta[k]))
-		if len(parts) == 3 {
-			break
-		}
-	}
-	return strings.Join(parts, " ")
 }

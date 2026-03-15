@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/karloie/kompass/pkg/diagnostics"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -14,8 +15,8 @@ type Model struct {
 	namespace       string
 	reload          ReloadFunc
 	refreshInterval time.Duration
-	netpolProvider  NetpolProvider
-	hubbleProvider  HubbleProvider
+	netpolProvider  diagnostics.NetpolProvider
+	hubbleProvider  diagnostics.HubbleProvider
 
 	width  int
 	height int

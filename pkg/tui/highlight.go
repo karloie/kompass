@@ -82,7 +82,6 @@ var (
 	yamlChromaStyle   *chroma.Style
 )
 
-// Fixed styles for the netpol page — not theme-driven because the semantic
 // meaning (green=open, orange=restricted, red=deny) should not vary by theme.
 var (
 	netpolHeaderStyle   = lipgloss.NewStyle().Bold(true)

@@ -61,14 +61,6 @@ func (m *Model) panView(delta int) {
 	m.view.ColScroll = clamp(m.view.ColScroll+delta, 0, m.maxColScroll())
 }
 
-func (m *Model) panViewToStart() {
-	m.view.ColScroll = 0
-}
-
-func (m *Model) panViewToEnd() {
-	m.view.ColScroll = m.maxColScroll()
-}
-
 func (m *Model) scrollView(delta int) {
 	m.view.Scroll = clamp(m.view.Scroll+delta, 0, m.maxViewScroll())
 }

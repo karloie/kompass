@@ -32,19 +32,21 @@ func stubRunScopeListCommand(t *testing.T, fn func(args ...string) (string, erro
 
 func stubRunNetpolAnalysis(t *testing.T, fn func(target resourceTarget, context string) (string, error)) {
 	t.Helper()
-	prev := runNetpolAnalysis
-	runNetpolAnalysis = fn
+	prev := diagnostics.RunNetpolAnalysis
+	diagnostics.RunNetpolAnalysis = func(target diagnostics.PodTarget, context string) (string, error) {
+		return fn(resourceTarget{ResourceType: target.ResourceType, Name: target.Name, Namespace: target.Namespace}, context)
+	}
 	t.Cleanup(func() {
-		runNetpolAnalysis = prev
+		diagnostics.RunNetpolAnalysis = prev
 	})
 }
 
 func stubRunHubbleCommand(t *testing.T, fn func(args ...string) (string, error)) {
 	t.Helper()
-	prev := runHubbleCommand
-	runHubbleCommand = fn
+	prev := diagnostics.RunHubbleCommand
+	diagnostics.RunHubbleCommand = fn
 	t.Cleanup(func() {
-		runHubbleCommand = prev
+		diagnostics.RunHubbleCommand = prev
 	})
 }
 
@@ -1650,7 +1652,7 @@ func TestObserveHubbleByModeCLI(t *testing.T) {
 		return "ok", nil
 	})
 
-	body, err := observeHubbleByMode("ns/foo", 42, "ctx-a", "cli")
+	body, err := diagnostics.ObserveHubbleByMode("ns/foo", 42, "ctx-a", "cli")
 	if err != nil {
 		t.Fatalf("expected CLI mode to succeed, got %v", err)
 	}
@@ -1664,7 +1666,7 @@ func TestObserveHubbleByModeAutoFallsBackToCLI(t *testing.T) {
 		return "cli-flow", nil
 	})
 
-	body, err := observeHubbleByMode("ns/foo", 10, "", "auto")
+	body, err := diagnostics.ObserveHubbleByMode("ns/foo", 10, "", "auto")
 	if err != nil {
 		t.Fatalf("expected auto mode fallback to CLI, got %v", err)
 	}

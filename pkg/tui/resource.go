@@ -590,20 +590,6 @@ func rowSelectionMarker(state rowState) string {
 	return "[ ]"
 }
 
-func rowContent(r Row, state rowState) string {
-	rowContent := r.Text
-	if state.Focused || state.Selected {
-		rowContent = r.Plain
-		if rowContent == "" {
-			rowContent = r.PlainText
-		}
-	}
-	if strings.TrimSpace(rowContent) == "" {
-		return r.Name
-	}
-	return rowContent
-}
-
 func (m Model) styleRowContent(content string, state rowState) string {
 	if !state.Focused && !state.Selected {
 		return content
