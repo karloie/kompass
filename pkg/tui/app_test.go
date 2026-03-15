@@ -50,6 +50,35 @@ func stubRunHubbleCommand(t *testing.T, fn func(args ...string) (string, error))
 	})
 }
 
+func applyCmdResult(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	return applyMsg(t, m, cmd())
+}
+
+func applyMsg(t *testing.T, m Model, msg tea.Msg) Model {
+	t.Helper()
+	switch v := msg.(type) {
+	case tea.BatchMsg:
+		for _, c := range v {
+			if c == nil {
+				continue
+			}
+			m = applyCmdResult(t, m, c)
+		}
+		return m
+	default:
+		updated, next := m.Update(msg)
+		m2 := updated.(Model)
+		if next == nil {
+			return m2
+		}
+		return applyCmdResult(t, m2, next)
+	}
+}
+
 type fakeNetpolProvider struct{}
 
 func (fakeNetpolProvider) AnalyzePod(target diagnostics.PodTarget, context string, resources map[string]*kube.Resource) (string, error) {
@@ -285,8 +314,8 @@ func TestRefreshLogsPageFollowsBottom(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m2 := updated.(Model)
 	if m2.view.pageName() != "logs" {
@@ -374,10 +403,7 @@ func TestDoubleEnterReturnsToSelector(t *testing.T) {
 	m.resources["pod/ns/a"] = &kube.Resource{Key: "pod/ns/a", Type: "pod"}
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
-	if cmd != nil {
-		t.Fatalf("expected Enter to open view without quitting")
-	}
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected first Enter to open view")
 	}
@@ -673,8 +699,8 @@ func TestTabCyclesInspectPages(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected resource view to open")
 	}

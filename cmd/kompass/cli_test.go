@@ -17,6 +17,9 @@ func TestPrintHelpIncludesDebugFlag(t *testing.T) {
 	if !strings.Contains(out, "--debug") {
 		t.Fatalf("expected help output to include --debug, got:\n%s", out)
 	}
+	if !strings.Contains(out, "-t, --tui") {
+		t.Fatalf("expected help output to include -t shorthand for tui, got:\n%s", out)
+	}
 }
 
 func TestPrintGraphsOutputsValidJSON(t *testing.T) {

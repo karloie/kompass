@@ -78,6 +78,15 @@ type ViewPage struct {
 	ColScroll int
 }
 
+type filterApplyMsg struct {
+	query string
+}
+
+type viewPageLoadResultMsg struct {
+	target resourceTarget
+	page   ViewPage
+}
+
 func newPagedView(pages []ViewPage) *View {
 	v := &View{Pages: pages}
 	v.syncFromActivePage()

@@ -92,6 +92,7 @@ func main() {
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
 	flag.BoolVar(versionArg, "v", false, "Shorthand for --version")
 	flag.BoolVar(debugArg, "d", false, "Shorthand for --debug")
+	flag.BoolVar(tuiArg, "t", false, "Shorthand for --tui")
 	flag.StringVar(contextArg, "c", "", "Shorthand for --context")
 	flag.StringVar(namespaceArg, "n", "", "Shorthand for --namespace")
 	_ = flag.CommandLine.Parse(normalizeServiceArgs(os.Args[1:]))

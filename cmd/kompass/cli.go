@@ -16,12 +16,12 @@ Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
   --service [addr]         Start web server (format: host:port, default localhost:8080)
-  --tui                    Start interactive terminal UI
   --json                   JSON output
   --mock                   Mock provider
   --plain                  Plain output without ANSI colors
   -d, --debug              Enable debug logging
   -h, --help               Show help
+  -t, --tui                Start interactive terminal UI
   -v, --version            Show version
 
 Selectors (type/namespace/name format):

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/karloie/kompass/pkg/diagnostics"
 	kube "github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/tree"
@@ -42,10 +43,138 @@ func buildNetpolPageWithProvider(target resourceTarget, context string, provider
 }
 func buildHubblePage(target resourceTarget, context string, provider diagnostics.HubbleProvider) ViewPage {
 	podRef := target.Namespace + "/" + target.Name
-	body, _ := resolveHubbleProvider(provider).ObservePod(podRef, 100, context)
+	body, err := resolveHubbleProvider(provider).ObservePod(podRef, 100, context)
+	if err != nil && strings.TrimSpace(body) == "" {
+		body = "(hubble unavailable)\n\nerror: " + err.Error()
+	}
 	title := "hubble observe --pod " + podRef
 	rows := decorateHubbleRows(body)
 	return ViewPage{Name: "hubble", Kind: FileOutput, Title: title, Rows: rows, Raw: body}
+}
+
+func resourceTargetsEqual(a, b resourceTarget) bool {
+	return strings.TrimSpace(a.ResourceType) == strings.TrimSpace(b.ResourceType) &&
+		strings.TrimSpace(a.Name) == strings.TrimSpace(b.Name) &&
+		strings.TrimSpace(a.Namespace) == strings.TrimSpace(b.Namespace)
+}
+
+func loadViewPageNow(target resourceTarget, context string, resources map[string]*kube.Resource, netpolProvider diagnostics.NetpolProvider, hubbleProvider diagnostics.HubbleProvider, pageName string) ViewPage {
+	switch pageName {
+	case "describe":
+		args, _ := buildDescribeCommand(target, context)
+		return commandViewPage("describe", args)
+	case "logs":
+		args, _ := buildLogsCommand(target, context)
+		return commandViewPage("logs", args)
+	case "events":
+		args, _ := buildEventsCommand(target, context)
+		return commandViewPage("events", args)
+	case "yaml":
+		args, _ := buildYAMLCommand(target, context)
+		return commandViewPage("yaml", args)
+	case "netpol":
+		return buildNetpolPageWithProvider(target, context, netpolProvider, resources)
+	case "hubble":
+		return buildHubblePage(target, context, hubbleProvider)
+	default:
+		return unavailableViewPage(pageName, pageName+" unavailable")
+	}
+}
+
+func loadViewPageCmd(target resourceTarget, context string, resources map[string]*kube.Resource, netpolProvider diagnostics.NetpolProvider, hubbleProvider diagnostics.HubbleProvider, pageName string) tea.Cmd {
+	return func() tea.Msg {
+		page := loadViewPageNow(target, context, resources, netpolProvider, hubbleProvider, pageName)
+		return viewPageLoadResultMsg{target: target, page: page}
+	}
+}
+
+func loadingPageForName(target resourceTarget, context, pageName string) ViewPage {
+	loading := "loading..."
+	switch pageName {
+	case "describe":
+		args, _ := buildDescribeCommand(target, context)
+		return ViewPage{Name: "describe", Kind: FileOutput, Title: "kubectl " + strings.Join(args, " "), Rows: []string{loading}, Raw: loading}
+	case "logs":
+		args, _ := buildLogsCommand(target, context)
+		return ViewPage{Name: "logs", Kind: FileOutput, Title: "kubectl " + strings.Join(args, " "), Rows: []string{loading}, Raw: loading}
+	case "events":
+		args, _ := buildEventsCommand(target, context)
+		return ViewPage{Name: "events", Kind: FileOutput, Title: "kubectl " + strings.Join(args, " "), Rows: []string{loading}, Raw: loading}
+	case "yaml":
+		args, _ := buildYAMLCommand(target, context)
+		return ViewPage{Name: "yaml", Kind: FileOutput, Title: "kubectl " + strings.Join(args, " "), Rows: []string{loading}, Raw: loading}
+	case "netpol":
+		return ViewPage{Name: "netpol", Kind: FileOutput, Title: "netpol: " + target.Namespace + "/" + target.Name, Rows: []string{loading}, Raw: loading}
+	case "hubble":
+		podRef := target.Namespace + "/" + target.Name
+		return ViewPage{Name: "hubble", Kind: FileOutput, Title: "hubble observe --pod " + podRef, Rows: []string{loading}, Raw: loading}
+	default:
+		return unavailableViewPage(pageName, pageName+" unavailable")
+	}
+}
+
+func openResourceViewAsync(target resourceTarget, context string, resources map[string]*kube.Resource, netpolProvider diagnostics.NetpolProvider, hubbleProvider diagnostics.HubbleProvider, preferredPage string) (*View, tea.Cmd) {
+	resourceName := strings.TrimSpace(target.Name)
+	if resourceName == "" {
+		resourceName = normalizeResourceType(target.ResourceType)
+	}
+
+	pageNames := make([]string, 0, 6)
+	if args, _ := buildDescribeCommand(target, context); len(args) > 0 {
+		pageNames = append(pageNames, "describe")
+	}
+	if args, _ := buildLogsCommand(target, context); len(args) > 0 {
+		pageNames = append(pageNames, "logs")
+	}
+	if args, _ := buildEventsCommand(target, context); len(args) > 0 {
+		pageNames = append(pageNames, "events")
+	}
+	if args, _ := buildYAMLCommand(target, context); len(args) > 0 {
+		pageNames = append(pageNames, "yaml")
+	}
+	if normalizeResourceType(target.ResourceType) == "pod" {
+		pageNames = append(pageNames, "netpol", "hubble")
+	}
+
+	if len(pageNames) == 0 {
+		v := newPagedView([]ViewPage{unavailableViewPage("resource", "resource unavailable")})
+		v.ResourceName = resourceName
+		v.Target = target
+		return v, nil
+	}
+
+	pages := make([]ViewPage, 0, len(pageNames))
+	for _, name := range pageNames {
+		pages = append(pages, loadingPageForName(target, context, name))
+	}
+	v := newPagedView(pages)
+	v.ResourceName = resourceName
+	v.Target = target
+
+	active := 0
+	if strings.TrimSpace(preferredPage) != "" {
+		for i, name := range pageNames {
+			if name == preferredPage {
+				active = i
+				break
+			}
+		}
+	}
+	v.ActivePage = active
+
+	cmds := make([]tea.Cmd, 0, len(pageNames)-1)
+	for i, name := range pageNames {
+		if i == active || name == "netpol" || name == "hubble" {
+			v.Pages[i] = loadViewPageNow(target, context, resources, netpolProvider, hubbleProvider, name)
+			continue
+		}
+		cmds = append(cmds, loadViewPageCmd(target, context, resources, netpolProvider, hubbleProvider, name))
+	}
+	v.syncFromActivePage()
+	if len(cmds) == 0 {
+		return v, nil
+	}
+	return v, tea.Batch(cmds...)
 }
 
 func decorateHubbleRows(body string) []string {

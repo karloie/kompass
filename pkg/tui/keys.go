@@ -2,8 +2,14 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+const (
+	filterDebounceDuration     = 100 * time.Millisecond
+	filterDebounceRowThreshold = 500
 )
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -287,16 +293,13 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); m.canDescribeRow(r) {
-			v := viewResource(*r, m.context, m.namespace, m.resources, m.netpolProvider, m.hubbleProvider)
 			action := m.effectiveAction(r)
-			for i, page := range v.Pages {
-				if page.Name == action {
-					v.ActivePage = i
-					v.syncFromActivePage()
-					break
-				}
-			}
+			target := resourceViewTarget(*r, m.namespace)
+			v, cmd := openResourceViewAsync(target, m.context, m.resources, m.netpolProvider, m.hubbleProvider, action)
 			m.view = v
+			if cmd != nil {
+				return *m, cmd
+			}
 		}
 	case "ctrl+enter":
 		if r := m.currentRow(); m.canDescribeRow(r) {
@@ -413,23 +416,47 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, nil
 	case tea.KeyCtrlU:
 		m.filterQuery = ""
-		m.applyMainFilter()
+		if cmd := m.scheduleFilterApply(); cmd != nil {
+			return *m, cmd
+		}
 		return *m, nil
 	case tea.KeyBackspace:
 		next := trimLastRune(m.filterQuery)
 		if next != m.filterQuery {
 			m.filterQuery = next
-			m.applyMainFilter()
+			if cmd := m.scheduleFilterApply(); cmd != nil {
+				return *m, cmd
+			}
 		}
 		return *m, nil
 	default:
 		next := appendRunes(m.filterQuery, msg.Runes)
 		if next != m.filterQuery {
 			m.filterQuery = next
-			m.applyMainFilter()
+			if cmd := m.scheduleFilterApply(); cmd != nil {
+				return *m, cmd
+			}
 		}
 		return *m, nil
 	}
+}
+
+func (m *Model) shouldDebounceFilter() bool {
+	if m.mode != ModeSelector || m.sourceTrees == nil {
+		return false
+	}
+	return len(m.allRowsByPane[0]) >= filterDebounceRowThreshold
+}
+
+func (m *Model) scheduleFilterApply() tea.Cmd {
+	if !m.shouldDebounceFilter() {
+		m.applyMainFilter()
+		return nil
+	}
+	query := m.filterQuery
+	return tea.Tick(filterDebounceDuration, func(time.Time) tea.Msg {
+		return filterApplyMsg{query: query}
+	})
 }
 
 func (m *Model) openFilterModal() {
@@ -513,28 +540,27 @@ func (m *Model) panMain(delta int) {
 
 func (m *Model) applyMainFilter() {
 	if m.mode == ModeSelector && m.sourceTrees != nil {
-		if strings.TrimSpace(m.filterQuery) == "" {
+		cacheKey := strings.ToLower(strings.TrimSpace(m.filterQuery))
+		if cacheKey == "" {
 			m.rowsByPane[0] = m.allRowsByPane[0]
 			m.rowsByPane[1] = m.allRowsByPane[1]
+		} else if cached, ok := m.filterCache[cacheKey]; ok {
+			m.rowsByPane[0] = cached.rows0
+			m.rowsByPane[1] = cached.rows1
 		} else {
-			matcher := buildQueryMatcher(m.filterQuery)
+			matcher := buildQueryMatcher(cacheKey)
 			filteredTrees := filterResponseTrees(m.sourceTrees, matcher)
 			rows := flattenTrees(filteredTrees)
 			m.rowsByPane[0] = rows
 			m.rowsByPane[1] = singleRows(rows)
+			m.filterCache[cacheKey] = filteredRowsCache{rows0: m.rowsByPane[0], rows1: m.rowsByPane[1]}
 		}
 
 		m.normalizeCursor(0)
 		m.normalizeCursor(1)
 		m.mainColScroll[0] = clamp(m.mainColScroll[0], 0, m.maxMainColScrollForPane(0))
 		m.mainColScroll[1] = clamp(m.mainColScroll[1], 0, m.maxMainColScrollForPane(1))
-		for pane := range m.selected {
-			for key := range m.selected[pane] {
-				if !m.rowKeyVisible(pane, key) {
-					delete(m.selected[pane], key)
-				}
-			}
-		}
+		m.pruneInvisibleSelections()
 		return
 	}
 
@@ -566,9 +592,24 @@ func (m *Model) applyMainFilter() {
 		m.mainColScroll[pane] = clamp(m.mainColScroll[pane], 0, m.maxMainColScrollForPane(pane))
 	}
 
+	m.pruneInvisibleSelections()
+}
+
+func (m *Model) pruneInvisibleSelections() {
+	visibleByPane := [2]map[string]struct{}{}
+	for pane := range m.rowsByPane {
+		visible := make(map[string]struct{}, len(m.rowsByPane[pane]))
+		for _, row := range m.rowsByPane[pane] {
+			if row.Separator {
+				continue
+			}
+			visible[row.Key] = struct{}{}
+		}
+		visibleByPane[pane] = visible
+	}
 	for pane := range m.selected {
 		for key := range m.selected[pane] {
-			if !m.rowKeyVisible(pane, key) {
+			if _, ok := visibleByPane[pane][key]; !ok {
 				delete(m.selected[pane], key)
 			}
 		}

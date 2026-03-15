@@ -125,6 +125,7 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 | `--plain` | | Plain output without ANSI colors |
 | `--debug` | `-d` | Enable debug logging |
 | `--service [addr]` | | Start API server (`localhost:8080`) |
+| `--tui` | `-t` | Start interactive terminal UI |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
 

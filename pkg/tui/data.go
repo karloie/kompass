@@ -18,7 +18,7 @@ func flattenTrees(trees *kube.Response) []Row {
 	for i := range trees.Trees {
 		root := &trees.Trees[i]
 		coloredRendered := strings.TrimRight(tree.RenderTree(root, nodeMap, false), "\n")
-		plainRendered := strings.TrimRight(tree.RenderTree(root, nodeMap, true), "\n")
+		plainRendered := strings.TrimRight(ansiEscapePattern.ReplaceAllString(coloredRendered, ""), "\n")
 		coloredRows := []string{}
 		plainRows := []string{}
 		if coloredRendered != "" {

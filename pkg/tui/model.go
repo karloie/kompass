@@ -43,7 +43,12 @@ type Model struct {
 	lastRefresh    time.Time
 	refreshError   string
 	selectedAction string
+	filterCache    map[string]filteredRowsCache
 	themeName      string
+}
+type filteredRowsCache struct {
+	rows0 []Row
+	rows1 []Row
 }
 
 type Submode int
@@ -81,6 +86,7 @@ func newRun(opts Options) Model {
 		hubbleProvider:  resolveHubbleProvider(opts.HubbleProvider),
 		footerHeight:    1,
 		themeName:       currentThemeName,
+		filterCache:     map[string]filteredRowsCache{},
 	}
 	m.selected[0] = map[string]bool{}
 	m.selected[1] = map[string]bool{}
@@ -196,6 +202,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	case filterApplyMsg:
+		if strings.TrimSpace(v.query) == strings.TrimSpace(m.filterQuery) {
+			m.applyMainFilter()
+		}
+		return m, nil
+	case viewPageLoadResultMsg:
+		if m.view == nil || m.view.Kind != FileOutput {
+			return m, nil
+		}
+		if !resourceTargetsEqual(m.view.Target, v.target) {
+			return m, nil
+		}
+		for i := range m.view.Pages {
+			if m.view.Pages[i].Name == v.page.Name {
+				m.view.Pages[i] = v.page
+				if i == m.view.ActivePage {
+					m.view.syncFromActivePage()
+					m.view.ColScroll = clamp(m.view.ColScroll, 0, m.maxColScroll())
+					m.view.Scroll = clamp(m.view.Scroll, 0, m.maxViewScroll())
+				}
+				break
+			}
+		}
+		return m, nil
 	}
 
 	return Update(msg, UpdateConfig{
@@ -253,6 +283,7 @@ func (m Model) reloadTreesCmd() tea.Cmd {
 func (m *Model) setTrees(trees *kube.Response) {
 	m.sourceTrees = trees
 	m.resources = map[string]*kube.Resource{}
+	m.filterCache = map[string]filteredRowsCache{}
 	if trees == nil {
 		m.allRowsByPane[0] = nil
 		m.allRowsByPane[1] = nil
