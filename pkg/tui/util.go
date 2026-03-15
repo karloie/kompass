@@ -207,7 +207,7 @@ func buildLogsCommand(target resourceTarget, context string) ([]string, string) 
 	if !supportsLogsView(target.ResourceType) {
 		return nil, ""
 	}
-	args := []string{"logs", fmt.Sprintf("%s/%s", target.ResourceType, target.Name)}
+	args := []string{"logs", fmt.Sprintf("%s/%s", target.ResourceType, target.Name), "--tail=100"}
 	args = appendScopeArgs(args, target.Namespace, context)
 	return args, target.ResourceType + "/" + target.Name
 }

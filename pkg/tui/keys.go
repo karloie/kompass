@@ -11,7 +11,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return *m, tea.Quit
 	case "ctrl+t":
-		cycleTheme()
+		m.themeName = cycleTheme()
 	case "esc", "q":
 		m.closeView()
 	case "tab":
@@ -249,7 +249,7 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.submode = SubmodeConfirmQuit
 		return *m, nil
 	case "ctrl+t":
-		cycleTheme()
+		m.themeName = cycleTheme()
 	case "c":
 		return *m, m.openContextList()
 	case "n":

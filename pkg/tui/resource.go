@@ -22,9 +22,8 @@ func (m Model) View() string {
 
 	header := m.Header()
 	footer := m.Footer()
-	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
 	parts := []string{header}
-	rows := m.ViewRows(rowsHeight)
+	rows := m.ViewRows(m.rowsHeight())
 	parts = append(parts, rows, footer)
 	out := strings.Join(parts, "\n")
 	switch m.submode {

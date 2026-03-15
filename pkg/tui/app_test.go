@@ -382,10 +382,10 @@ func TestCtrlTCyclesThemeInMainView(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
-	_ = updated.(Model)
+	m1 := updated.(Model)
 
-	if currentThemeName != "mint" {
-		t.Fatalf("expected Ctrl+T in main view to cycle theme to mint, got %q", currentThemeName)
+	if m1.themeName != "mint" {
+		t.Fatalf("expected Ctrl+T in main view to cycle theme to mint, got %q", m1.themeName)
 	}
 }
 
@@ -398,10 +398,10 @@ func TestCtrlTCyclesThemeInResourceView(t *testing.T) {
 	m.view = viewHelp()
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
-	_ = updated.(Model)
+	m1 := updated.(Model)
 
-	if currentThemeName != "amber" {
-		t.Fatalf("expected Ctrl+T in resource view to cycle theme to amber, got %q", currentThemeName)
+	if m1.themeName != "amber" {
+		t.Fatalf("expected Ctrl+T in resource view to cycle theme to amber, got %q", m1.themeName)
 	}
 }
 
@@ -549,6 +549,82 @@ func TestScopeListAppliesClientLocalKubectlFlagsOnly(t *testing.T) {
 	}
 }
 
+func TestContextPickerShowsErrorWhenLoadFails(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		return "", fmt.Errorf("kubectl: connection refused")
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a"})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m1 := updated.(Model)
+	if m1.submode != SubmodeContextList {
+		t.Fatalf("expected context list submode")
+	}
+	if !m1.contextList.Loading {
+		t.Fatalf("expected loading state")
+	}
+
+	updated, _ = m1.Update(cmd())
+	m2 := updated.(Model)
+	if m2.contextList.Error == "" {
+		t.Fatalf("expected picker to show error, got empty")
+	}
+	if m2.submode != SubmodeContextList {
+		t.Fatalf("expected picker to remain open on error")
+	}
+	if m2.context != "ctx-a" {
+		t.Fatalf("expected context unchanged on error, got %q", m2.context)
+	}
+}
+
+func TestNamespacePickerShowsErrorWhenLoadFails(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		return "", fmt.Errorf("kubectl: unauthorized")
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Namespace: "ns-a"})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m1 := updated.(Model)
+	if m1.submode != SubmodeNamespaceList {
+		t.Fatalf("expected namespace list submode")
+	}
+
+	updated, _ = m1.Update(cmd())
+	m2 := updated.(Model)
+	if m2.namespaceList.Error == "" {
+		t.Fatalf("expected picker to show error, got empty")
+	}
+	if m2.submode != SubmodeNamespaceList {
+		t.Fatalf("expected picker to remain open on error")
+	}
+}
+
+func TestScopeListResultDroppedIfSubmodeChanged(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		return "ctx-a\nctx-b", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a"})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+
+	// User presses Esc before result arrives.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m1 := updated.(Model)
+	if m1.submode == SubmodeContextList {
+		t.Fatalf("expected submode cleared after Esc")
+	}
+
+	// Stale result arrives — should be silently dropped.
+	updated, _ = m1.Update(cmd())
+	m2 := updated.(Model)
+	if m2.submode == SubmodeContextList {
+		t.Fatalf("expected stale result to not reopen picker")
+	}
+	if len(m2.contextList.Options) > 0 {
+		t.Fatalf("expected stale result to not populate options, got %v", m2.contextList.Options)
+	}
+}
+
 func TestTabCyclesInspectPages(t *testing.T) {
 	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
 		return strings.Join(args, " "), nil
@@ -578,7 +654,7 @@ func TestTabCyclesInspectPages(t *testing.T) {
 	if m2.view.pageName() != "logs" {
 		t.Fatalf("expected logs page after Tab, got %q", m2.view.pageName())
 	}
-	if got := strings.Join(m2.view.Rows, "\n"); !strings.Contains(got, "logs pod/foo -n ns --context ctx-a") {
+	if got := strings.Join(m2.view.Rows, "\n"); !strings.Contains(got, "logs pod/foo --tail=100 -n ns --context ctx-a") {
 		t.Fatalf("expected logs output after Tab, got %q", got)
 	}
 

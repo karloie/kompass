@@ -40,6 +40,7 @@ type Model struct {
 	lastRefresh    time.Time
 	refreshError   string
 	selectedAction string
+	themeName      string
 }
 
 type Submode int
@@ -74,6 +75,7 @@ func newRun(opts Options) Model {
 		reload:          opts.Reload,
 		refreshInterval: opts.RefreshInterval,
 		footerHeight:    1,
+		themeName:       currentThemeName,
 	}
 	m.selected[0] = map[string]bool{}
 	m.selected[1] = map[string]bool{}
