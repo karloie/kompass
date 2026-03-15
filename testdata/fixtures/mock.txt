@@ -19,10 +19,8 @@
 │  ├─ 📍 endpoints petshop-backend-boys
 │  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[petshop-backend-boys-http:8080/TCP][0m}
 │  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.241[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-backend-boys-7d9b7b4cd-tr5ft[0m}
-│  │        └─ 🫛 pod-ref petshop-backend-boys-7d9b7b4cd-tr5ft.petshop-backend-boys.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-backend-boys-7d9b7b4cd-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-backend-boys[0m}
 │  ├─ 📍 endpointslice petshop-backend-boys-abcde {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mpetshop-backend-boys-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
 │  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.241[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-backend-boys-7d9b7b4cd-tr5ft[0m}
-│  │     └─ 🫛 pod-ref petshop-backend-boys-7d9b7b4cd-tr5ft.petshop-backend-boys.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-backend-boys-7d9b7b4cd-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-backend-boys[0m}
 │  └─ 🔄 httproute petshop-backend-boys {[2m[90mhostnames[0m[37m=[0m[1m[90m[backend-boys.petshop.com backend-boys.petshop.com][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-backend-boys:8080/TCP (ClusterIP)[0m}
 └─ 📑 spec
    ├─ ♻️ environment
@@ -56,14 +54,10 @@
 │  ├─ 📍 endpoints petshop-db-service
 │  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[petshop-db-bolt:7687/TCP petshop-db-http:7474/TCP][0m}
 │  │     ├─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.90[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-pqhk9[0m}
-│  │     │  └─ 🫛 pod-ref petshop-db-5cb9cd8b74-pqhk9.petshop-db-service.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-pqhk9[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-db-service[0m}
 │  │     └─ 🔌 address [[31mNOT-READY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.91[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-qx7m2[0m}
-│  │        └─ 🫛 pod-ref petshop-db-5cb9cd8b74-qx7m2.petshop-db-service.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-qx7m2[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-db-service[0m}
 │  └─ 📍 endpointslice petshop-db-service-672nq {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m7474[0m, [2m[90mportName[0m[37m=[0m[1m[90mpetshop-db-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
 │     ├─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.90[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-pqhk9[0m}
-│     │  └─ 🫛 pod-ref petshop-db-5cb9cd8b74-pqhk9.petshop-db-service.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-pqhk9[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-db-service[0m}
 │     └─ 🔌 endpoint [[31mNOT-READY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.91[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-qx7m2[0m}
-│        └─ 🫛 pod-ref petshop-db-5cb9cd8b74-qx7m2.petshop-db-service.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-db-5cb9cd8b74-qx7m2[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-db-service[0m}
 └─ 📑 spec
    ├─ ♻️ environment
    │  └─ 💬 [37mNEO_DB_PASSWORD[0m[90m=[0m<SECRET> {[2m[90mkey[0m[37m=[0m[1m[90mPSB-DATABASE-PASSWORD[0m, [2m[90msecretStore[0m[37m=[0m[1m[90mpetshop-db-vault[0m}
@@ -106,10 +100,8 @@
 │  ├─ 📍 endpoints petshop-frontend-girls
 │  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[petshop-frontend-girls-http:8080/TCP][0m}
 │  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.240[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-frontend-girls-598696998b-tr5ft[0m}
-│  │        └─ 🫛 pod-ref petshop-frontend-girls-598696998b-tr5ft.petshop-frontend-girls.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-frontend-girls-598696998b-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-frontend-girls[0m}
 │  ├─ 📍 endpointslice petshop-frontend-girls-abcde {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mpetshop-frontend-girls-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
 │  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.240[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-frontend-girls-598696998b-tr5ft[0m}
-│  │     └─ 🫛 pod-ref petshop-frontend-girls-598696998b-tr5ft.petshop-frontend-girls.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-frontend-girls-598696998b-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-frontend-girls[0m}
 │  └─ 🔄 httproute petshop-frontend-girls {[2m[90mhostnames[0m[37m=[0m[1m[90m[frontend-girls.petshop.com frontend-girls.petshop.com][0m, [2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-frontend-girls:8080/TCP (ClusterIP)[0m}
 ├─ 🤝 service petshop-lowe {[2m[90mloadBalancerIP[0m[37m=[0m[1m[90m[boys.petshop.com west-end-girls.petshop.com its-a-sin.petshop.com always-on-my-mind.petshop.com go-west.petshop.com opportunities.petshop.com][0m, [2m[90mports[0m[37m=[0m[1m[90m[443/TCP][0m, [2m[90mselector[0m[37m=[0m[1m[90m[app.kubernetes.io/instance=petshop-frontend-girls app.kubernetes.io/name=petshop-frontend-girls][0m, [2m[90mtype[0m[37m=[0m[1m[90mLoadBalancer[0m}
 └─ 📑 spec
@@ -174,7 +166,6 @@
 │  ├─ 📍 endpoints petshop-kafka
 │  │  ├─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[petshop-kafka-http:8080/TCP][0m}
 │  │  │  ├─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.242[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-tr5ft[0m}
-│  │  │  │  └─ 🫛 pod-ref petshop-kafka-6b7c8d9e0f-tr5ft.petshop-kafka.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-kafka[0m}
 │  │  │  ├─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.243[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed3[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-v58bh[0m}
 │  │  │  │  └─ 🫛 pod-ref petshop-kafka-6b7c8d9e0f-v58bh.petshop-kafka.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-v58bh[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-kafka[0m}
 │  │  │  ├─ 🔌 address [[32mREADY[0m] {[2m[90mhostname[0m[37m=[0m[1m[90mkafka-0[0m, [2m[90mip[0m[37m=[0m[1m[90m10.244.10.100[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-02-worker-12345678[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-bbbbb[0m}
@@ -188,7 +179,6 @@
 │  │        └─ 🫛 pod-ref petshop-kafka-6b7c8d9e0f-ccccc.petshop-kafka.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-ccccc[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-kafka[0m}
 │  ├─ 📍 endpointslice petshop-kafka-abcde {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mpetshop-kafka-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
 │  │  ├─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.242[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-tr5ft[0m}
-│  │  │  └─ 🫛 pod-ref petshop-kafka-6b7c8d9e0f-tr5ft.petshop-kafka.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-kafka[0m}
 │  │  ├─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.243[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed3[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-v58bh[0m}
 │  │  │  └─ 🫛 pod-ref petshop-kafka-6b7c8d9e0f-v58bh.petshop-kafka.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-v58bh[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-kafka[0m}
 │  │  ├─ 🔌 endpoint [[31mNOT-READY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.244[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed4[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-kafka-6b7c8d9e0f-zzzzz[0m, [2m[90mterminating[0m[37m=[0m[1m[90mtrue[0m}
@@ -273,10 +263,8 @@
 │  ├─ 📍 endpoints petshop-tennant
 │  │  └─ 🔗 subset {[2m[90mports[0m[37m=[0m[1m[90m[petshop-tennant-http:8080/TCP][0m}
 │  │     └─ 🔌 address [[32mREADY[0m] {[2m[90mip[0m[37m=[0m[1m[90m10.244.9.239[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-tennant-5689f8488b-tr5ft[0m}
-│  │        └─ 🫛 pod-ref petshop-tennant-5689f8488b-tr5ft.petshop-tennant.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-tennant-5689f8488b-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-tennant[0m}
 │  ├─ 📍 endpointslice petshop-tennant-abcde {[2m[90maddressType[0m[37m=[0m[1m[90mIPv4[0m, [2m[90mport[0m[37m=[0m[1m[90m8080[0m, [2m[90mportName[0m[37m=[0m[1m[90mpetshop-tennant-http[0m, [2m[90mprotocol[0m[37m=[0m[1m[90mTCP[0m}
 │  │  └─ 🔌 endpoint [[32mREADY[0m] {[2m[90maddress[0m[37m=[0m[1m[90m10.244.9.239[0m, [2m[90mnodeName[0m[37m=[0m[1m[90mpsb-01-worker-055ceed2[0m, [2m[90mserving[0m[37m=[0m[1m[90mtrue[0m, [2m[90mtargetName[0m[37m=[0m[1m[90mpetshop-tennant-5689f8488b-tr5ft[0m}
-│  │     └─ 🫛 pod-ref petshop-tennant-5689f8488b-tr5ft.petshop-tennant.petshop.svc.cluster.local {[2m[90mpodName[0m[37m=[0m[1m[90mpetshop-tennant-5689f8488b-tr5ft[0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-tennant[0m}
 │  └─ 🔄 httproute petshop-tennant {[2m[90mpaths[0m[37m=[0m[1m[90m[/*][0m, [2m[90mservice[0m[37m=[0m[1m[90mpetshop-tennant:8080/TCP (ClusterIP)[0m}
 └─ 📑 spec
    ├─ ♻️ environment

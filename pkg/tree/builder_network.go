@@ -74,8 +74,25 @@ func podNameByIP(namespace string, ips []string, nodeMap map[string]kube.Resourc
 	return ""
 }
 
-func addPodReference(node *kube.Tree, nodeKey, namespace, serviceName, podName, hostname string) {
+func shouldRenderPodReference(namespace, podName string, nodeMap map[string]kube.Resource) bool {
+	if podName == "" {
+		return false
+	}
+
+	podKey := BuildResourceKeyRef("pod", namespace, podName)
+	pod, ok := nodeMap[podKey]
+	if !ok {
+		return true
+	}
+
+	return pod.Discovered
+}
+
+func addPodReference(node *kube.Tree, nodeKey, namespace, serviceName, podName, hostname string, nodeMap map[string]kube.Resource) {
 	if node == nil || podName == "" {
+		return
+	}
+	if !shouldRenderPodReference(namespace, podName, nodeMap) {
 		return
 	}
 	meta := map[string]any{
@@ -168,7 +185,7 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 			}
 
 			epNode := NewTree(epKey, "endpoint", metadata)
-			addPodReference(epNode, epKey, namespace, serviceName, podName, hostname)
+			addPodReference(epNode, epKey, namespace, serviceName, podName, hostname, nodeMap)
 			children = append(children, epNode)
 		}
 	}
@@ -338,7 +355,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 						}
 
 						addrNode := NewTree(addrKey, "address", addrMetadata)
-						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname)
+						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname, nodeMap)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}
@@ -385,7 +402,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 						if podName == "" {
 							podName = podNameByIP(namespace, addressValues, nodeMap)
 						}
-						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname)
+						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname, nodeMap)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}
