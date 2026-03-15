@@ -93,7 +93,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-v` flag for version information
 - `--help` / `-h` flag for usage information
 
-[Unreleased]: https://github.com/karloie/kompass/compare/v0.0.10...HEAD
 [0.0.10]: https://github.com/karloie/kompass/releases/tag/v0.0.10
 [0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
