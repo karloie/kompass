@@ -69,7 +69,7 @@ func (s *serviceFlag) Set(v string) error {
 	s.set = true
 	s.addr = v
 	if v == "" || v == "true" {
-		s.addr = ":8080"
+		s.addr = "localhost:8080"
 	}
 	if v == "false" {
 		s.set = false
@@ -109,7 +109,7 @@ func main() {
 	jsonArg := flag.Bool("json", false, "JSON output")
 	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
 	serviceArg := &serviceFlag{}
-	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
+	flag.Var(serviceArg, "service", "Start web server (format: host:port, default localhost:8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
 	versionArg := flag.Bool("version", false, "Show version information")
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
@@ -138,10 +138,10 @@ func main() {
 	if serviceArg.set {
 		addr := serviceArg.addr
 		if addr == "" {
-			addr = ":8080"
+			addr = "localhost:8080"
 		}
 		if !strings.Contains(addr, ":") {
-			fmt.Fprintf(os.Stderr, "Error: --service address must be in format ':port' or 'host:port' (e.g., :8080 or 0.0.0.0:8080)\n")
+			fmt.Fprintf(os.Stderr, "Error: --service address must be in format 'host:port' (e.g., localhost:8080 or 0.0.0.0:8080)\n")
 			os.Exit(1)
 		}
 		startServer(addr, *contextArg, *namespaceArg, *mockArg)

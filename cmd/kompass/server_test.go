@@ -187,9 +187,10 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
@@ -211,9 +212,10 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*&plain=false", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=false", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}

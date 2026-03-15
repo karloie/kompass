@@ -12,29 +12,11 @@ export default defineConfig({
     port: 8081,
     strictPort: true,
     proxy: {
-      '/graph': {
+      '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
-      },
-      '/tree': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-      '/health': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-      '/healthz': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-      '/readyz': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-      '/stats': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
+        proxyTimeout: 60000,
+        timeout: 60000,
       },
     },
   },

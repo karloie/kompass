@@ -124,7 +124,7 @@ function treeURL() {
   }
 
   const query = params.toString()
-  return query ? `/tree?${query}` : '/tree'
+  return query ? `/api/tree?${query}` : '/api/tree'
 }
 
 function collectNamespaces(nodes, out) {

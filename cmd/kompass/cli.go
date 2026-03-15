@@ -15,7 +15,7 @@ func printHelp() {
 Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
-  --service [addr]         Start web server (format: :port or host:port, default :8080)
+  --service [addr]         Start web server (format: host:port, default localhost:8080)
   --json                   JSON output
   --mock <name>            Mock provider (mock)
   --plain                  Plain output without ANSI colors
@@ -42,8 +42,8 @@ Examples:
   kompass deployment/kube-system/coredns       # Specific deployment
   kompass --mock                               # Mock mode: all pods
   kompass --mock '*/petshop/*'                 # Mock: all in namespace
-  kompass --service                            # Start web server on :8080
-  kompass --service :9090                      # Start web server on :9090
+  kompass --service                            # Start web server on localhost:8080
+  kompass --service 0.0.0.0:8080               # Start web server, published on all interfaces
 
 Note: All selectors automatically include inferred/connected resources.
 	Output ordering follows dependency-aware resource relationships.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -32,7 +33,7 @@ var embeddedWebRoot fs.FS
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
-		addr = "0.0.0.0" + addr
+		addr = "localhost" + addr
 	}
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
@@ -58,13 +59,12 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	}
 	srv := &server{contextArg: contextArg, namespaceArg: namespaceArg, client: client}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/graph", srv.handleGraph)
-	mux.HandleFunc("/tree", srv.handleTree)
-	mux.HandleFunc("/tree/text", srv.handleTreeText)
-	mux.HandleFunc("/health", srv.handleHealth("json", false))
-	mux.HandleFunc("/healthz", srv.handleHealth("text", false))
-	mux.HandleFunc("/readyz", srv.handleHealth("text", true))
-	mux.HandleFunc("/stats", srv.handleStats)
+	mux.HandleFunc("/api/graph", srv.handleGraph)
+	mux.HandleFunc("/api/tree", srv.handleTree)
+	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
+	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
+	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
+	mux.HandleFunc("/api/stats", srv.handleStats)
 	web, source := webHandler()
 	slog.Info("Web UI", "source", source)
 	mux.Handle("/", web)
@@ -147,6 +147,16 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
+	accept := r.Header.Get("Accept")
+	switch {
+	case strings.Contains(accept, "text/plain"):
+		s.handleTreeText(w, r)
+		return
+	case strings.Contains(accept, "text/html"):
+		s.handleTreeHTML(w, r)
+		return
+	}
+
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -200,6 +210,48 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(output.String()))
+}
+
+func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+
+	selectors, _, provider, result, err := s.inferForRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	context_, _ := provider.GetContext()
+	namespace_, _ := provider.GetNamespace()
+	configPath, _ := provider.GetConfigPath()
+
+	treeResult := tree.BuildResponseTree(result)
+	var sb strings.Builder
+	for i := range treeResult.Trees {
+		if treeResult.Trees[i] != nil {
+			sb.WriteString(tree.RenderTree(treeResult.Trees[i], treeResult.Nodes, true))
+		}
+		if i < len(treeResult.Trees)-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
+	fmt.Fprintf(w, `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kompass — %s / %s</title>
+<style>
+body{margin:1rem;font-family:sans-serif;background:#fff;color:#111}
+@media(prefers-color-scheme:dark){body{background:#1a1a1a;color:#e0e0e0}}
+p{margin:0 0 .75rem;font-size:.85rem;color:#666}
+@media(prefers-color-scheme:dark){p{color:#aaa}}
+pre{font-size:.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0}
+</style>
+</head>
+<body><p>%s</p><pre>%s</pre></body>
+</html>`, html.EscapeString(context_), html.EscapeString(namespace_), html.EscapeString(header), html.EscapeString(sb.String()))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Graphs, error) {
