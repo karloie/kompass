@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.12] - 2026-03-15
+
+### Changed
+- Clarified container/service-mode behavior in docs to distinguish API mode from interactive diagnostics usage.
+- Updated Kubernetes deployment docs to describe `pods/portforward` requirement for interactive Hubble auto port-forward.
+- Added `pods/portforward` (`create`) permission in the bundled manifest for interactive in-cluster diagnostics.
+- Updated bundled deployment image reference to `karloie/kompass:latest`.
+
 ## [0.0.10] - 2026-03-16
 
 ### Changed
@@ -94,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--help` / `-h` flag for usage information
 
 [0.0.10]: https://github.com/karloie/kompass/releases/tag/v0.0.10
+[0.0.12]: https://github.com/karloie/kompass/releases/tag/v0.0.12
 [0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
 [0.0.7]: https://github.com/karloie/kompass/releases/tag/v0.0.7

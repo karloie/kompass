@@ -164,6 +164,8 @@ The Docker image is intended to be deployed inside a Kubernetes cluster as a ser
 
 The image also includes `kubectl`, `cilium`, and `hubble` binaries so pod-level diagnostics (for example TUI netpol/hubble pages when running interactively) can run in-cluster without installing extra tools.
 
+In normal `--service` API mode, these diagnostics binaries are not used by API requests. They are primarily for interactive CLI/TUI execution contexts.
+
 ```bash
 # Run API server
 docker run -p 8080:8080 karloie/kompass:latest --service 0.0.0.0:8080
@@ -177,6 +179,8 @@ docker run -p 8080:8080 karloie/kompass:latest --service 0.0.0.0:8080 --mock
 ### Kubernetes Deployment (Recommended)
 
 Use the included manifest for an in-cluster API deployment with service account + read-only RBAC:
+
+Note: if you run interactive diagnostics in-cluster and rely on Hubble relay auto port-forward, the service account needs `create` on `pods/portforward` (included in `deploy/kompass-k8s.yaml`).
 
 ```bash
 kubectl apply -f deploy/kompass-k8s.yaml
