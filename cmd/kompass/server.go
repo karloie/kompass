@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +27,8 @@ type server struct {
 	client        *kube.Client
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
 }
+
+var embeddedWebRoot fs.FS
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
@@ -61,6 +65,9 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/readyz", srv.handleHealth("text", true))
 	mux.HandleFunc("/stats", srv.handleStats)
+	web, source := webHandler()
+	slog.Info("Web UI", "source", source)
+	mux.Handle("/", web)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
@@ -82,21 +89,27 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	slog.Info("Server stopped")
 }
 
+func webHandler() (http.Handler, string) {
+	if embeddedWebRoot != nil {
+		return http.FileServer(http.FS(embeddedWebRoot)), "embedded dist"
+	}
+	distDir := filepath.Join("cmd", "kompass", "dist")
+	return http.FileServer(http.FS(os.DirFS(distDir))), "filesystem " + distDir
+}
+
 func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method, "readyCheck", checkReady, "format", format)
-		if checkReady && s.client != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			if _, err := s.client.GetPods(s.namespaceArg, ctx, metav1.ListOptions{Limit: 1}); err != nil {
-				slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
+		if checkReady {
+			if s.client == nil {
 				http.Error(w, "not ready", http.StatusServiceUnavailable)
 				return
 			}
-		} else if checkReady {
-			slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", "no active client")
-			http.Error(w, "not ready", http.StatusServiceUnavailable)
-			return
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if _, err := s.client.GetPods(s.namespaceArg, ctx, metav1.ListOptions{Limit: 1}); err != nil {
+				http.Error(w, "not ready", http.StatusServiceUnavailable)
+				return
+			}
 		}
 		if format == "json" {
 			w.Header().Set("Content-Type", "application/json")
@@ -104,72 +117,50 @@ func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 		} else {
 			w.Write([]byte("ok"))
 		}
-		slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK)
 	}
 }
 
 func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method)
 	if s.client == nil {
-		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", "no active client")
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(s.client.GetStats()); err != nil {
-		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
-		return
-	}
-	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK)
+	json.NewEncoder(w).Encode(s.client.GetStats())
 }
 
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
-	selectors, namespace, provider, result, err := s.inferForRequest(r)
+	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=60")
-	if err := json.NewEncoder(w).Encode(JSONOutputGraph{
+	json.NewEncoder(w).Encode(JSONOutputGraph{
 		APIVersion: jsonAPIVersion,
 		Request:    RequestMetadata{Context: context_, Namespace: namespace_, Selectors: selectors},
 		Response:   graphOnlyResponse(result),
-	}); err != nil {
-		slog.Error("JSON encoding error", "error", err)
-		return
-	}
-	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
-	_ = namespace
+	})
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	if err := json.NewEncoder(w).Encode(JSONOutputTree{
+	json.NewEncoder(w).Encode(JSONOutputTree{
 		APIVersion: jsonAPIVersion,
 		Request:    RequestMetadata{Context: context_, Namespace: namespace_, Selectors: selectors},
 		Response:   tree.BuildResponseTree(result),
-	}); err != nil {
-		slog.Error("JSON encoding error", "error", err)
-		return
-	}
-	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
+	})
 }
 
 func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
@@ -186,8 +177,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		slog.Debug("endpoint failed", "endpoint", r.URL.Path, "method", r.Method, "error", err)
-		http.Error(w, fmt.Sprintf("Error: %s", err.Error()), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -210,7 +200,6 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(output.String()))
-	slog.Debug("endpoint completed", "endpoint", r.URL.Path, "method", r.Method, "status", http.StatusOK, "graphs", len(result.Graphs), "nodes", len(result.Nodes))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Graphs, error) {
@@ -219,8 +208,6 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	if namespace == "" {
 		namespace = s.namespaceArg
 	}
-	slog.Debug("endpoint reached", "endpoint", r.URL.Path, "method", r.Method, "selectors", selectors, "namespace", namespace, "mock", r.URL.Query().Get("mock"))
-
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
 		return nil, namespace, nil, nil, err
@@ -246,33 +233,19 @@ func graphOnlyResponse(result *kube.Graphs) *kube.Graphs {
 }
 
 func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) {
-	slog.Debug("resolving provider", "mock", mockProvider, "namespace", namespace)
 	if s.clientFactory != nil {
-		slog.Debug("using custom client factory", "namespace", namespace)
 		return s.clientFactory(s.contextArg, namespace)
 	}
 	if mockProvider != "" {
 		if mockProvider != "mock" {
-			slog.Debug("provider resolve failed", "mock", mockProvider, "error", "unknown mock provider")
 			return nil, fmt.Errorf("unknown mock provider: %s", mockProvider)
 		}
 		provider, _, _, err := initProvider(true, "", namespace)
-		if err != nil {
-			slog.Debug("provider resolve failed", "mock", mockProvider, "namespace", namespace, "error", err)
-			return nil, err
-		}
-		slog.Debug("provider resolved", "provider", "mock", "namespace", namespace)
 		return provider, err
 	}
 	if s.client != nil {
-		slog.Debug("provider resolved", "provider", "cluster", "namespace", namespace)
 		return s.client, nil
 	}
 	provider, _, _, err := initProvider(false, s.contextArg, namespace)
-	if err != nil {
-		slog.Debug("provider resolve failed", "provider", "cluster", "namespace", namespace, "error", err)
-		return nil, err
-	}
-	slog.Debug("provider resolved", "provider", "cluster", "namespace", namespace)
 	return provider, err
 }

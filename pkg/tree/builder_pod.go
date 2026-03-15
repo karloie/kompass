@@ -954,12 +954,7 @@ func buildSimplifiedPodNode(podKey string, pod kube.Resource) *kube.Tree {
 		}
 	}
 
-	return &kube.Tree{
-		Key:      podKey,
-		Type:     "pod",
-		Meta:     nodeMetadata,
-		Children: []*kube.Tree{},
-	}
+	return NewTree(podKey, "pod", nodeMetadata)
 }
 
 func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {

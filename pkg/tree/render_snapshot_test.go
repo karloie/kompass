@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -61,7 +62,6 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 		"deployment petshop-kafka",
 		"petshop-kafka-6b7c8d9e0f-v58bh",
 		"CrashLoopBackOff",
-		"EXPIRED 5D AGO",
 		"gateway internal-gateway",
 		"poddisruptionbudget petshop-tennant-pdb",
 		"petshop-lowe",
@@ -78,6 +78,9 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 	}
 	if !strings.Contains(plain, "HEALTHY") {
 		t.Fatalf("expected pdb healthy status in plain render")
+	}
+	if !regexp.MustCompile(`EXPIRED\s+\d+D\s+AGO`).MatchString(plain) {
+		t.Fatalf("expected expired certificate status in plain render")
 	}
 
 	if !strings.Contains(colored, "\x1b[") {

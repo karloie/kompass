@@ -163,6 +163,20 @@ func TestHandleTreeSuccess(t *testing.T) {
 		if g == nil {
 			t.Fatalf("expected tree in /tree response graph")
 		}
+		assertTreeIcons(t, g)
+	}
+}
+
+func assertTreeIcons(t *testing.T, node *kube.Tree) {
+	t.Helper()
+	if node == nil {
+		return
+	}
+	if node.Icon == "" {
+		t.Fatalf("expected icon for node %q (%s)", node.Key, node.Type)
+	}
+	for _, child := range node.Children {
+		assertTreeIcons(t, child)
 	}
 }
 

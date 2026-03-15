@@ -261,6 +261,30 @@ curl "http://localhost:8080/readyz"   # Readiness
 make build
 ```
 
+### Web Modes
+
+Kompass can run API + Web UI on the same server port (`--service`, default `:8080`).
+
+```bash
+# Dev mode (hot reload)
+# - Starts Go service on :8080
+# - Starts Vite on :8081
+# - Go proxies web requests to Vite
+make dev
+
+# Standard build (no embedded web assets)
+make build
+
+# Release build (embeds built web assets into the binary)
+make build-release
+```
+
+Runtime behavior:
+
+- `kompass --service` always serves API endpoints on `:8080`.
+- In dev mode, UI is proxied from Vite (`:8081`) through `:8080`.
+- In release build, UI is embedded and served directly from the executable on `:8080`.
+
 ### Running Tests
 
 ```bash
@@ -270,7 +294,7 @@ make test
 ### Coverage Report
 
 ```bash
-make cover
+make coverage
 ```
 
 ### Running Locally

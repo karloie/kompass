@@ -162,6 +162,7 @@ func NewTree(key, nodeType string, meta map[string]any) *kube.Tree {
 	return &kube.Tree{
 		Key:      key,
 		Type:     nodeType,
+		Icon:     graph.GetResourceEmoji(nodeType),
 		Meta:     meta,
 		Children: []*kube.Tree{},
 	}

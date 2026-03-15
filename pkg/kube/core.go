@@ -103,6 +103,7 @@ type Trees struct {
 type Tree struct {
 	Key      string         `json:"key"`
 	Type     string         `json:"type"`
+	Icon     string         `json:"icon,omitempty"`
 	Meta     map[string]any `json:"metadata"`
 	Children []*Tree        `json:"children"`
 }
