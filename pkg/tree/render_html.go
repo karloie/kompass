@@ -37,7 +37,7 @@ type treeHTMLView struct {
 	Namespace  string
 	Namespaces []string
 	StaticMode bool
-	Header     string
+	Header     template.HTML
 	TreeHTML   template.HTML
 	Script     template.JS
 }
@@ -56,7 +56,9 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 	}
 	treeHTML.WriteString(`</ul>`)
 
-	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace, selectors, configPath)
+	brand := "🧭 <a href=\"https://github.com/karloie/kompass\" target=\"_blank\" rel=\"noopener noreferrer\">Kompass</a>"
+
+	header := template.HTML(fmt.Sprintf("%s: Context: %s, Namespace: %s, Selectors: %v, Config: %s", brand, context_, namespace, selectors, configPath))
 	namespaces := []string{}
 	if !staticMode {
 		namespaces = collectTreeNamespaces(result, namespace)
