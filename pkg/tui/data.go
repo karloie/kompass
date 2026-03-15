@@ -99,6 +99,10 @@ func treeNodeSearchText(node *kube.Tree) string {
 	}
 	parts := []string{node.Type, node.Key}
 	for k, v := range node.Meta {
+		if k == "orphaned" {
+			parts = append(parts, "single", fmt.Sprint(v))
+			continue
+		}
 		parts = append(parts, k, fmt.Sprint(v))
 	}
 	return strings.Join(parts, " ")
@@ -125,7 +129,9 @@ func flattenNode(rows *[]Row, n *kube.Tree, depth int, coloredRows, plainRows []
 		}
 		*rowIndex++
 	}
-	*rows = append(*rows, Row{Key: n.Key, Type: n.Type, Name: name, Text: rowText, Plain: plainRowText, PlainText: plainRowText, Status: status, Metadata: meta, Depth: depth})
+	row := Row{Key: n.Key, Type: n.Type, Name: name, Text: rowText, Plain: plainRowText, PlainText: plainRowText, Status: status, Metadata: meta, Depth: depth}
+	row.SearchText = buildRowSearchText(row)
+	*rows = append(*rows, row)
 	for _, c := range n.Children {
 		flattenNode(rows, c, depth+1, coloredRows, plainRows, rowIndex)
 	}

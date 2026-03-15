@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,17 +24,21 @@ type Model struct {
 	allRowsByPane [2][]Row
 	rowsByPane    [2][]Row
 	cursorByPane  [2]int
+	mainColScroll [2]int
 	selected      [2]map[string]bool
 	resources     map[string]*kube.Resource
 
-	footerHeight  int
-	view          *View
-	emitSelection bool
-	filterMode    bool
-	filterQuery   string
-	refreshing    bool
-	lastRefresh   time.Time
-	refreshError  string
+	footerHeight   int
+	view           *View
+	confirmQuit    bool
+	emitSelection  bool
+	filterMode     bool
+	filterQuery    string
+	filterSaved    string
+	refreshing     bool
+	lastRefresh    time.Time
+	refreshError   string
+	selectedAction string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -73,12 +78,11 @@ func newRun(opts Options) Model {
 }
 
 type UpdateConfig struct {
-	OnWindowSize   func(tea.WindowSizeMsg)
-	HasOpenFile    func() bool
-	HandleKey      func(tea.KeyMsg) (tea.Model, tea.Cmd)
-	HandleMainKey  func(tea.KeyMsg) (tea.Model, tea.Cmd)
-	HandleEditDone func(error)
-	Current        func() tea.Model
+	OnWindowSize  func(tea.WindowSizeMsg)
+	HasOpenFile   func() bool
+	HandleKey     func(tea.KeyMsg) (tea.Model, tea.Cmd)
+	HandleMainKey func(tea.KeyMsg) (tea.Model, tea.Cmd)
+	Current       func() tea.Model
 }
 
 func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
@@ -96,12 +100,6 @@ func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
 		}
 		if cfg.HandleMainKey != nil {
 			return cfg.HandleMainKey(v)
-		}
-	}
-
-	if done, ok := msg.(interface{ doneErr() error }); ok {
-		if cfg.HandleEditDone != nil {
-			cfg.HandleEditDone(done.doneErr())
 		}
 	}
 
@@ -130,6 +128,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshError = ""
 			m.lastRefresh = time.Now()
 			m.setTrees(v.trees)
+			m.refreshOpenView()
 		} else if v.err != nil {
 			m.refreshError = v.err.Error()
 		}
@@ -143,6 +142,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		OnWindowSize: func(v tea.WindowSizeMsg) {
 			m.width = v.Width
 			m.height = v.Height
+			if m.view != nil {
+				m.view.ColScroll = clamp(m.view.ColScroll, 0, m.maxColScroll())
+			}
+			m.mainColScroll[0] = clamp(m.mainColScroll[0], 0, m.maxMainColScrollForPane(0))
+			m.mainColScroll[1] = clamp(m.mainColScroll[1], 0, m.maxMainColScrollForPane(1))
 		},
 		HasOpenFile: func() bool {
 			return m.view != nil
@@ -152,16 +156,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		},
 		HandleMainKey: func(v tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.handleMainKey(v)
-		},
-		HandleEditDone: func(err error) {
-			if m.view == nil {
-				return
-			}
-			if err != nil {
-				m.view.ActionStatus = "editor failed: " + err.Error()
-				return
-			}
-			m.view.ActionStatus = "editor closed"
 		},
 		Current: func() tea.Model {
 			return m
@@ -216,6 +210,47 @@ func (m *Model) setTrees(trees *kube.Response) {
 		m.resources[k] = v
 	}
 	m.applyMainFilter()
+}
+
+func (m *Model) refreshOpenView() {
+	if m.view == nil || m.view.Kind != FileOutput || len(m.view.Pages) == 0 {
+		return
+	}
+	m.view.syncActivePage()
+	rowsHeight := m.viewRowsHeight()
+	target := m.view.Target
+	if strings.TrimSpace(target.ResourceType) == "" {
+		return
+	}
+
+	activePage := m.view.pageName()
+	previousByName := make(map[string]ViewPage, len(m.view.Pages))
+	for _, page := range m.view.Pages {
+		previousByName[page.Name] = page
+	}
+
+	next := viewResourceFromTarget(target, m.context)
+	for i := range next.Pages {
+		if prev, ok := previousByName[next.Pages[i].Name]; ok {
+			next.Pages[i].Scroll = prev.Scroll
+			if next.Pages[i].Name == "logs" {
+				prevMax := maxInt(0, len(prev.Rows)-rowsHeight)
+				if prev.Scroll == prevMax {
+					nextMax := maxInt(0, len(next.Pages[i].Rows)-rowsHeight)
+					next.Pages[i].Scroll = nextMax
+				}
+			}
+			next.Pages[i].ColScroll = prev.ColScroll
+		}
+	}
+	for i, page := range next.Pages {
+		if page.Name == activePage {
+			next.ActivePage = i
+			break
+		}
+	}
+	next.syncFromActivePage()
+	m.view = next
 }
 
 func (m Model) refreshStatusText() string {

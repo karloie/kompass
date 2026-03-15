@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
+
+func stubRunViewCommand(t *testing.T, fn func(name string, args ...string) (string, error)) {
+	t.Helper()
+	prev := runViewCommand
+	runViewCommand = fn
+	t.Cleanup(func() {
+		runViewCommand = prev
+	})
+}
 
 func TestTabAndShiftTabJumpBetweenRoots(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
@@ -149,6 +159,113 @@ func TestManualRefreshKeyStartsReload(t *testing.T) {
 	}
 }
 
+func TestRefreshUpdatesOpenResourceView(t *testing.T) {
+	phase := "before"
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return phase + ": " + strings.Join(args, " "), nil
+	})
+
+	initial := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/foo", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/foo", Type: "pod", Meta: map[string]any{"name": "foo"}}},
+	}
+	refreshed := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/foo", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/foo", Type: "pod", Meta: map[string]any{"name": "foo"}}},
+	}
+
+	m := newRun(Options{Mode: ModeSelector, Trees: initial, Context: "ctx-a", Namespace: "ns", RefreshInterval: time.Second, Reload: func() (*kube.Response, error) {
+		return refreshed, nil
+	}})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+	if got := strings.Join(m1.view.Rows, "\n"); !strings.Contains(got, "before:") {
+		t.Fatalf("expected initial command output, got %q", got)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2 := updated.(Model)
+	m2.view.Scroll = 3
+	m2.view.ColScroll = 5
+
+	phase = "after"
+	updated, _ = m2.Update(refreshResultMsg{trees: refreshed, err: nil})
+	m3 := updated.(Model)
+
+	if m3.view == nil {
+		t.Fatalf("expected resource view to remain open")
+	}
+	if got := strings.Join(m3.view.Rows, "\n"); !strings.Contains(got, "after:") {
+		t.Fatalf("expected refreshed command output, got %q", got)
+	}
+	if m3.view.pageName() != "logs" {
+		t.Fatalf("expected active page to remain logs, got %q", m3.view.pageName())
+	}
+	if m3.view.Scroll != 3 {
+		t.Fatalf("expected page scroll preserved, got %d", m3.view.Scroll)
+	}
+	if m3.view.ColScroll != 5 {
+		t.Fatalf("expected page col scroll preserved, got %d", m3.view.ColScroll)
+	}
+}
+
+func TestRefreshLogsPageFollowsBottom(t *testing.T) {
+	phase := "before"
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "logs" {
+			if phase == "before" {
+				return strings.Join([]string{"l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8"}, "\n"), nil
+			}
+			return strings.Join([]string{"l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9", "l10"}, "\n"), nil
+		}
+		return phase + ": " + strings.Join(args, " "), nil
+	})
+
+	initial := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/foo", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/foo", Type: "pod", Meta: map[string]any{"name": "foo"}}},
+	}
+	refreshed := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/foo", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/foo", Type: "pod", Meta: map[string]any{"name": "foo"}}},
+	}
+
+	m := newRun(Options{Mode: ModeSelector, Trees: initial, Context: "ctx-a", Namespace: "ns", RefreshInterval: time.Second, Reload: func() (*kube.Response, error) {
+		return refreshed, nil
+	}})
+	m.height = 8
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2 := updated.(Model)
+	if m2.view.pageName() != "logs" {
+		t.Fatalf("expected logs page active, got %q", m2.view.pageName())
+	}
+
+	// rowsHeight=5 when height=8 in file view, so bottom for 8 lines is 3.
+	m2.view.Scroll = 3
+
+	phase = "after"
+	updated, _ = m2.Update(refreshResultMsg{trees: refreshed, err: nil})
+	m3 := updated.(Model)
+	if m3.view.pageName() != "logs" {
+		t.Fatalf("expected logs page to remain active, got %q", m3.view.pageName())
+	}
+	// rowsHeight=5, bottom for 10 lines should be 5.
+	if m3.view.Scroll != 5 {
+		t.Fatalf("expected logs page to follow new bottom (5), got %d", m3.view.Scroll)
+	}
+}
+
 func TestFooterIncludesRefreshStatus(t *testing.T) {
 	m := newRun(Options{
 		Mode:            ModeSelector,
@@ -173,11 +290,11 @@ func TestViewDescribeIncludesCommand(t *testing.T) {
 	if view == nil {
 		t.Fatalf("expected describe view")
 	}
-	if view.Title != "kubectl --context ctx-a describe pod foo -n ns" {
+	if view.Title != "kubectl describe pod foo -n ns --context ctx-a" {
 		t.Fatalf("expected command in title, got %q", view.Title)
 	}
 	joined := strings.Join(view.Rows, "\n")
-	if strings.Contains(joined, "$ kubectl --context ctx-a describe pod foo -n ns") {
+	if strings.Contains(joined, "$ kubectl describe pod foo -n ns --context ctx-a") {
 		t.Fatalf("expected command removed from output body, got:\n%s", joined)
 	}
 }
@@ -195,13 +312,21 @@ func TestEscClosesFileBeforeQuit(t *testing.T) {
 		t.Fatalf("expected no quit command while closing view")
 	}
 
-	_, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd == nil {
-		t.Fatalf("expected second Esc to quit app")
+	updated, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(Model)
+	if cmd != nil {
+		t.Fatalf("expected second Esc to open quit confirmation, not quit immediately")
+	}
+	if !m2.confirmQuit {
+		t.Fatalf("expected second Esc to enable quit confirmation")
 	}
 }
 
 func TestDoubleEnterReturnsToSelector(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return "describe output", nil
+	})
+
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
 	m.resources["pod/ns/a"] = &kube.Resource{Key: "pod/ns/a", Type: "pod"}
@@ -240,25 +365,197 @@ func TestEnterDoesNotDescribeUnsupportedRow(t *testing.T) {
 	}
 }
 
-func TestFooterSummaryByColumn(t *testing.T) {
-	r := &Row{
-		Key:    "pod/ns/foo",
-		Type:   "pod",
-		Name:   "foo",
-		Status: "Running",
-		Depth:  2,
-		Metadata: map[string]any{
-			"reason":    "CrashLoopBackOff",
-			"namespace": "ns",
-		},
+func TestTabCyclesInspectPages(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return strings.Join(args, " "), nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+	if got := len(m1.view.Pages); got != 4 {
+		t.Fatalf("expected 4 inspect pages, got %d", got)
+	}
+	if m1.view.pageName() != "describe" {
+		t.Fatalf("expected describe page first, got %q", m1.view.pageName())
+	}
+	if got := strings.Join(m1.view.Rows, "\n"); !strings.Contains(got, "describe pod foo -n ns --context ctx-a") {
+		t.Fatalf("expected describe output on first page, got %q", got)
 	}
 
-	row := withSelectionMarkerOnRow("└─ service child", "[ ]")
-	if !strings.Contains(row, "└─ [ ] service child") {
-		t.Fatalf("expected marker inserted after branch prefix, got %q", row)
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2 := updated.(Model)
+	if m2.view.pageName() != "logs" {
+		t.Fatalf("expected logs page after Tab, got %q", m2.view.pageName())
 	}
-	if got := footerSummary("ctx", "ns", r); !strings.Contains(got, "key=pod/ns/foo") {
-		t.Fatalf("expected footer summary to include key, got %q", got)
+	if got := strings.Join(m2.view.Rows, "\n"); !strings.Contains(got, "logs pod/foo -n ns --context ctx-a") {
+		t.Fatalf("expected logs output after Tab, got %q", got)
+	}
+
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m3 := updated.(Model)
+	if m3.view.pageName() != "events" {
+		t.Fatalf("expected events page after second Tab, got %q", m3.view.pageName())
+	}
+	if got := strings.Join(m3.view.Rows, "\n"); !strings.Contains(got, "events --for pod/foo -n ns --context ctx-a") {
+		t.Fatalf("expected events output after second Tab, got %q", got)
+	}
+
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m4 := updated.(Model)
+	if m4.view.pageName() != "yaml" {
+		t.Fatalf("expected yaml page after third Tab, got %q", m4.view.pageName())
+	}
+	if got := strings.Join(m4.view.Rows, "\n"); !strings.Contains(got, "get pod foo -o yaml -n ns --context ctx-a") {
+		t.Fatalf("expected yaml output after third Tab, got %q", got)
+	}
+
+	updated, _ = m4.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m5 := updated.(Model)
+	if m5.view.pageName() != "events" {
+		t.Fatalf("expected Shift+Tab to move back to events, got %q", m5.view.pageName())
+	}
+}
+
+func TestInspectPageStatePersistsAcrossTabCycle(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return fmt.Sprintf("output for %s", strings.Join(args, " ")), nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2 := updated.(Model)
+	m2.view.Scroll = 3
+	m2.view.ColScroll = 5
+
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m3 := updated.(Model)
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m4 := updated.(Model)
+
+	if m4.view.pageName() != "logs" {
+		t.Fatalf("expected to return to logs page, got %q", m4.view.pageName())
+	}
+	if m4.view.Scroll != 3 {
+		t.Fatalf("expected logs page scroll to persist, got %d", m4.view.Scroll)
+	}
+	if m4.view.ColScroll != 5 {
+		t.Fatalf("expected logs page column scroll to persist, got %d", m4.view.ColScroll)
+	}
+}
+
+func TestResourceViewHidesNonApplicablePagesForKind(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return strings.Join(args, " "), nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "service/ns/foo", Type: "service", Name: "foo", Status: "Running"}}
+	m.resources["service/ns/foo"] = &kube.Resource{Key: "service/ns/foo", Type: "service"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+	if got := len(m1.view.Pages); got != 3 {
+		t.Fatalf("expected 3 applicable pages for service, got %d", got)
+	}
+	if got := m1.view.pageTabs(); strings.Contains(got, "logs") {
+		t.Fatalf("expected logs tab to be hidden for service, got %q", got)
+	}
+
+	if m1.view.pageName() != "describe" {
+		t.Fatalf("expected describe page first, got %q", m1.view.pageName())
+	}
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m2 := updated.(Model)
+	if m2.view.pageName() != "events" {
+		t.Fatalf("expected events page after Tab, got %q", m2.view.pageName())
+	}
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m3 := updated.(Model)
+	if m3.view.pageName() != "yaml" {
+		t.Fatalf("expected yaml page after second Tab, got %q", m3.view.pageName())
+	}
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m4 := updated.(Model)
+	if m4.view.pageName() != "describe" {
+		t.Fatalf("expected Tab to wrap back to describe, got %q", m4.view.pageName())
+	}
+}
+
+func TestInspectHeaderShowsActivePage(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return strings.Join(args, " "), nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Namespace: "ns"})
+	m.width = 120
+	m.height = 20
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	header := m1.headerText()
+	if !strings.Contains(header, "foo") || !strings.Contains(header, "describe") || !strings.Contains(header, "logs") || !strings.Contains(header, "events") || !strings.Contains(header, "yaml") {
+		t.Fatalf("expected header to show resource tabs, got %q", header)
+	}
+	if m1.view.pageName() != "describe" {
+		t.Fatalf("expected describe to be active page, got %q", m1.view.pageName())
+	}
+}
+
+func TestFileFooterOmitsEscShortcut(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.view = &View{Kind: FileOutput, Rows: []string{"a"}, Raw: "a"}
+
+	footer := m.footerText()
+	if strings.Contains(footer, "Esc") {
+		t.Fatalf("expected bottom menu to omit Esc shortcut, got %q", footer)
+	}
+}
+
+func TestFileLineStatRendersInBottomFooter(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.width = 100
+	m.height = 8
+	m.view = &View{Kind: FileOutput, Title: "kubectl describe pod foo", Rows: []string{"a", "b", "c"}, Raw: "a\nb\nc", Scroll: 1, ColScroll: 2}
+
+	out := m.toString()
+	lines := strings.Split(out, "\n")
+	if len(lines) == 0 {
+		t.Fatalf("expected rendered output")
+	}
+
+	header := lines[0]
+	if strings.Contains(header, "line 2/3 col 3") {
+		t.Fatalf("expected line stat removed from header, got %q", header)
+	}
+	if strings.Contains(header, "kubectl describe pod foo") {
+		t.Fatalf("expected kubectl command moved out of header, got %q", header)
+	}
+
+	command := lines[1]
+	if !strings.Contains(command, "kubectl describe pod foo") {
+		t.Fatalf("expected command in second line, got %q", command)
+	}
+
+	footer := lines[len(lines)-1]
+	if !strings.Contains(footer, "line 2/3 col 3") {
+		t.Fatalf("expected line stat in footer, got %q", footer)
 	}
 }
 
@@ -296,44 +593,6 @@ func TestRenderRowKeepsDisabledMarkerForSelectedNonK8sNode(t *testing.T) {
 	line := m.renderRow(r, false)
 	if strings.Contains(line, "[-]") || strings.Contains(line, "[x]") {
 		t.Fatalf("expected selected non-k8s row to hide selector marker, got %q", line)
-	}
-}
-
-func TestFileSearchFindsMatchesAndAdvances(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileOutput, Rows: []string{"kind: Pod", "metadata:", "  name: foo"}, Raw: "kind: Pod\nmetadata:\n  name: foo"}
-	m.view.SearchMode = true
-	m.view.SearchQuery = "name"
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
-	if m1.view.SearchMode {
-		t.Fatalf("expected search mode to close after Enter")
-	}
-	if len(m1.view.MatchRows) == 0 {
-		t.Fatalf("expected at least one search match")
-	}
-
-	before := m1.view.ActiveMatch
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	m2 := updated.(Model)
-	if len(m2.view.MatchRows) > 1 && m2.view.ActiveMatch == before {
-		t.Fatalf("expected n to change active match when multiple matches exist")
-	}
-}
-
-func TestEscInSearchModeClosesSearchNotFile(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.view = viewHelp()
-	m.view.SearchMode = true
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m1 := updated.(Model)
-	if m1.view == nil {
-		t.Fatalf("expected view to remain open when Esc closes search mode")
-	}
-	if m1.view.SearchMode {
-		t.Fatalf("expected search mode to be closed")
 	}
 }
 
@@ -404,10 +663,42 @@ func TestFilterInputModeAndApply(t *testing.T) {
 	if m3.filterMode {
 		t.Fatalf("expected Enter to exit filter mode")
 	}
+	if m3.filterQuery != "pod" {
+		t.Fatalf("expected filter query to remain applied, got %q", m3.filterQuery)
+	}
+}
 
-	view := m3.View()
-	if !strings.Contains(view, "Filter:") {
-		t.Fatalf("expected selector view to show filter bar")
+func TestFilterModalEscRestoresPreviousQuery(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "api"}, {Key: "svc/ns/a", Type: "service", Name: "api-svc"}}
+	m.allRowsByPane[0] = m.rowsByPane[0]
+	m.filterQuery = "svc"
+	m.applyMainFilter()
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m1 := updated.(Model)
+	if !m1.filterMode {
+		t.Fatalf("expected / to enable filter mode")
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	m2 := updated.(Model)
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p', 'o', 'd'}})
+	m3 := updated.(Model)
+	if m3.filterQuery != "pod" {
+		t.Fatalf("expected live draft query, got %q", m3.filterQuery)
+	}
+
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m4 := updated.(Model)
+	if m4.filterMode {
+		t.Fatalf("expected Esc to close filter modal")
+	}
+	if m4.filterQuery != "svc" {
+		t.Fatalf("expected Esc to restore previous query, got %q", m4.filterQuery)
+	}
+	if len(m4.rowsByPane[0]) != 1 || m4.rowsByPane[0][0].Key != "svc/ns/a" {
+		t.Fatalf("expected restored filter results, got %+v", m4.rowsByPane[0])
 	}
 }
 
@@ -487,17 +778,17 @@ func TestOQuitsAndEnablesOutput(t *testing.T) {
 	}
 }
 
-func TestRenderRowFileedLongNameStaysSingleRow(t *testing.T) {
+func TestRenderRowFocusedLongNameStaysSingleRow(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 24
 	r := Row{Key: "k", Name: "deployment/applikasjonsplattform/ad-explore-webservice-config"}
 
 	row := m.renderRow(r, true)
 	if strings.Contains(row, "\n") {
-		t.Fatalf("expected fileed row to render as a single row")
+		t.Fatalf("expected focused row to render as a single row")
 	}
 	if got := lipgloss.Width(row); got != m.width {
-		t.Fatalf("expected fileed row to invert full width %d, got %d", m.width, got)
+		t.Fatalf("expected focused row to invert full width %d, got %d", m.width, got)
 	}
 }
 
@@ -513,6 +804,56 @@ func TestRenderRowSelectedUsesPlainText(t *testing.T) {
 	}
 	if !strings.Contains(row, "plain-row") {
 		t.Fatalf("expected selected row to include PlainText content, got %q", row)
+	}
+}
+
+func TestRenderRowMainUsesPlainContentForPan(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.width = 40
+	r := Row{Key: "k", Text: "\x1b[31m└─ colored-row\x1b[0m", Plain: "└─ plain-row"}
+
+	row := m.renderRow(r, false)
+	if strings.Contains(row, "colored-row") {
+		t.Fatalf("expected unfocused main row to avoid ANSI-colored source content, got %q", row)
+	}
+	if !strings.Contains(row, "plain-row") {
+		t.Fatalf("expected unfocused main row to include plain content, got %q", row)
+	}
+}
+
+func TestColorizeMainVisibleSegmentMetadataPreservesText(t *testing.T) {
+	input := "service ad-explore {clusterIP=10.10.0.1, namespace=applikasjon}"
+	styled := colorizeMainVisibleSegment(input, false)
+	if plain := ansiEscapePattern.ReplaceAllString(styled, ""); plain != input {
+		t.Fatalf("expected colorization to preserve plain text, got %q want %q", plain, input)
+	}
+}
+
+func TestColorizeMainVisibleSegmentContinuationPreservesText(t *testing.T) {
+	input := "resource line ...~"
+	styled := colorizeMainVisibleSegment(input, false)
+	if plain := ansiEscapePattern.ReplaceAllString(styled, ""); plain != input {
+		t.Fatalf("expected colorization to preserve plain text, got %q want %q", plain, input)
+	}
+}
+
+func TestColorizeMainVisibleSegmentStartsInsideMetadata(t *testing.T) {
+	input := "clusterIP=10.98.248.132, ports=[7474/TCP 7687/TCP]"
+	styled := colorizeMainVisibleSegment(input, true)
+	if plain := ansiEscapePattern.ReplaceAllString(styled, ""); plain != input {
+		t.Fatalf("expected colorization to preserve plain text, got %q want %q", plain, input)
+	}
+}
+
+func TestMetadataOpenAtOffset(t *testing.T) {
+	row := "service ad-explore {clusterIP=10.98.248.132, ports=[7474/TCP]}"
+	inside := strings.Index(row, "clusterIP")
+	outside := strings.Index(row, "service")
+	if !metadataOpenAtOffset(row, inside) {
+		t.Fatalf("expected offset inside metadata block to report open metadata")
+	}
+	if metadataOpenAtOffset(row, outside) {
+		t.Fatalf("expected offset before metadata block to report closed metadata")
 	}
 }
 
@@ -546,6 +887,18 @@ func TestViewFooterFillsViewportWidth(t *testing.T) {
 	footer := m.Footer()
 	if got := lipgloss.Width(footer); got != m.width {
 		t.Fatalf("expected footer width %d, got %d", m.width, got)
+	}
+}
+
+func TestViewFooterWithStatusFillsViewportWidth(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.width = 64
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+	m.refreshing = true
+
+	footer := m.Footer()
+	if got := lipgloss.Width(footer); got != m.width {
+		t.Fatalf("expected status footer width %d, got %d", m.width, got)
 	}
 }
 
@@ -630,7 +983,7 @@ func TestNavigationSkipsSeparatorRows(t *testing.T) {
 	}
 }
 
-func TestEscClearsSelectionBeforeQuit(t *testing.T) {
+func TestEscClearsSelectionBeforeQuitConfirmation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "a"}}
 	m.selected[0]["a"] = true
@@ -644,21 +997,49 @@ func TestEscClearsSelectionBeforeQuit(t *testing.T) {
 		t.Fatalf("expected selection cleared, got %d selected", len(m1.selected[0]))
 	}
 
-	_, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd == nil {
-		t.Fatalf("expected second Esc to quit")
+	updated, cmd = m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(Model)
+	if cmd != nil {
+		t.Fatalf("expected second Esc to open quit confirmation")
+	}
+	if !m2.confirmQuit {
+		t.Fatalf("expected confirmQuit modal state to be enabled")
 	}
 }
 
-func TestViewerFileActiveMatchRow(t *testing.T) {
-	view := &View{MatchRows: []int{3, 7, 11}, ActiveMatch: 1}
-	if got := view.activeMatchRow(); got != 7 {
-		t.Fatalf("expected active match row 7, got %d", got)
+func TestQuitConfirmationEscCancels(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "a"}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m1 := updated.(Model)
+	if !m1.confirmQuit {
+		t.Fatalf("expected quit confirmation enabled")
 	}
 
-	view.ActiveMatch = 99
-	if got := view.activeMatchRow(); got != -1 {
-		t.Fatalf("expected out-of-range active match to return -1, got %d", got)
+	updated, cmd := m1.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(Model)
+	if cmd != nil {
+		t.Fatalf("expected Esc in confirmation to cancel, not quit")
+	}
+	if m2.confirmQuit {
+		t.Fatalf("expected confirmation to be canceled")
+	}
+}
+
+func TestQuitConfirmationEnterQuits(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "a"}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m1 := updated.(Model)
+	if !m1.confirmQuit {
+		t.Fatalf("expected quit confirmation enabled")
+	}
+
+	_, cmd := m1.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatalf("expected Enter in confirmation to quit")
 	}
 }
 
@@ -672,59 +1053,20 @@ func TestContainsInt(t *testing.T) {
 	}
 }
 
-func TestHighlightSearchTerm(t *testing.T) {
-	row := "metadata.name: petshop-db"
-
-	if got := highlightSearchTerm(row, "", false); got != row {
-		t.Fatalf("expected empty query to keep row unchanged")
-	}
-
-	inactive := highlightSearchTerm(row, "name", false)
-	active := highlightSearchTerm(row, "name", true)
-
-	if !strings.Contains(inactive, "name") {
-		t.Fatalf("expected inactive highlighting to preserve searched term")
-	}
-	if !strings.Contains(active, "name") {
-		t.Fatalf("expected active highlighting to preserve searched term")
-	}
-	if got := highlightSearchTerm(row, "missing", true); got != row {
-		t.Fatalf("expected missing query to keep row unchanged")
-	}
-}
-
 func TestFileHomeEndNavigation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.width = 20
-	m.view = &View{Kind: FileOutput, Rows: []string{"abcdefghijklmnopqrstuvwxyz", "b", "c", "d"}, ColScroll: 6, Scroll: 2}
+	m.view = &View{Kind: FileOutput, Rows: []string{"a", "b", "c", "d"}, Scroll: 2}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
 	m1 := updated.(Model)
-	if m1.view.ColScroll != 0 {
-		t.Fatalf("expected Home to move to row start, got %d", m1.view.ColScroll)
+	if m1.view.Scroll != 0 {
+		t.Fatalf("expected Home to move to top, got %d", m1.view.Scroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	m2 := updated.(Model)
-	if m2.view.ColScroll == 0 {
-		t.Fatalf("expected End to move to row end, got %d", m2.view.ColScroll)
-	}
-}
-
-func TestFileGAndGNavigation(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileOutput, Rows: []string{"a", "b", "c", "d"}, Scroll: 2}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	m1 := updated.(Model)
-	if m1.view.Scroll != 0 {
-		t.Fatalf("expected g to move to top, got %d", m1.view.Scroll)
-	}
-
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	m2 := updated.(Model)
 	if m2.view.Scroll != 3 {
-		t.Fatalf("expected G to move to bottom, got %d", m2.view.Scroll)
+		t.Fatalf("expected End to move to bottom, got %d", m2.view.Scroll)
 	}
 }
 
@@ -739,10 +1081,10 @@ func TestFileScrollDoesNotOvershootVisibleEnd(t *testing.T) {
 		t.Fatalf("expected Down to stay at 0 when all rows fit, got %d", m1.view.Scroll)
 	}
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	m2 := updated.(Model)
 	if m2.view.Scroll != 0 {
-		t.Fatalf("expected G to stay at 0 when all rows fit, got %d", m2.view.Scroll)
+		t.Fatalf("expected End to stay at 0 when all rows fit, got %d", m2.view.Scroll)
 	}
 }
 
@@ -768,58 +1110,8 @@ func TestTreePageDownUsesVisibleRowsStep(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
 	m1 := updated.(Model)
-	if m1.cursorByPane[0] != 6 {
-		t.Fatalf("expected PgDn to move by visible page step to row 6, got %d", m1.cursorByPane[0])
-	}
-}
-
-func TestFileGutterMarker(t *testing.T) {
-	matchRows := []int{2, 5, 8}
-
-	if got := fileGutterMarker(5, matchRows, 8); got != "*" {
-		t.Fatalf("expected match marker '*', got %q", got)
-	}
-	if got := fileGutterMarker(8, matchRows, 8); got != ">" {
-		t.Fatalf("expected active marker '>', got %q", got)
-	}
-	if got := fileGutterMarker(3, matchRows, 8); got != " " {
-		t.Fatalf("expected no marker for non-match row, got %q", got)
-	}
-}
-
-func TestResolveEditorCommandDefaultsToReadOnlyVi(t *testing.T) {
-	bin, args := resolveEditCommand("", "/tmp/sample.txt")
-	if bin != "vi" {
-		t.Fatalf("expected default editor vi, got %q", bin)
-	}
-	if !containsString(args, "-R") {
-		t.Fatalf("expected vi to include -R for read-only mode, args=%v", args)
-	}
-	if args[len(args)-1] != "/tmp/sample.txt" {
-		t.Fatalf("expected view path as last arg, args=%v", args)
-	}
-}
-
-func TestResolveEditorCommandForNanoUsesViewerMode(t *testing.T) {
-	bin, args := resolveEditCommand("nano", "/tmp/sample.txt")
-	if bin != "nano" {
-		t.Fatalf("expected nano editor, got %q", bin)
-	}
-	if !containsString(args, "-v") {
-		t.Fatalf("expected nano to include -v for view mode, args=%v", args)
-	}
-}
-
-func TestResolveEditorCommandForUnknownKeepsArgs(t *testing.T) {
-	bin, args := resolveEditCommand("cat -n", "/tmp/sample.txt")
-	if bin != "cat" {
-		t.Fatalf("expected cat editor command, got %q", bin)
-	}
-	if containsString(args, "-R") || containsString(args, "-v") {
-		t.Fatalf("expected unknown editor args to remain unchanged, args=%v", args)
-	}
-	if !containsString(args, "-n") {
-		t.Fatalf("expected existing editor args to be preserved, args=%v", args)
+	if m1.cursorByPane[0] != 7 {
+		t.Fatalf("expected PgDn to move by visible page step to row 7, got %d", m1.cursorByPane[0])
 	}
 }
 
@@ -846,6 +1138,47 @@ func TestFileHorizontalPanning(t *testing.T) {
 	}
 }
 
+func TestHelpHorizontalPanning(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.view = &View{Kind: FileHelp, Rows: []string{"abcdefghijklmnopqrstuvwxyz"}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m1 := updated.(Model)
+	if m1.view.ColScroll != 4 {
+		t.Fatalf("expected right to increase help col scroll to 4, got %d", m1.view.ColScroll)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m2 := updated.(Model)
+	if m2.view.ColScroll != 0 {
+		t.Fatalf("expected left to decrease help col scroll to 0, got %d", m2.view.ColScroll)
+	}
+}
+
+func TestMainHorizontalPanning(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.width = 16
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/long", Type: "pod", Name: "name-with-very-long-resource"}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m1 := updated.(Model)
+	if m1.mainColScroll[0] != 4 {
+		t.Fatalf("expected right to increase main col scroll to 4, got %d", m1.mainColScroll[0])
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m2 := updated.(Model)
+	if m2.mainColScroll[0] != 0 {
+		t.Fatalf("expected left to decrease main col scroll to 0, got %d", m2.mainColScroll[0])
+	}
+
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m3 := updated.(Model)
+	if m3.mainColScroll[0] != 0 {
+		t.Fatalf("expected left at boundary to stay at 0, got %d", m3.mainColScroll[0])
+	}
+}
+
 func TestVisibleSegment(t *testing.T) {
 	if got := visibleSegment("abcdef", 0, 3); got != "ab~" {
 		t.Fatalf("expected truncated segment with continuation marker, got %q", got)
@@ -855,83 +1188,6 @@ func TestVisibleSegment(t *testing.T) {
 	}
 	if got := visibleSegment("abcdef", 10, 3); got != "" {
 		t.Fatalf("expected empty segment when scrolled past content, got %q", got)
-	}
-}
-
-func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.width = 18
-	m.view = &View{
-		Kind:        FileOutput,
-		Rows:        []string{"abcdefghijTARGETxyz"},
-		SearchQuery: "target",
-		ColScroll:   0,
-	}
-
-	m.applySearch()
-	if len(m.view.MatchRows) != 1 {
-		t.Fatalf("expected one match row, got %d", len(m.view.MatchRows))
-	}
-	if m.view.ColScroll == 0 {
-		t.Fatalf("expected horizontal auto-pan to reveal active match")
-	}
-}
-
-func TestActiveFileMatchKeepsNextMatchVisible(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.width = 20
-	m.view = &View{
-		Kind:        FileOutput,
-		Rows:        []string{"TARGET", "abcdefghijklmnopTARGET"},
-		SearchQuery: "target",
-		MatchRows:   []int{0, 1},
-		ActiveMatch: 0,
-		ColScroll:   0,
-	}
-
-	// Move to the second match and ensure viewport follows the active match.
-	m.view.ActiveMatch = 1
-	m.ensureActiveMatchVisible()
-
-	if m.view.ActiveMatch != 1 {
-		t.Fatalf("expected active match to move to second row, got %d", m.view.ActiveMatch)
-	}
-	if m.view.ColScroll == 0 {
-		t.Fatalf("expected horizontal auto-pan for second match")
-	}
-}
-
-func TestMatchColumn(t *testing.T) {
-	if got := matchColumn("abcDefG", "def"); got != 3 {
-		t.Fatalf("expected match at column 3, got %d", got)
-	}
-	if got := matchColumn("abcdef", "zzz"); got != -1 {
-		t.Fatalf("expected no match to return -1, got %d", got)
-	}
-}
-
-func TestSlashPreservesPreviousSearchQuery(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileOutput, Rows: []string{"a"}, SearchQuery: "name"}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-	m1 := updated.(Model)
-	if !m1.view.SearchMode {
-		t.Fatalf("expected slash to enter search mode")
-	}
-	if m1.view.SearchQuery != "name" {
-		t.Fatalf("expected slash to preserve prior query, got %q", m1.view.SearchQuery)
-	}
-}
-
-func TestCtrlUClearsSearchQuery(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.view = &View{Kind: FileOutput, Rows: []string{"a"}, SearchMode: true, SearchQuery: "status"}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
-	m1 := updated.(Model)
-	if m1.view.SearchQuery != "" {
-		t.Fatalf("expected Ctrl+U to clear search query, got %q", m1.view.SearchQuery)
 	}
 }
 
@@ -960,20 +1216,11 @@ func TestBuildDescribeArgs(t *testing.T) {
 	args, title := buildDescribeArgs(r, "ctx-a", "default")
 
 	got := strings.Join(args, " ")
-	want := "--context ctx-a describe pod nginx -n default"
+	want := "describe pod nginx -n default --context ctx-a"
 	if got != want {
 		t.Fatalf("unexpected describe args: got %q want %q", got, want)
 	}
 	if title != "pod/nginx" {
 		t.Fatalf("unexpected title: %q", title)
 	}
-}
-
-func containsString(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
 }

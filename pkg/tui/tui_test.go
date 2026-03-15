@@ -15,9 +15,9 @@ func TestMainPgDownMovesByVisiblePage(t *testing.T) {
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pgdown")})
 	m1 := updated.(Model)
 
-	// rowsHeight=17 after header/filter/footer, page step keeps one-row overlap => 16
-	if m1.cursorByPane[0] != 16 {
-		t.Fatalf("expected pgdown to move cursor to 16, got %d", m1.cursorByPane[0])
+	// rowsHeight=18 after header/footer, page step keeps one-row overlap => 17
+	if m1.cursorByPane[0] != 17 {
+		t.Fatalf("expected pgdown to move cursor to 17, got %d", m1.cursorByPane[0])
 	}
 }
 
@@ -31,7 +31,7 @@ func TestMainPgUpMovesByVisiblePage(t *testing.T) {
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pgup")})
 	m1 := updated.(Model)
 
-	if m1.cursorByPane[0] != 14 {
-		t.Fatalf("expected pgup to move cursor to 14, got %d", m1.cursorByPane[0])
+	if m1.cursorByPane[0] != 13 {
+		t.Fatalf("expected pgup to move cursor to 13, got %d", m1.cursorByPane[0])
 	}
 }

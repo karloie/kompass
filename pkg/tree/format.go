@@ -19,6 +19,11 @@ const (
 	colorReset  = "\033[0m"
 )
 
+var (
+	containerStateGood = map[string]bool{"RUNNING": true, "SUCCEEDED": true, "COMPLETE": true, "ACTIVE": true, "AVAILABLE": true, "BOUND": true, "READY": true}
+	containerStateWarn = map[string]bool{"SCHEDULED": true, "PENDING": true, "UNKNOWN": true, "SUSPENDED": true}
+)
+
 func formatNodeName(nodeType string, meta map[string]any, resource map[string]any, plain bool, parentMeta map[string]any) string {
 	var display string
 
@@ -222,12 +227,9 @@ func appendNodeStatus(display, nodeType, statusValue string, meta map[string]any
 }
 
 func formatContainerStatus(statusUpper string, meta map[string]any, plain bool) string {
-	stateGood := map[string]bool{"RUNNING": true, "SUCCEEDED": true, "COMPLETE": true, "ACTIVE": true, "AVAILABLE": true, "BOUND": true, "READY": true}
-	stateWarn := map[string]bool{"SCHEDULED": true, "PENDING": true, "UNKNOWN": true, "SUSPENDED": true}
-
 	tokens := []string{statusUpper}
-	tokenGood := []bool{stateGood[statusUpper]}
-	tokenWarn := []bool{stateWarn[statusUpper]}
+	tokenGood := []bool{containerStateGood[statusUpper]}
+	tokenWarn := []bool{containerStateWarn[statusUpper]}
 
 	appendProbe := func(label, raw string) {
 		upper := strings.ToUpper(raw)

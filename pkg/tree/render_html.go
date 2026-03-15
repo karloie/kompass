@@ -58,7 +58,16 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 
 	brand := "🧭 <a href=\"https://github.com/karloie/kompass\" target=\"_blank\" rel=\"noopener noreferrer\">Kompass</a>"
 
-	header := template.HTML(fmt.Sprintf("%s: Context: %s, Namespace: %s, Selectors: %v, Config: %s", brand, context_, namespace, selectors, configPath))
+	escapedSelectors := make([]string, len(selectors))
+	for i, s := range selectors {
+		escapedSelectors[i] = html.EscapeString(s)
+	}
+	header := template.HTML(fmt.Sprintf("%s: Context: %s, Namespace: %s, Selectors: %v, Config: %s",
+		brand,
+		html.EscapeString(context_),
+		html.EscapeString(namespace),
+		escapedSelectors,
+		html.EscapeString(configPath)))
 	namespaces := []string{}
 	if !staticMode {
 		namespaces = collectTreeNamespaces(result, namespace)

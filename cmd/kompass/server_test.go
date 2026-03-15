@@ -59,8 +59,16 @@ func TestHandleMetadataWithClient(t *testing.T) {
 	}
 }
 
-func TestGetProviderUnknownMock(t *testing.T) {
+func TestGetProviderMockNotAllowed(t *testing.T) {
 	s := &server{}
+	_, err := s.getProvider("mock", "")
+	if err == nil {
+		t.Fatalf("expected error when mock access is not allowed")
+	}
+}
+
+func TestGetProviderUnknownMock(t *testing.T) {
+	s := &server{allowMock: true}
 	_, err := s.getProvider("nope", "")
 	if err == nil {
 		t.Fatalf("expected error for unknown mock provider")

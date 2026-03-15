@@ -24,6 +24,7 @@ import (
 type server struct {
 	contextArg    string
 	namespaceArg  string
+	allowMock     bool
 	client        *kube.Client
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
 	providerMu    sync.Mutex
@@ -60,6 +61,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	srv := &server{
 		contextArg:   contextArg,
 		namespaceArg: namespaceArg,
+		allowMock:    useMock,
 		client:       client,
 	}
 	mux := http.NewServeMux()
@@ -265,6 +267,9 @@ func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) 
 		return s.clientFactory(s.contextArg, namespace)
 	}
 	if mockProvider != "" {
+		if !s.allowMock {
+			return nil, fmt.Errorf("mock provider not available")
+		}
 		if mockProvider != "mock" {
 			return nil, fmt.Errorf("unknown mock provider: %s", mockProvider)
 		}

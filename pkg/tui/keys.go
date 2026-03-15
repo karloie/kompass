@@ -7,15 +7,15 @@ import (
 )
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.view.SearchMode {
-		return m.handleSearch(msg)
-	}
-
 	switch msg.String() {
 	case "ctrl+c":
 		return *m, tea.Quit
 	case "esc", "q":
 		m.closeView()
+	case "tab":
+		m.cycleViewPage(1)
+	case "shift+tab":
+		m.cycleViewPage(-1)
 	case "enter":
 		m.closeView()
 	case "left", "h":
@@ -23,12 +23,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "right", "l":
 		m.panView(4)
 	case "home":
-		m.panViewToStart()
-	case "end":
-		m.panViewToEnd()
-	case "g":
 		m.scrollViewToTop()
-	case "G":
+	case "end":
 		m.scrollViewToBottom()
 	case "up", "k":
 		m.scrollView(-1)
@@ -38,13 +34,6 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scrollView(-m.viewPageStep())
 	case "pgdown":
 		m.scrollView(m.viewPageStep())
-	case "/":
-		m.view.SearchMode = true
-		m.view.ActionStatus = ""
-	case "y":
-		m.copyViewRaw()
-	case "e":
-		return *m, openInEditorCmd(m.view.Raw)
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
@@ -53,7 +42,17 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) closeView() {
+	if m.view != nil {
+		m.view.syncActivePage()
+	}
 	m.view = nil
+}
+
+func (m *Model) cycleViewPage(step int) {
+	if m.view == nil {
+		return
+	}
+	m.view.cyclePage(step)
 }
 
 func (m *Model) panView(delta int) {
@@ -80,14 +79,6 @@ func (m *Model) scrollViewToBottom() {
 	m.view.Scroll = m.maxViewScroll()
 }
 
-func (m *Model) copyViewRaw() {
-	if err := copyToClipboard(m.view.Raw); err != nil {
-		m.view.ActionStatus = "copy failed: " + err.Error()
-		return
-	}
-	m.view.ActionStatus = "copied to clipboard"
-}
-
 func (m Model) maxViewScroll() int {
 	if m.view == nil {
 		return 0
@@ -100,26 +91,11 @@ func (m Model) viewPageStep() int {
 }
 
 func (m Model) viewRowsHeight() int {
-	return maxInt(1, m.height-2)
-}
-
-func (m *Model) handleSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC:
-		return *m, tea.Quit
-	case tea.KeyCtrlU:
-		m.view.SearchQuery = ""
-	case tea.KeyEsc:
-		m.view.SearchMode = false
-	case tea.KeyEnter:
-		m.view.SearchMode = false
-		m.applySearch()
-	case tea.KeyBackspace:
-		m.view.SearchQuery = trimLastRune(m.view.SearchQuery)
-	default:
-		m.view.SearchQuery = appendRunes(m.view.SearchQuery, msg.Runes)
+	overhead := 3 // header + command bar + footer
+	if m.view != nil && m.view.Kind == FileHelp {
+		overhead = 2 // no command bar for help
 	}
-	return *m, nil
+	return maxInt(1, m.height-overhead)
 }
 
 func trimLastRune(value string) string {
@@ -231,18 +207,33 @@ func (m Model) paneAvailable(pane int) bool {
 }
 
 func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" {
+		return *m, tea.Quit
+	}
+
+	if m.confirmQuit {
+		switch msg.String() {
+		case "enter", "y":
+			return *m, tea.Quit
+		case "esc", "n":
+			m.confirmQuit = false
+			return *m, nil
+		default:
+			return *m, nil
+		}
+	}
+
 	if m.filterMode {
 		return m.handleFilterInput(msg)
 	}
 
 	switch msg.String() {
-	case "ctrl+c":
-		return *m, tea.Quit
 	case "esc":
 		if m.clearActiveSelection() {
 			return *m, nil
 		}
-		return *m, tea.Quit
+		m.confirmQuit = true
+		return *m, nil
 	case "tab":
 		m.jumpRoot(1)
 	case "shift+tab":
@@ -265,6 +256,10 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveCursor(-1, 1)
 	case "down", "j":
 		m.moveCursor(1, 1)
+	case "left", "h":
+		m.panMain(-4)
+	case "right", "l":
+		m.panMain(4)
 	case "pgup":
 		m.moveCursor(-1, m.navPageStep())
 	case "pgdown":
@@ -280,15 +275,38 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); m.canDescribeRow(r) {
-			m.view = viewDescribe(*r, m.context, m.namespace)
+			v := viewResource(*r, m.context, m.namespace)
+			action := m.effectiveAction(r)
+			for i, page := range v.Pages {
+				if page.Name == action {
+					v.ActivePage = i
+					v.syncFromActivePage()
+					break
+				}
+			}
+			m.view = v
+		}
+	case "ctrl+enter":
+		if r := m.currentRow(); m.canDescribeRow(r) {
+			actions := m.rowAvailableActions(r)
+			if len(actions) > 0 {
+				idx := 0
+				for i, a := range actions {
+					if a == m.selectedAction {
+						idx = i
+						break
+					}
+				}
+				m.selectedAction = actions[(idx+1)%len(actions)]
+			}
 		}
 	case "o":
 		m.emitSelection = true
 		return *m, tea.Quit
 	case "?":
 		m.view = viewHelp()
-	case "f":
-		m.filterMode = true
+	case "f", "/":
+		m.openFilterModal()
 	case "r":
 		if cmd := m.startRefresh(); cmd != nil {
 			return *m, cmd
@@ -368,9 +386,16 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlC:
 		return *m, tea.Quit
 	case tea.KeyEsc:
+		m.filterQuery = m.filterSaved
 		m.filterMode = false
+		m.applyMainFilter()
 		return *m, nil
 	case tea.KeyEnter:
+		m.filterMode = false
+		return *m, nil
+	case tea.KeyCtrlL:
+		m.filterQuery = ""
+		m.filterSaved = ""
 		m.filterMode = false
 		m.applyMainFilter()
 		return *m, nil
@@ -395,6 +420,16 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m *Model) openFilterModal() {
+	m.filterSaved = m.filterQuery
+	m.filterMode = true
+}
+
+func (m *Model) panMain(delta int) {
+	pane := m.activePane
+	m.mainColScroll[pane] = clamp(m.mainColScroll[pane]+delta, 0, m.maxMainColScroll())
+}
+
 func (m *Model) applyMainFilter() {
 	if m.mode == ModeSelector && m.sourceTrees != nil {
 		if strings.TrimSpace(m.filterQuery) == "" {
@@ -410,6 +445,8 @@ func (m *Model) applyMainFilter() {
 
 		m.normalizeCursor(0)
 		m.normalizeCursor(1)
+		m.mainColScroll[0] = clamp(m.mainColScroll[0], 0, m.maxMainColScrollForPane(0))
+		m.mainColScroll[1] = clamp(m.mainColScroll[1], 0, m.maxMainColScrollForPane(1))
 		for pane := range m.selected {
 			for key := range m.selected[pane] {
 				if !m.rowKeyVisible(pane, key) {
@@ -420,15 +457,20 @@ func (m *Model) applyMainFilter() {
 		return
 	}
 
+	matcher := queryMatcher{}
+	if strings.TrimSpace(m.filterQuery) != "" {
+		matcher = buildQueryMatcher(m.filterQuery)
+	}
+
 	for pane := range m.rowsByPane {
 		source := m.allRowsByPane[pane]
 		if strings.TrimSpace(m.filterQuery) == "" {
 			m.rowsByPane[pane] = source
 			m.normalizeCursor(pane)
+			m.mainColScroll[pane] = clamp(m.mainColScroll[pane], 0, m.maxMainColScrollForPane(pane))
 			continue
 		}
 
-		matcher := buildQueryMatcher(m.filterQuery)
 		filtered := make([]Row, 0, len(source))
 		for _, row := range source {
 			if row.Separator {
@@ -440,6 +482,7 @@ func (m *Model) applyMainFilter() {
 		}
 		m.rowsByPane[pane] = filtered
 		m.normalizeCursor(pane)
+		m.mainColScroll[pane] = clamp(m.mainColScroll[pane], 0, m.maxMainColScrollForPane(pane))
 	}
 
 	for pane := range m.selected {
@@ -490,9 +533,6 @@ func (m Model) rowKeyVisible(pane int, key string) bool {
 
 func (m Model) rowsHeight() int {
 	height := m.height - 1 - m.footerHeight
-	if m.mode == ModeSelector {
-		height--
-	}
 	return maxInt(1, height)
 }
 

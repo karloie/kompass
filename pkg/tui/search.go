@@ -18,74 +18,9 @@ type queryMatcher struct {
 	terms []queryTerm
 }
 
-func rowStyle(row string, rowIndex int, matchRows []int, activeMatchRow int) string {
-	if rowIndex == activeMatchRow {
-		return activeMatchStyle.Render(row)
-	}
-	if containsInt(matchRows, rowIndex) {
-		return matchRowStyle.Render(row)
-	}
-	return row
-}
-
-func rowPrefix(rowIndex, rowNumberWidth int, matchRows []int, activeMatchRow int) string {
-	marker := fileGutterMarker(rowIndex, matchRows, activeMatchRow)
-	switch marker {
-	case ">":
-		marker = gutterActiveStyle.Render(marker)
-	case "*":
-		marker = gutterMatchStyle.Render(marker)
-	}
+func rowPrefix(rowIndex, rowNumberWidth int) string {
 	rowNumber := rowNumberStyle.Render(fmt.Sprintf("%*d ", rowNumberWidth, rowIndex+1))
-	return marker + " " + rowNumber
-}
-
-func fileGutterMarker(rowIndex int, matchRows []int, activeMatchRow int) string {
-	if rowIndex == activeMatchRow {
-		return ">"
-	}
-	if containsInt(matchRows, rowIndex) {
-		return "*"
-	}
-	return " "
-}
-
-func highlightSearchTerm(row, query string, active bool) string {
-	q := strings.TrimSpace(query)
-	if q == "" {
-		return row
-	}
-
-	lowerRow := strings.ToLower(row)
-	lowerQuery := strings.ToLower(q)
-	if !strings.Contains(lowerRow, lowerQuery) {
-		return row
-	}
-
-	style := termMatchStyle
-	if active {
-		style = termActiveStyle
-	}
-
-	result := strings.Builder{}
-	start := 0
-	for {
-		idx := strings.Index(strings.ToLower(row[start:]), lowerQuery)
-		if idx < 0 {
-			result.WriteString(row[start:])
-			break
-		}
-		idx += start
-		result.WriteString(row[start:idx])
-		end := idx + len(q)
-		if end > len(row) {
-			end = len(row)
-		}
-		result.WriteString(style.Render(row[idx:end]))
-		start = end
-	}
-
-	return result.String()
+	return "  " + rowNumber
 }
 
 func visibleSegment(row string, colScroll, width int) string {
@@ -107,35 +42,6 @@ func visibleSegment(row string, colScroll, width int) string {
 		out = truncate(out, width-1) + "~"
 	}
 	return out
-}
-
-func matchColumn(row, query string) int {
-	q := strings.TrimSpace(query)
-	if q == "" {
-		return -1
-	}
-
-	rowRunes := []rune(row)
-	lowerRowRunes := []rune(strings.ToLower(row))
-	lowerQueryRunes := []rune(strings.ToLower(q))
-	if len(lowerQueryRunes) == 0 || len(lowerRowRunes) < len(lowerQueryRunes) {
-		return -1
-	}
-
-	for i := 0; i <= len(lowerRowRunes)-len(lowerQueryRunes); i++ {
-		matched := true
-		for j := 0; j < len(lowerQueryRunes); j++ {
-			if lowerRowRunes[i+j] != lowerQueryRunes[j] {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			return len(rowRunes[:i])
-		}
-	}
-
-	return -1
 }
 
 func buildQueryMatcher(raw string) queryMatcher {
@@ -226,8 +132,20 @@ func globToRegexp(pattern string) *regexp.Regexp {
 }
 
 func rowSearchText(row Row) string {
+	if strings.TrimSpace(row.SearchText) != "" {
+		return row.SearchText
+	}
+
+	return buildRowSearchText(row)
+}
+
+func buildRowSearchText(row Row) string {
 	parts := []string{row.Type, row.Name, row.Key, row.Status, row.Text, row.Plain, row.PlainText}
 	for k, v := range row.Metadata {
+		if k == "orphaned" {
+			parts = append(parts, "single", fmt.Sprint(v))
+			continue
+		}
 		parts = append(parts, k, fmt.Sprint(v))
 	}
 	return strings.Join(parts, " ")
@@ -253,85 +171,11 @@ func (m Model) keysForOutput() []string {
 	return keys
 }
 
-func (m *Model) applySearch() {
-	if m.view == nil || m.view.Kind != FileOutput {
-		return
-	}
-	query := strings.TrimSpace(strings.ToLower(m.view.SearchQuery))
-	if query == "" {
-		m.view.MatchRows = nil
-		m.view.ActiveMatch = 0
-		m.view.ActionStatus = ""
-		return
-	}
-
-	matches := make([]int, 0)
-	for i, row := range m.view.Rows {
-		if strings.Contains(strings.ToLower(row), query) {
-			matches = append(matches, i)
-		}
-	}
-	m.view.MatchRows = matches
-	m.view.ActiveMatch = 0
-	if len(matches) == 0 {
-		m.view.ActionStatus = "no matches"
-		return
-	}
-	m.view.Scroll = matches[0]
-	m.ensureActiveMatchVisible()
-	m.view.ActionStatus = fmt.Sprintf("found %d matches", len(matches))
-}
-
-func (m *Model) ensureActiveMatchVisible() {
-	if m.view == nil || len(m.view.MatchRows) == 0 {
-		return
-	}
-	activeRow := m.view.activeMatchRow()
-	if activeRow < 0 || activeRow >= len(m.view.Rows) {
-		return
-	}
-
-	query := strings.TrimSpace(m.view.SearchQuery)
-	if query == "" {
-		return
-	}
-
-	matchCol := matchColumn(m.view.Rows[activeRow], query)
-	if matchCol < 0 {
-		return
-	}
-
-	contentWidth := m.contentWidth()
-	if contentWidth <= 0 {
-		return
-	}
-
-	matchStart := matchCol
-	matchEnd := matchCol + len([]rune(query)) - 1
-	viewStart := m.view.ColScroll
-	viewEnd := viewStart + contentWidth - 1
-
-	if matchStart < viewStart {
-		m.view.ColScroll = matchStart
-	} else if matchEnd > viewEnd {
-		m.view.ColScroll = matchEnd - contentWidth + 1
-	}
-	m.view.ColScroll = clamp(m.view.ColScroll, 0, m.maxColScroll())
-}
-
 func (m *Model) maxColScroll() int {
-	if m.view == nil || len(m.view.Rows) == 0 {
+	if m.view == nil {
 		return 0
 	}
-	contentWidth := m.contentWidth()
-	longest := 0
-	for _, row := range m.view.Rows {
-		l := len([]rune(row))
-		if l > longest {
-			longest = l
-		}
-	}
-	return maxInt(0, longest-contentWidth)
+	return maxColScrollForRows(m.view.Rows, m.contentWidth())
 }
 
 func (m *Model) contentWidth() int {
@@ -342,12 +186,45 @@ func (m *Model) contentWidth() int {
 	return maxInt(1, m.width-rowNumberWidth-4)
 }
 
-func (m *View) activeMatchRow() int {
-	if m == nil || len(m.MatchRows) == 0 {
-		return -1
+func maxColScrollForRows(rows []string, width int) int {
+	if len(rows) == 0 {
+		return 0
 	}
-	if m.ActiveMatch < 0 || m.ActiveMatch >= len(m.MatchRows) {
-		return -1
+	longest := 0
+	for _, row := range rows {
+		l := len([]rune(row))
+		if l > longest {
+			longest = l
+		}
 	}
-	return m.MatchRows[m.ActiveMatch]
+	return maxInt(0, longest-maxInt(1, width))
+}
+
+func (m *Model) maxMainColScroll() int {
+	return m.maxMainColScrollForPane(m.activePane)
+}
+
+func (m *Model) maxMainColScrollForPane(pane int) int {
+	if pane < 0 || pane >= len(m.rowsByPane) {
+		return 0
+	}
+	rows := m.rowsByPane[pane]
+	if len(rows) == 0 {
+		return 0
+	}
+
+	cursor := 0
+	if pane >= 0 && pane < len(m.cursorByPane) {
+		cursor = clamp(m.cursorByPane[pane], 0, len(rows)-1)
+	}
+
+	lineRows := make([]string, 0, len(rows))
+	for i, row := range rows {
+		if row.Separator {
+			continue
+		}
+		lineRows = append(lineRows, m.rowScrollableContentForPane(row, pane, i == cursor))
+	}
+
+	return maxColScrollForRows(lineRows, m.width)
 }
