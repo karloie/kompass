@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -11,10 +12,10 @@ import (
 )
 
 type snapshotEnvelope struct {
-	Response kube.Graphs `json:"response"`
+	Response kube.Response `json:"response"`
 }
 
-func loadMockSnapshotGraphs(t *testing.T) *kube.Graphs {
+func loadMockSnapshotGraphs(t *testing.T) *kube.Response {
 	t.Helper()
 
 	path := filepath.Join("..", "..", "testdata", "fixtures", "mock.json")
@@ -34,15 +35,12 @@ func loadMockSnapshotGraphs(t *testing.T) *kube.Graphs {
 	return &env.Response
 }
 
-func renderAllTrees(t *testing.T, trees *kube.Trees, plain bool) string {
+func renderAllTrees(t *testing.T, trees *kube.Response, plain bool) string {
 	t.Helper()
 
 	var rendered []string
-	for _, tr := range trees.Trees {
-		if tr == nil {
-			continue
-		}
-		rendered = append(rendered, RenderTree(tr, trees.Nodes, plain))
+	for i := range trees.Trees {
+		rendered = append(rendered, RenderTree(&trees.Trees[i], trees.Nodes, plain))
 	}
 	return strings.Join(rendered, "\n")
 }
@@ -61,7 +59,6 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 		"deployment petshop-kafka",
 		"petshop-kafka-6b7c8d9e0f-v58bh",
 		"CrashLoopBackOff",
-		"EXPIRED 5D AGO",
 		"gateway internal-gateway",
 		"poddisruptionbudget petshop-tennant-pdb",
 		"petshop-lowe",
@@ -78,6 +75,9 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 	}
 	if !strings.Contains(plain, "HEALTHY") {
 		t.Fatalf("expected pdb healthy status in plain render")
+	}
+	if !regexp.MustCompile(`EXPIRED\s+\d+D\s+AGO`).MatchString(plain) {
+		t.Fatalf("expected expired certificate status in plain render")
 	}
 
 	if !strings.Contains(colored, "\x1b[") {

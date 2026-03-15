@@ -124,7 +124,7 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 | `--json` | | JSON output |
 | `--plain` | | Plain output without ANSI colors |
 | `--debug` | `-d` | Enable debug logging |
-| `--service [addr]` | | Start server (`:8080`) |
+| `--service [addr]` | | Start API server (`localhost:8080`) |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
 
@@ -187,8 +187,8 @@ Forward locally and query:
 kubectl -n kompass port-forward svc/kompass 8080:8080
 
 # In another terminal
-curl "http://localhost:8080/healthz"
-curl "http://localhost:8080/graph?namespace=default&selector=*/default/*"
+curl "http://localhost:8080/api/healthz"
+curl "http://localhost:8080/api/graph?namespace=default&selector=*/default/*"
 ```
 
 Manifest location: `deploy/kompass-k8s.yaml`
@@ -202,7 +202,7 @@ Manifest location: `deploy/kompass-k8s.yaml`
 kompass --service
 
 # Custom port
-kompass --service :9090
+kompass --service localhost:9090
 
 # Bind to specific interface
 kompass --service 0.0.0.0:8080
@@ -219,9 +219,10 @@ kompass --debug '*/petshop/*'
 
 ### Available Output Formats
 
-- **JSON Graph** - Graph-oriented JSON (`/graph`)
-- **JSON Tree** - Tree-oriented JSON (`/tree`)
-- **Text Tree** - ASCII tree rendering (`/tree/text`)
+- **JSON Graph** - Graph-oriented JSON (`/api/graph`)
+- **JSON Tree** - Tree-oriented JSON (`/api/tree`, `Accept: application/json`)
+- **Text Tree** - ASCII tree rendering (`/api/tree`, `Accept: text/plain`)
+- **HTML Tree** - embeddable HTML tree (`/api/tree`, `Accept: text/html`)
 
 ### REST API
 
@@ -237,20 +238,26 @@ Endpoints accept query parameters:
 
 ```bash
 # JSON graph
-curl "http://localhost:8080/graph?selector=deployment/myapp/frontend&namespace=default"
+curl "http://localhost:8080/api/graph?selector=deployment/myapp/frontend&namespace=default"
 
 # JSON graph in mock mode
-curl "http://localhost:8080/graph?mock=mock&selector=*/petshop/*"
+curl "http://localhost:8080/api/graph?mock=mock&selector=*/petshop/*"
 
 # JSON tree
-curl "http://localhost:8080/tree?namespace=production&selector=pod/production/myapp"
+curl -H "Accept: application/json" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
 
 # ASCII tree
-curl "http://localhost:8080/tree/text?namespace=production&selector=pod/production/myapp"
+curl -H "Accept: text/plain" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+
+# HTML tree
+curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+
+# Cache metadata
+curl "http://localhost:8080/api/stats"
 
 # Health check
-curl "http://localhost:8080/healthz"  # Liveness
-curl "http://localhost:8080/readyz"   # Readiness
+curl "http://localhost:8080/api/healthz"  # Liveness
+curl "http://localhost:8080/api/readyz"   # Readiness
 ```
 
 ## Development
@@ -261,6 +268,24 @@ curl "http://localhost:8080/readyz"   # Readiness
 make build
 ```
 
+### Web Modes
+
+```bash
+# Dev mode (hot reload)
+make dev
+
+# Standard build
+make build
+
+# Release build
+make build-release
+```
+
+Runtime behavior:
+
+- `kompass --service` serves API endpoints on `localhost:8080` by default.
+- Use `kompass --service 0.0.0.0:8080` to publish on all interfaces.
+
 ### Running Tests
 
 ```bash
@@ -270,7 +295,7 @@ make test
 ### Coverage Report
 
 ```bash
-make cover
+make coverage
 ```
 
 ### Running Locally

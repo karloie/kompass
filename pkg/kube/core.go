@@ -75,19 +75,40 @@ func (warningHandler) HandleWarningHeader(code int, agent string, message string
 	}
 }
 
+const jsonAPIVersion = "v1"
+
 type CRDSelector struct {
 	Kind      string
 	Namespace string
 }
 
 type Request struct {
+	Context     string        `json:"context,omitempty"`
+	Namespace   string        `json:"namespace,omitempty"`
+	ConfigPath  string        `json:"configPath,omitempty"`
 	KeySelector string        `json:"keySelector"`
 	CRDSelector []CRDSelector `json:"crdSelector"`
 }
 
-type Graphs struct {
-	Nodes  map[string]*Resource `json:"nodes,omitempty"`
-	Graphs []Graph              `json:"graphs"`
+type Response struct {
+	APIVersion string               `json:"apiVersion"`
+	Request    Request              `json:"request"`
+	Nodes      map[string]*Resource `json:"nodes,omitempty"`
+	Graphs     []Graph              `json:"graphs"`
+	Trees      []Tree               `json:"trees"`
+	Metadata   *Metadata            `json:"metadata,omitempty"`
+}
+
+type Metadata struct {
+	CacheEnabled      bool          `json:"cacheEnabled"`
+	CacheSize         int           `json:"cacheSize"`
+	CacheLastSync     time.Time     `json:"cacheLastSync"`
+	CacheSyncInterval time.Duration `json:"cacheSyncInterval"`
+	CacheTTL          time.Duration `json:"cacheTTL"`
+	CacheCalls        int64         `json:"cacheCalls"`
+	CacheHits         int64         `json:"cacheHits"`
+	CacheMisses       int64         `json:"cacheMisses"`
+	CacheHitRate      float64       `json:"cacheHitRate"`
 }
 
 type Graph struct {
@@ -95,14 +116,10 @@ type Graph struct {
 	Edges []ResourceEdge `json:"edges,omitempty"`
 }
 
-type Trees struct {
-	Nodes map[string]*Resource `json:"nodes,omitempty"`
-	Trees []*Tree              `json:"trees"`
-}
-
 type Tree struct {
 	Key      string         `json:"key"`
 	Type     string         `json:"type"`
+	Icon     string         `json:"icon,omitempty"`
 	Meta     map[string]any `json:"metadata"`
 	Children []*Tree        `json:"children"`
 }

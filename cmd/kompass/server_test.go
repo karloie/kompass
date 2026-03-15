@@ -54,7 +54,7 @@ func TestHandleStatsWithClient(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "enabled") {
+	if !strings.Contains(rr.Body.String(), "cacheEnabled") {
 		t.Fatalf("expected stats JSON body, got %q", rr.Body.String())
 	}
 }
@@ -108,18 +108,21 @@ func TestHandleGraphSuccess(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
-	var out JSONOutputGraph
+	var out kube.Response
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("expected JSON output, got err: %v body=%q", err, rr.Body.String())
 	}
-	if out.Response == nil {
-		t.Fatalf("expected non-nil response")
+	if len(out.Graphs) == 0 {
+		t.Fatalf("expected non-empty graph response")
 	}
-	if out.APIVersion != jsonAPIVersion {
-		t.Fatalf("expected apiVersion %q, got %q", jsonAPIVersion, out.APIVersion)
+	if out.APIVersion != "v1" {
+		t.Fatalf("expected apiVersion %q, got %q", "v1", out.APIVersion)
 	}
-	if out.Request.ConfigPath != "" {
-		t.Fatalf("expected configPath to be omitted from server /graph response, got %q", out.Request.ConfigPath)
+	if out.Request.KeySelector != "*/petshop/*" {
+		t.Fatalf("expected request keySelector to round-trip, got %+v", out.Request)
+	}
+	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+		t.Fatalf("expected normalized request metadata, got %+v", out.Request)
 	}
 }
 
@@ -152,17 +155,31 @@ func TestHandleTreeSuccess(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
 		t.Fatalf("expected application/json content-type, got %q", ct)
 	}
-	var out JSONOutputTree
+	var out kube.Response
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("expected JSON output from /tree, got err: %v body=%q", err, rr.Body.String())
 	}
-	if out.Response == nil || len(out.Response.Trees) == 0 {
+	if len(out.Trees) == 0 {
 		t.Fatalf("expected non-empty tree response")
 	}
-	for _, g := range out.Response.Trees {
-		if g == nil {
-			t.Fatalf("expected tree in /tree response graph")
-		}
+	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+		t.Fatalf("expected normalized request metadata in tree response, got %+v", out.Request)
+	}
+	for i := range out.Trees {
+		assertTreeIcons(t, &out.Trees[i])
+	}
+}
+
+func assertTreeIcons(t *testing.T, node *kube.Tree) {
+	t.Helper()
+	if node == nil {
+		return
+	}
+	if node.Icon == "" {
+		t.Fatalf("expected icon for node %q (%s)", node.Key, node.Type)
+	}
+	for _, child := range node.Children {
+		assertTreeIcons(t, child)
 	}
 }
 
@@ -173,9 +190,10 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
@@ -197,9 +215,10 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*&plain=false", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=false", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}

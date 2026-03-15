@@ -78,7 +78,7 @@ func (c *Client) ClearCache() {
 	}
 }
 
-func (c *Client) GetStats() map[string]interface{} {
+func (c *Client) GetResponseMeta() *Metadata {
 	c.lastSyncMutex.RLock()
 	lastSyncTime := c.lastSyncTime
 	c.lastSyncMutex.RUnlock()
@@ -92,16 +92,16 @@ func (c *Client) GetStats() map[string]interface{} {
 		hitRate = float64(hits) / float64(calls) * 100
 	}
 
-	return map[string]interface{}{
-		"enabled":      c.cacheEnabled,
-		"size":         c.cache.size(),
-		"lastSync":     lastSyncTime,
-		"syncInterval": c.syncInterval,
-		"ttl":          c.cacheTTL,
-		"calls":        calls,
-		"hits":         hits,
-		"misses":       misses,
-		"hitRate":      hitRate,
+	return &Metadata{
+		CacheEnabled:      c.cacheEnabled,
+		CacheSize:         c.cache.size(),
+		CacheLastSync:     lastSyncTime,
+		CacheSyncInterval: c.syncInterval,
+		CacheTTL:          c.cacheTTL,
+		CacheCalls:        calls,
+		CacheHits:         hits,
+		CacheMisses:       misses,
+		CacheHitRate:      hitRate,
 	}
 }
 

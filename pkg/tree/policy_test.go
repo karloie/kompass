@@ -10,7 +10,7 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 	cronJobID := "cronjob/applikasjonsplattform/appwatch"
 	jobID := "job/applikasjonsplattform/appwatch-29552340"
 
-	resp := &kube.Graphs{
+	resp := &kube.Response{
 		Nodes: map[string]*kube.Resource{
 			cronJobID: newRootNode(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil),
 			jobID:     newRootNode(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{{"kind": "CronJob", "name": "appwatch"}}),
@@ -34,7 +34,7 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 	jobID := "job/applikasjonsplattform/manual-job"
 
-	resp := &kube.Graphs{
+	resp := &kube.Response{
 		Nodes: map[string]*kube.Resource{
 			jobID: newRootNode(jobID, "job", "manual-job", "applikasjonsplattform", nil),
 		},
@@ -57,7 +57,7 @@ func TestFilterOwnedSecretRoots_RemovesSecretWhenOwnerRootExists(t *testing.T) {
 	replicaSetID := "replicaset/applikasjonsplattform/fiskeoye-ccfc7549"
 	secretID := "secret/applikasjonsplattform/fiskeoye-secrets"
 
-	resp := &kube.Graphs{
+	resp := &kube.Response{
 		Nodes: map[string]*kube.Resource{
 			replicaSetID: newRootNode(replicaSetID, "replicaset", "fiskeoye-ccfc7549", "applikasjonsplattform", nil),
 			secretID:     newRootNode(secretID, "secret", "fiskeoye-secrets", "applikasjonsplattform", []map[string]any{{"kind": "ReplicaSet", "name": "fiskeoye-ccfc7549"}}),
@@ -81,7 +81,7 @@ func TestFilterOwnedSecretRoots_RemovesSecretWhenOwnerRootExists(t *testing.T) {
 func TestFilterOwnedSecretRoots_KeepsDetachedSecretRoot(t *testing.T) {
 	secretID := "secret/applikasjonsplattform/ad-explore-db-secret"
 
-	resp := &kube.Graphs{
+	resp := &kube.Response{
 		Nodes: map[string]*kube.Resource{
 			secretID: newRootNode(secretID, "secret", "ad-explore-db-secret", "applikasjonsplattform", nil),
 		},

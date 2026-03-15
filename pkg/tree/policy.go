@@ -52,7 +52,7 @@ func shouldAddReverseEdge(sourceType, targetType string) bool {
 }
 
 // FilterOwnedJobRoots removes Job graph roots when their owning CronJob is also a graph root.
-func FilterOwnedJobRoots(result *kube.Graphs) {
+func FilterOwnedJobRoots(result *kube.Response) {
 	if result == nil || len(result.Graphs) < 2 {
 		return
 	}
@@ -103,7 +103,7 @@ func FilterOwnedJobRoots(result *kube.Graphs) {
 }
 
 // FilterOwnedSecretRoots removes Secret graph roots when their owning workload is also a graph root.
-func FilterOwnedSecretRoots(result *kube.Graphs) {
+func FilterOwnedSecretRoots(result *kube.Response) {
 	if result == nil || len(result.Graphs) < 2 {
 		return
 	}
@@ -186,7 +186,7 @@ func ownerOrAncestorIsRoot(ownerType, namespace, ownerName string, rootIDs map[s
 	return false
 }
 
-func rootNodeForGraph(result *kube.Graphs, g *kube.Graph) *kube.Resource {
+func rootNodeForGraph(result *kube.Response, g *kube.Graph) *kube.Resource {
 	if result != nil && result.Nodes != nil {
 		if node := result.Nodes[g.ID]; node != nil {
 			return node

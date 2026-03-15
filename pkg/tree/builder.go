@@ -76,20 +76,22 @@ func sortChildren(children []*kube.Tree) {
 	})
 }
 
-func BuildResponseTree(graphSet *kube.Graphs) *kube.Trees {
+func BuildResponseTree(graphSet *kube.Response) *kube.Response {
 	if graphSet == nil {
 		return nil
 	}
-	out := &kube.Trees{Nodes: graphSet.Nodes, Trees: make([]*kube.Tree, 0, len(graphSet.Graphs))}
+	out := &kube.Response{Nodes: graphSet.Nodes, Trees: make([]kube.Tree, 0, len(graphSet.Graphs)), Metadata: graphSet.Metadata}
 	for i := range graphSet.Graphs {
 		graphNodes := graphNodesForTree(graphSet)
 		treeNode := BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, graphNodes)
-		out.Trees = append(out.Trees, treeNode)
+		if treeNode != nil {
+			out.Trees = append(out.Trees, *treeNode)
+		}
 	}
 	return out
 }
 
-func graphNodesForTree(graphSet *kube.Graphs) map[string]kube.Resource {
+func graphNodesForTree(graphSet *kube.Response) map[string]kube.Resource {
 	nodeMap := make(map[string]kube.Resource)
 	if graphSet != nil && len(graphSet.Nodes) > 0 {
 		for key, node := range graphSet.Nodes {
@@ -162,6 +164,7 @@ func NewTree(key, nodeType string, meta map[string]any) *kube.Tree {
 	return &kube.Tree{
 		Key:      key,
 		Type:     nodeType,
+		Icon:     graph.GetResourceEmoji(nodeType),
 		Meta:     meta,
 		Children: []*kube.Tree{},
 	}

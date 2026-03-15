@@ -165,11 +165,8 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 
 		var rendered strings.Builder
 		for i := range treeResp.Trees {
-			treeNode := treeResp.Trees[i]
-			if treeNode != nil {
-				rendered.WriteString(tree.RenderTree(treeNode, treeResp.Nodes, true))
-				rendered.WriteString("\n")
-			}
+			rendered.WriteString(tree.RenderTree(&treeResp.Trees[i], treeResp.Nodes, true))
+			rendered.WriteString("\n")
 		}
 		output := rendered.String()
 
