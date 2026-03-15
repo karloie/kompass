@@ -1,9 +1,9 @@
-.PHONY: test build build-release coverage dev web-build snapshot mock real tui service help
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
-RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS) -X github.com/karloie/kompass/pkg/tree.BuildMode=release
 LDFLAGS ?=
 ARGS    ?=
 COVERPKG ?= ./...
@@ -21,8 +21,8 @@ build: test
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
 build-release: LDFLAGS := $(RELEASE_LDFLAGS)
-build-release: test web-build
-	go build -tags webembed $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
+build-release: test
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
@@ -55,39 +55,18 @@ coverage-func: build
 	@go tool cover -func=coverage.out | grep -v 'total:' | awk '{printf "│ %-66s │ %7s  │\n", substr($$1":"$$2, 1, 66), $$3}'
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
-web-build:
-	npm run build
-
 dev:
-	@set -eu; \
-	echo "Cleaning stale dev processes on :8080 and :8081..."; \
-	for port in 8080 8081; do \
-		pids=$$(ss -ltnp "( sport = :$$port )" 2>/dev/null | awk -F'pid=' 'NR>1 { split($$2, a, ","); if (a[1] != "") print a[1] }' | sort -u); \
-		if [ -n "$$pids" ]; then \
-			echo "Killing stale listeners on :$$port -> $$pids"; \
-			kill $$pids >/dev/null 2>&1 || true; \
-		fi; \
-	done; \
-	sleep 1; \
-	for port in 8080 8081; do \
-		if ss -ltn "( sport = :$$port )" | awk 'NR>1 { found=1 } END { exit(found ? 0 : 1) }'; then \
-			echo "Error: port :$$port is still in use"; \
-			exit 1; \
-		fi; \
-	done; \
-	$(GOW) run ./cmd/kompass --mock --service $(ARGS) & backend_pid=$$!; \
-	npm run dev & frontend_pid=$$!; \
-	trap 'echo "\nStopping dev processes..."; kill $$backend_pid $$frontend_pid >/dev/null 2>&1 || true' INT TERM EXIT; \
-	wait
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)
 real:    ; @$(GO_RUN) $(ARGS)
-tui:     ; @$(GO_RUN) --tui $(ARGS)
-service: ; @$(GO_RUN) --mock --service $(ARGS)
+service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:
 	$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.json
-	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
 	$(GO_RUN)        --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.txt
+
+snapshot-real:
+	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
 	$(GO_RUN)         -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.txt

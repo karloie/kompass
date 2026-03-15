@@ -81,23 +81,39 @@ type CRDSelector struct {
 }
 
 type Request struct {
-	KeySelector string        `json:"keySelector"`
-	CRDSelector []CRDSelector `json:"crdSelector"`
+	Context      string        `json:"context,omitempty"`
+	Namespace    string        `json:"namespace,omitempty"`
+	ConfigPath   string        `json:"configPath,omitempty"`
+	Selectors    []string      `json:"selectors,omitempty"`
+	CRDSelectors []CRDSelector `json:"crdSelectors,omitempty"`
 }
 
-type Graphs struct {
-	Nodes  map[string]*Resource `json:"nodes,omitempty"`
-	Graphs []Graph              `json:"graphs"`
+type Response struct {
+	APIVersion string         `json:"apiVersion"`
+	Request    Request        `json:"request"`
+	Nodes      []Resource     `json:"nodes,omitempty"`
+	Edges      []ResourceEdge `json:"edges,omitempty"`
+	Components []Component    `json:"components,omitempty"`
+	Trees      []Tree         `json:"trees,omitempty"`
+	Metadata   *Metadata      `json:"metadata,omitempty"`
 }
 
-type Graph struct {
-	ID    string         `json:"id"`
-	Edges []ResourceEdge `json:"edges,omitempty"`
+type Metadata struct {
+	CacheEnabled      bool          `json:"cacheEnabled"`
+	CacheSize         int           `json:"cacheSize"`
+	CacheLastSync     time.Time     `json:"cacheLastSync"`
+	CacheSyncInterval time.Duration `json:"cacheSyncInterval"`
+	CacheTTL          time.Duration `json:"cacheTTL"`
+	CacheCalls        int64         `json:"cacheCalls"`
+	CacheHits         int64         `json:"cacheHits"`
+	CacheMisses       int64         `json:"cacheMisses"`
+	CacheHitRate      float64       `json:"cacheHitRate"`
 }
 
-type Trees struct {
-	Nodes map[string]*Resource `json:"nodes,omitempty"`
-	Trees []*Tree              `json:"trees"`
+type Component struct {
+	ID       string   `json:"id"`
+	Root     string   `json:"root"`
+	NodeKeys []string `json:"nodeKeys,omitempty"`
 }
 
 type Tree struct {

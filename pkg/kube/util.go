@@ -50,21 +50,24 @@ func trimVerboseMetadata(obj map[string]any) {
 	}
 }
 
-func (r Request) Selectors() []string {
-	if r.KeySelector == "" {
+func (r Request) NormalizedSelectors() []string {
+	if len(r.Selectors) == 0 {
 		return nil
 	}
-	selectors := []string{}
-	for _, s := range strings.Split(r.KeySelector, ",") {
+	selectors := make([]string, 0, len(r.Selectors))
+	for _, s := range r.Selectors {
 		if trimmed := strings.TrimSpace(s); trimmed != "" {
 			selectors = append(selectors, trimmed)
 		}
+	}
+	if len(selectors) == 0 {
+		return nil
 	}
 	return selectors
 }
 
 func (r Request) DefaultNamespace() string {
-	selectors := r.Selectors()
+	selectors := r.NormalizedSelectors()
 	if len(selectors) == 0 {
 		return ""
 	}
@@ -73,6 +76,30 @@ func (r Request) DefaultNamespace() string {
 		return parts[1]
 	}
 	return ""
+}
+
+func (r *Response) NodeMap() map[string]*Resource {
+	if r == nil || len(r.Nodes) == 0 {
+		return nil
+	}
+	nodes := make(map[string]*Resource, len(r.Nodes))
+	for i := range r.Nodes {
+		node := &r.Nodes[i]
+		nodes[node.Key] = node
+	}
+	return nodes
+}
+
+func (r *Response) Node(key string) *Resource {
+	if r == nil {
+		return nil
+	}
+	for i := range r.Nodes {
+		if r.Nodes[i].Key == key {
+			return &r.Nodes[i]
+		}
+	}
+	return nil
 }
 
 func NewModel() *InMemoryModel {

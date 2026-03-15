@@ -52,26 +52,26 @@ func shouldAddReverseEdge(sourceType, targetType string) bool {
 }
 
 // FilterOwnedJobRoots removes Job graph roots when their owning CronJob is also a graph root.
-func FilterOwnedJobRoots(result *kube.Graphs) {
-	if result == nil || len(result.Graphs) < 2 {
+func FilterOwnedJobRoots(result *kube.Response) {
+	if result == nil || len(result.Components) < 2 {
 		return
 	}
 
-	rootIDs := make(map[string]bool, len(result.Graphs))
-	for _, g := range result.Graphs {
-		rootIDs[g.ID] = true
+	rootIDs := make(map[string]bool, len(result.Components))
+	for _, component := range result.Components {
+		rootIDs[component.Root] = true
 	}
 
-	filtered := make([]kube.Graph, 0, len(result.Graphs))
-	for _, g := range result.Graphs {
-		if ParseResourceKeyRef(g.ID).Type != "job" {
-			filtered = append(filtered, g)
+	filtered := make([]kube.Component, 0, len(result.Components))
+	for _, component := range result.Components {
+		if ParseResourceKeyRef(component.Root).Type != "job" {
+			filtered = append(filtered, component)
 			continue
 		}
 
-		rootNode := rootNodeForGraph(result, &g)
+		rootNode := rootNodeForComponent(result, &component)
 		if rootNode == nil {
-			filtered = append(filtered, g)
+			filtered = append(filtered, component)
 			continue
 		}
 
@@ -96,33 +96,33 @@ func FilterOwnedJobRoots(result *kube.Graphs) {
 			continue
 		}
 
-		filtered = append(filtered, g)
+		filtered = append(filtered, component)
 	}
 
-	result.Graphs = filtered
+	result.Components = filtered
 }
 
 // FilterOwnedSecretRoots removes Secret graph roots when their owning workload is also a graph root.
-func FilterOwnedSecretRoots(result *kube.Graphs) {
-	if result == nil || len(result.Graphs) < 2 {
+func FilterOwnedSecretRoots(result *kube.Response) {
+	if result == nil || len(result.Components) < 2 {
 		return
 	}
 
-	rootIDs := make(map[string]bool, len(result.Graphs))
-	for _, g := range result.Graphs {
-		rootIDs[g.ID] = true
+	rootIDs := make(map[string]bool, len(result.Components))
+	for _, component := range result.Components {
+		rootIDs[component.Root] = true
 	}
 
-	filtered := make([]kube.Graph, 0, len(result.Graphs))
-	for _, g := range result.Graphs {
-		if ParseResourceKeyRef(g.ID).Type != "secret" {
-			filtered = append(filtered, g)
+	filtered := make([]kube.Component, 0, len(result.Components))
+	for _, component := range result.Components {
+		if ParseResourceKeyRef(component.Root).Type != "secret" {
+			filtered = append(filtered, component)
 			continue
 		}
 
-		rootNode := rootNodeForGraph(result, &g)
+		rootNode := rootNodeForComponent(result, &component)
 		if rootNode == nil {
-			filtered = append(filtered, g)
+			filtered = append(filtered, component)
 			continue
 		}
 
@@ -135,7 +135,7 @@ func FilterOwnedSecretRoots(result *kube.Graphs) {
 				continue
 			}
 
-			if ownerOrAncestorIsRoot(ownerKind, namespace, ownerName, rootIDs, result.Nodes, map[string]bool{}) {
+			if ownerOrAncestorIsRoot(ownerKind, namespace, ownerName, rootIDs, result.NodeMap(), map[string]bool{}) {
 				removeSecretRoot = true
 				break
 			}
@@ -145,10 +145,10 @@ func FilterOwnedSecretRoots(result *kube.Graphs) {
 			continue
 		}
 
-		filtered = append(filtered, g)
+		filtered = append(filtered, component)
 	}
 
-	result.Graphs = filtered
+	result.Components = filtered
 }
 
 func ownerOrAncestorIsRoot(ownerType, namespace, ownerName string, rootIDs map[string]bool, nodes map[string]*kube.Resource, visited map[string]bool) bool {
@@ -186,13 +186,11 @@ func ownerOrAncestorIsRoot(ownerType, namespace, ownerName string, rootIDs map[s
 	return false
 }
 
-func rootNodeForGraph(result *kube.Graphs, g *kube.Graph) *kube.Resource {
-	if result != nil && result.Nodes != nil {
-		if node := result.Nodes[g.ID]; node != nil {
-			return node
-		}
+func rootNodeForComponent(result *kube.Response, component *kube.Component) *kube.Resource {
+	if result == nil || component == nil {
+		return nil
 	}
-	return nil
+	return result.Node(component.Root)
 }
 
 func ownerRefsFromResource(resource *kube.Resource) (string, []map[string]any) {

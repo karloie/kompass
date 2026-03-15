@@ -76,26 +76,27 @@ func sortChildren(children []*kube.Tree) {
 	})
 }
 
-func BuildResponseTree(graphSet *kube.Graphs) *kube.Trees {
+func BuildResponseTree(graphSet *kube.Response) *kube.Response {
 	if graphSet == nil {
 		return nil
 	}
-	out := &kube.Trees{Nodes: graphSet.Nodes, Trees: make([]*kube.Tree, 0, len(graphSet.Graphs))}
-	for i := range graphSet.Graphs {
+	out := &kube.Response{Nodes: graphSet.Nodes, Trees: make([]kube.Tree, 0, len(graphSet.Components)), Metadata: graphSet.Metadata}
+	for i := range graphSet.Components {
 		graphNodes := graphNodesForTree(graphSet)
-		treeNode := BuildTree(graphSet.Graphs[i].ID, graphSet.Graphs[i].Edges, graphNodes)
-		out.Trees = append(out.Trees, treeNode)
+		treeNode := BuildTree(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
+		if treeNode != nil {
+			out.Trees = append(out.Trees, *treeNode)
+		}
 	}
 	return out
 }
 
-func graphNodesForTree(graphSet *kube.Graphs) map[string]kube.Resource {
+func graphNodesForTree(graphSet *kube.Response) map[string]kube.Resource {
 	nodeMap := make(map[string]kube.Resource)
 	if graphSet != nil && len(graphSet.Nodes) > 0 {
-		for key, node := range graphSet.Nodes {
-			if node != nil {
-				nodeMap[key] = *node
-			}
+		for i := range graphSet.Nodes {
+			node := graphSet.Nodes[i]
+			nodeMap[node.Key] = node
 		}
 	}
 	return nodeMap

@@ -19,40 +19,6 @@ var (
 	date    = "unknown"
 )
 
-const jsonAPIVersion = "v1"
-
-type CacheStats struct {
-	Calls   int64
-	Hits    int64
-	Misses  int64
-	HitRate float64
-}
-
-type JSONOutput struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Graphs    `json:"response"`
-}
-
-type JSONOutputGraph struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Graphs    `json:"response"`
-}
-
-type JSONOutputTree struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Trees     `json:"response"`
-}
-
-type RequestMetadata struct {
-	Context    string   `json:"context"`
-	Namespace  string   `json:"namespace"`
-	ConfigPath string   `json:"configPath,omitempty"`
-	Selectors  []string `json:"selectors"`
-}
-
 type serviceFlag struct {
 	set  bool
 	addr string
@@ -164,16 +130,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	totalNodes, totalEdges := len(result.Nodes), 0
-	for _, g := range result.Graphs {
-		totalEdges += len(g.Edges)
-	}
-	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)
+	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
+	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Components), "nodes", totalNodes, "edges", totalEdges)
 
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
 	} else {
-		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
+		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg)
 	}
 }
 
@@ -206,28 +169,4 @@ func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, str
 		contextArg, _ = client.GetContext()
 	}
 	return client, contextArg, namespaceArg, nil
-}
-
-func extractStats(provider kube.Kube) map[string]interface{} {
-	if client, ok := provider.(*kube.Client); ok {
-		return client.GetStats()
-	}
-	return nil
-}
-
-func getStats(stats map[string]interface{}) *CacheStats {
-	if stats == nil {
-		return nil
-	}
-	if enabled, _ := stats["enabled"].(bool); !enabled {
-		return nil
-	}
-	calls, _ := stats["calls"].(int64)
-	if calls == 0 {
-		return nil
-	}
-	hits, _ := stats["hits"].(int64)
-	misses, _ := stats["misses"].(int64)
-	hitRate, _ := stats["hitRate"].(float64)
-	return &CacheStats{Calls: calls, Hits: hits, Misses: misses, HitRate: hitRate}
 }

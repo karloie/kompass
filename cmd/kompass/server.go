@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"strings"
 
 	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
@@ -27,53 +26,54 @@ type server struct {
 	namespaceArg  string
 	client        *kube.Client
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
+	providerMu    sync.Mutex
 }
-
-var embeddedWebRoot fs.FS
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "localhost" + addr
+	}
+	fatalStart := func(msg string, err error) {
+		slog.Error(msg, "error", err)
+		os.Exit(1)
 	}
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
 	port := ":" + parts[len(parts)-1]
 	provider, _, _, err := initProvider(useMock, contextArg, namespaceArg)
 	if err != nil {
-		slog.Error("Failed to create provider", "error", err)
-		os.Exit(1)
+		fatalStart("Failed to create provider", err)
 	}
 	client, ok := provider.(*kube.Client)
 	if !ok {
-		slog.Error("Provider type assertion failed", "error", "provider is not *kube.Client")
-		os.Exit(1)
+		fatalStart("Provider type assertion failed", fmt.Errorf("provider is %T, expected *kube.Client", provider))
 	}
 	namespacesToWatch := []string{namespaceArg}
 	if namespaceArg == "" {
-		namespacesToWatch = []string{"default"}
+		// Empty list means "sync all namespaces" in performSync.
+		namespacesToWatch = []string{}
 	}
 	if err := client.StartSync(30*time.Second, namespacesToWatch); err != nil {
-		slog.Warn("Failed to start cache sync", "error", err)
-	} else {
-		slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
+		fatalStart("Failed to start cache sync", err)
 	}
-	srv := &server{contextArg: contextArg, namespaceArg: namespaceArg, client: client}
+	slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
+	srv := &server{
+		contextArg:   contextArg,
+		namespaceArg: namespaceArg,
+		client:       client,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
 	mux.HandleFunc("/api/tree", srv.handleTree)
 	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
 	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
-	mux.HandleFunc("/api/stats", srv.handleStats)
-	web, source := webHandler()
-	slog.Info("Web UI", "source", source)
-	mux.Handle("/", web)
+	mux.HandleFunc("/api/metadata", srv.handleMetadata)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Server failed", "error", err)
-			os.Exit(1)
+			fatalStart("Server failed", err)
 		}
 	}()
 	quit := make(chan os.Signal, 1)
@@ -87,14 +87,6 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Error("Server forced to shutdown", "error", err)
 	}
 	slog.Info("Server stopped")
-}
-
-func webHandler() (http.Handler, string) {
-	if embeddedWebRoot != nil {
-		return http.FileServer(http.FS(embeddedWebRoot)), "embedded dist"
-	}
-	distDir := filepath.Join("cmd", "kompass", "dist")
-	return http.FileServer(http.FS(os.DirFS(distDir))), "filesystem " + distDir
 }
 
 func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
@@ -120,13 +112,13 @@ func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
 	}
 }
 
-func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	if s.client == nil {
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.client.GetStats())
+	json.NewEncoder(w).Encode(s.client.GetResponseMeta())
 }
 
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
@@ -135,18 +127,26 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if result == nil {
+		result = &kube.Response{}
+	}
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
+	configPath, _ := provider.GetConfigPath()
+	result.APIVersion = "v1"
+	result.Request = kube.Request{
+		Context:    context_,
+		Namespace:  namespace_,
+		ConfigPath: configPath,
+		Selectors:  selectors,
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=60")
-	json.NewEncoder(w).Encode(JSONOutputGraph{
-		APIVersion: jsonAPIVersion,
-		Request:    RequestMetadata{Context: context_, Namespace: namespace_, Selectors: selectors},
-		Response:   graphOnlyResponse(result),
-	})
+	json.NewEncoder(w).Encode(graphOnlyResponse(result))
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Vary", "Accept")
 	accept := r.Header.Get("Accept")
 	switch {
 	case strings.Contains(accept, "text/plain"):
@@ -162,15 +162,23 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	treeResult := tree.BuildResponseTree(result)
+	if treeResult == nil {
+		treeResult = &kube.Response{}
+	}
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
+	configPath, _ := provider.GetConfigPath()
+	treeResult.APIVersion = "v1"
+	treeResult.Request = kube.Request{
+		Context:    context_,
+		Namespace:  namespace_,
+		ConfigPath: configPath,
+		Selectors:  selectors,
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	json.NewEncoder(w).Encode(JSONOutputTree{
-		APIVersion: jsonAPIVersion,
-		Request:    RequestMetadata{Context: context_, Namespace: namespace_, Selectors: selectors},
-		Response:   tree.BuildResponseTree(result),
-	})
+	json.NewEncoder(w).Encode(treeResult)
 }
 
 func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
@@ -194,22 +202,8 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s\n\n", context_, namespace_, selectors, configPath))
-
-	treeResult := tree.BuildResponseTree(result)
-	for i := range treeResult.Trees {
-		treeNode := treeResult.Trees[i]
-		if treeNode != nil {
-			output.WriteString(tree.RenderTree(treeNode, treeResult.Nodes, plain))
-		}
-		if i < len(treeResult.Trees)-1 {
-			output.WriteString("\n")
-		}
-	}
-
-	w.Write([]byte(output.String()))
+	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
+	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, plain)))
 }
 
 func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
@@ -225,41 +219,20 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
-
-	treeResult := tree.BuildResponseTree(result)
-	var sb strings.Builder
-	for i := range treeResult.Trees {
-		if treeResult.Trees[i] != nil {
-			sb.WriteString(tree.RenderTree(treeResult.Trees[i], treeResult.Nodes, true))
-		}
-		if i < len(treeResult.Trees)-1 {
-			sb.WriteString("\n")
-		}
-	}
-
-	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
-	fmt.Fprintf(w, `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>kompass — %s / %s</title>
-<style>
-body{margin:1rem;font-family:sans-serif;background:#fff;color:#111}
-@media(prefers-color-scheme:dark){body{background:#1a1a1a;color:#e0e0e0}}
-p{margin:0 0 .75rem;font-size:.85rem;color:#666}
-@media(prefers-color-scheme:dark){p{color:#aaa}}
-pre{font-size:.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0}
-</style>
-</head>
-<body><p>%s</p><pre>%s</pre></body>
-</html>`, html.EscapeString(context_), html.EscapeString(namespace_), html.EscapeString(header), html.EscapeString(sb.String()))
+	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
+	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, staticMode)))
 }
 
-func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Graphs, error) {
+func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
 	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
 		namespace = s.namespaceArg
 	}
+
+	s.providerMu.Lock()
+	defer s.providerMu.Unlock()
+
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
 		return nil, namespace, nil, nil, err
@@ -273,15 +246,18 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	return selectors, namespace, provider, result, nil
 }
 
-func graphOnlyResponse(result *kube.Graphs) *kube.Graphs {
+func graphOnlyResponse(result *kube.Response) *kube.Response {
 	if result == nil {
 		return nil
 	}
-	out := &kube.Graphs{Nodes: result.Nodes, Graphs: make([]kube.Graph, 0, len(result.Graphs))}
-	for _, g := range result.Graphs {
-		out.Graphs = append(out.Graphs, kube.Graph{ID: g.ID, Edges: g.Edges})
+	return &kube.Response{
+		APIVersion: result.APIVersion,
+		Request:    result.Request,
+		Nodes:      result.Nodes,
+		Edges:      result.Edges,
+		Components: result.Components,
+		Metadata:   result.Metadata,
 	}
-	return out
 }
 
 func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) {
@@ -296,6 +272,7 @@ func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) 
 		return provider, err
 	}
 	if s.client != nil {
+		s.client.SetNamespace(namespace)
 		return s.client, nil
 	}
 	provider, _, _, err := initProvider(false, s.contextArg, namespace)
