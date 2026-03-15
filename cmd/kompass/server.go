@@ -57,7 +57,11 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		fatalStart("Failed to start cache sync", err)
 	}
 	slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
-	srv := &server{contextArg: contextArg, namespaceArg: namespaceArg, client: client}
+	srv := &server{
+		contextArg:   contextArg,
+		namespaceArg: namespaceArg,
+		client:       client,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
 	mux.HandleFunc("/api/tree", srv.handleTree)
@@ -198,7 +202,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	context_, _ := provider.GetContext()
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
-	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
+	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
 	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, plain)))
 }
 

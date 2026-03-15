@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +23,14 @@ var treeHTMLTemplateSource string
 var treeHTMLScriptSource string
 
 var treeHTMLTemplate = template.Must(template.New("tree-html").Parse(treeHTMLTemplateSource))
+
+// BuildMode is overridden in release builds via ldflags.
+var BuildMode = "dev"
+
+const (
+	treeTemplatePath = "pkg/tree/templates/tree.html.tmpl"
+	treeScriptPath   = "pkg/tree/templates/tree.js"
+)
 
 type treeHTMLView struct {
 	Context    string
@@ -47,7 +56,7 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 	}
 	treeHTML.WriteString(`</ul>`)
 
-	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace, selectors, configPath)
+	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace, selectors, configPath)
 	namespaces := []string{}
 	if !staticMode {
 		namespaces = collectTreeNamespaces(result, namespace)
@@ -60,15 +69,44 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 		StaticMode: staticMode,
 		Header:     header,
 		TreeHTML:   template.HTML(treeHTML.String()),
-		Script:     template.JS(treeHTMLScriptSource),
+		Script:     template.JS(loadTreeHTMLScript()),
 	}
-	if err := treeHTMLTemplate.Execute(&out, view); err != nil {
+	if err := loadTreeHTMLTemplate().Execute(&out, view); err != nil {
 		return "<html><body><p>failed to render tree html</p></body></html>"
 	}
 
 	return out.String()
 }
 
+func shouldUseRuntimeTemplateFiles() bool {
+	return strings.ToLower(strings.TrimSpace(BuildMode)) != "release"
+}
+
+func loadTreeHTMLTemplate() *template.Template {
+	if !shouldUseRuntimeTemplateFiles() {
+		return treeHTMLTemplate
+	}
+	content, err := os.ReadFile(treeTemplatePath)
+	if err != nil {
+		return treeHTMLTemplate
+	}
+	tmpl, err := template.New("tree-html").Parse(string(content))
+	if err != nil {
+		return treeHTMLTemplate
+	}
+	return tmpl
+}
+
+func loadTreeHTMLScript() string {
+	if !shouldUseRuntimeTemplateFiles() {
+		return treeHTMLScriptSource
+	}
+	content, err := os.ReadFile(treeScriptPath)
+	if err != nil {
+		return treeHTMLScriptSource
+	}
+	return string(content)
+}
 func collectTreeNamespaces(result *kube.Response, currentNamespace string) []string {
 	set := map[string]struct{}{}
 	if currentNamespace != "" {

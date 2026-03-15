@@ -1,4 +1,4 @@
-🌍 Context: mock-cluster, Namespace: petshop, Selectors: [], Config: mock, Cache: 32 calls | 0 hits | 32 misses | 0.0% hit rate
+🌍 Kompass Context: mock-cluster, Namespace: petshop, Selectors: [], Config: mock, Cache: 32 calls | 0 hits | 32 misses | 0.0% hit rate
 
 🚀 deployment petshop-backend-boys [[32mAVAILABLE[0m] {[2m[90mavailable[0m[37m=[0m[1m[90m1[0m, [2m[90mcurrent[0m[37m=[0m[1m[90m1[0m, [2m[90mnamespace[0m[37m=[0m[1m[90mpetshop[0m, [2m[90mready[0m[37m=[0m[1m[90m1[0m, [2m[90mreplicas[0m[37m=[0m[1m[90m1[0m, [2m[90mstrategy[0m[37m=[0m[1m[90mRollingUpdate[0m, [2m[90mupdated[0m[37m=[0m[1m[90m1[0m}
 ├─ 🕸 ciliumnetworkpolicy petshop-backend-boys {[2m[90megress[0m[37m=[0m[1m[90mfalse[0m, [2m[90mingress[0m[37m=[0m[1m[90mtrue[0m}

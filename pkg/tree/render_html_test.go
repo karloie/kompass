@@ -3,6 +3,8 @@ package tree
 import (
 	"strings"
 	"testing"
+
+	kube "github.com/karloie/kompass/pkg/kube"
 )
 
 func TestBuildNodeSearchText_IncludesTypeLabelAndMetadata(t *testing.T) {
@@ -74,5 +76,40 @@ func TestBuildNodeSearchText_ExcludesNoisyMetadataAndHashes(t *testing.T) {
 	}
 	if !strings.Contains(searchText, "petshop-kafka-petshopvault") {
 		t.Fatalf("expected relevant metadata value to remain searchable, got %q", searchText)
+	}
+}
+
+func TestRenderHTML_DoesNotIncludeLiveReloadMetadata(t *testing.T) {
+	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, false)
+	if strings.Contains(html, `data-live-reload-poll-ms=`) {
+		t.Fatalf("expected html to omit live reload poll metadata, got %q", html)
+	}
+	if strings.Contains(html, `data-process-stamp=`) {
+		t.Fatalf("expected html to omit process stamp metadata, got %q", html)
+	}
+}
+
+func TestRenderHTML_StaticModeDoesNotIncludeLiveReloadMetadata(t *testing.T) {
+	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, true)
+	if strings.Contains(html, `data-live-reload-poll-ms=`) {
+		t.Fatalf("expected static html to omit live reload poll metadata, got %q", html)
+	}
+	if strings.Contains(html, `data-process-stamp=`) {
+		t.Fatalf("expected static html to omit process stamp metadata, got %q", html)
+	}
+}
+
+func TestShouldUseRuntimeTemplateFiles(t *testing.T) {
+	original := BuildMode
+	t.Cleanup(func() { BuildMode = original })
+
+	BuildMode = "release"
+	if shouldUseRuntimeTemplateFiles() {
+		t.Fatalf("expected release mode to disable runtime template files")
+	}
+
+	BuildMode = "dev"
+	if !shouldUseRuntimeTemplateFiles() {
+		t.Fatalf("expected non-release mode to enable runtime template files")
 	}
 }

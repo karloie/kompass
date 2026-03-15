@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>kompass - {{.Context}} / {{.Namespace}}</title>
+<title>Kompass - {{.Context}} / {{.Namespace}}</title>
 <style>
 body{margin:1rem;font-family:sans-serif;background:#fff;color:#111}
 @media(prefers-color-scheme:dark){body{background:#1a1a1a;color:#e0e0e0}}
@@ -12,6 +12,12 @@ label{display:block;font-size:.8rem;margin:0 0 .4rem;color:#555}
 select,input{display:block;width:100%;max-width:32rem;padding:.5rem .65rem;margin:0 0 .8rem;border:1px solid #c9c9c9;border-radius:.4rem;background:#fff;color:#111}
 select{cursor:pointer}
 @media(prefers-color-scheme:dark){select,input{background:#111;border-color:#444;color:#e0e0e0}}
+.filter-row{display:flex;align-items:center;gap:.5rem;max-width:40rem;margin:0 0 .8rem}
+.filter-row input{margin:0;flex:1;max-width:none}
+.filter-clear{padding:.5rem .75rem;border:1px solid #c9c9c9;border-radius:.4rem;background:#f6f6f6;color:#111;cursor:pointer;white-space:nowrap}
+.filter-clear:hover{background:#ececec}
+@media(prefers-color-scheme:dark){.filter-clear{background:#1f1f1f;border-color:#444;color:#e0e0e0}}
+@media(prefers-color-scheme:dark){.filter-clear:hover{background:#2a2a2a}}
 .tree{list-style:none;margin:0;padding-left:0}
 .tree ul{list-style:none;margin:0;padding-left:1.1rem;border-left:1px solid #d7d7d7}
 @media(prefers-color-scheme:dark){.tree ul{border-left-color:#3a3a3a}}
@@ -39,7 +45,10 @@ select{cursor:pointer}
 </select>
 {{end}}
 <label for="tree-filter">Filter tree (text, * wildcard, ? single-char, ! exclude)</label>
+<div class="filter-row">
 <input id="tree-filter" type="text" placeholder="Examples: kafka* pod/?/api !crash" autocomplete="off" />
+<button id="tree-filter-clear" class="filter-clear" type="button" aria-label="Clear filter">🧹 Clear</button>
+</div>
 {{.TreeHTML}}
 <p id="tree-empty" hidden>No matches</p>
 <script>{{.Script}}</script>

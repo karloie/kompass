@@ -1,5 +1,6 @@
 (function () {
 	const input = document.getElementById("tree-filter");
+	const clearBtn = document.getElementById("tree-filter-clear");
 	const namespaceSelect = document.getElementById("namespace-select");
 	const root = document.getElementById("tree-root");
 	const empty = document.getElementById("tree-empty");
@@ -159,6 +160,9 @@
 		const matcher = buildMatcher(rawQuery);
 		const queryActive = matcher.hasTerms;
 		let visibleTop = 0;
+		if (clearBtn) {
+			clearBtn.hidden = rawQuery.length === 0;
+		}
 		highlightLabels(matcher.highlight);
 		for (const node of nodes) {
 			if (!queryActive) {
@@ -216,6 +220,14 @@
 		window.clearTimeout(renderDebounceTimer);
 		renderDebounceTimer = window.setTimeout(renderFiltered, 60);
 	});
+
+	if (clearBtn) {
+		clearBtn.addEventListener("click", function () {
+			input.value = "";
+			renderFiltered();
+			input.focus();
+		});
+	}
 
 	renderFiltered();
 })();

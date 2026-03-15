@@ -3,7 +3,7 @@
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
-RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS) -X github.com/karloie/kompass/pkg/tree.BuildMode=release
 LDFLAGS ?=
 ARGS    ?=
 COVERPKG ?= ./...
@@ -56,12 +56,12 @@ coverage-func: build
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
 dev:
-	$(GOW) run ./cmd/kompass --mock --service $(ARGS)
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)
 real:    ; @$(GO_RUN) $(ARGS)
-service: ; @$(GOW) run ./cmd/kompass --mock --service $(ARGS)
+service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:
 	$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.json

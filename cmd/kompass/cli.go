@@ -69,6 +69,6 @@ func printGraphs(result *kube.Response, context, namespace, configPath string, s
 }
 
 func printTrees(result *kube.Response, context, namespace, configPath string, selectors []string, plain bool) {
-	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context, namespace, selectors, configPath)
+	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context, namespace, selectors, configPath)
 	fmt.Print(tree.RenderText(result, header, plain))
 }
