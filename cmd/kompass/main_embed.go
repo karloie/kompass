@@ -1,4 +1,4 @@
-//go:build webembed
+//go:build release
 
 package main
 
@@ -9,6 +9,8 @@ import (
 
 //go:embed dist
 var embeddedDist embed.FS
+
+var embeddedWebRoot fs.FS
 
 func init() {
 	root, err := fs.Sub(embeddedDist, "dist")

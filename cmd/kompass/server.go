@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"sync"
 	"syscall"
 	"time"
@@ -27,6 +29,7 @@ type server struct {
 	client        *kube.Client
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
 	providerMu    sync.Mutex
+	webRoot       fs.FS
 }
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
@@ -61,6 +64,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		contextArg:   contextArg,
 		namespaceArg: namespaceArg,
 		client:       client,
+		webRoot:      resolveWebRoot(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
@@ -69,6 +73,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
 	mux.HandleFunc("/api/metadata", srv.handleMetadata)
+	mux.HandleFunc("/", srv.handleWeb)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
@@ -87,6 +92,38 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Error("Server forced to shutdown", "error", err)
 	}
 	slog.Info("Server stopped")
+}
+
+func resolveWebRoot() fs.FS {
+	if embeddedWebRoot != nil {
+		return embeddedWebRoot
+	}
+	local := os.DirFS("cmd/kompass/dist")
+	if _, err := fs.Stat(local, "index.html"); err == nil {
+		return local
+	}
+	return nil
+}
+
+func (s *server) handleWeb(w http.ResponseWriter, r *http.Request) {
+	if s.webRoot == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	clean := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+	if clean == "." || clean == "" {
+		clean = "index.html"
+	}
+
+	if _, err := fs.Stat(s.webRoot, clean); err == nil {
+		http.FileServer(http.FS(s.webRoot)).ServeHTTP(w, r)
+		return
+	}
+
+	// SPA fallback for client-side routes.
+	r.URL.Path = "/index.html"
+	http.FileServer(http.FS(s.webRoot)).ServeHTTP(w, r)
 }
 
 func (s *server) handleHealth(format string, checkReady bool) http.HandlerFunc {
