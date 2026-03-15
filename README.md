@@ -284,7 +284,7 @@ curl "http://my.service.net/api/readyz"   # Readiness
 make build
 ```
 
-### Web Modes
+### Service Modes
 
 ```bash
 # Dev mode (hot reload)
