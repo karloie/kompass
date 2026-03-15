@@ -23,6 +23,8 @@ type Options struct {
 	RefreshInterval time.Duration
 	Context         string
 	Namespace       string
+	NetpolProvider  NetpolProvider
+	HubbleProvider  HubbleProvider
 	OutputJSON      bool
 	JSON            bool
 	Plain           bool

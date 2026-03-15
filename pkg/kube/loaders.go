@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"log/slog"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -315,6 +316,7 @@ func LoadNetworkPolicy(provider Kube, namespace string, ctx context.Context, opt
 func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
+		slog.Warn("kube fallback", "kind", "loader-provider-missing", "resource", "ciliumnetworkpolicy", "namespace", namespace, "reason", "provider does not implement CiliumProvider")
 		return []Resource{}, nil
 	}
 	cnps, err := cp.GetCiliumNetworkPolicies(namespace, ctx, opts)
@@ -342,6 +344,7 @@ func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Contex
 func LoadCiliumClusterwideNetworkPolicy(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
+		slog.Warn("kube fallback", "kind", "loader-provider-missing", "resource", "ciliumclusterwidenetworkpolicy", "reason", "provider does not implement CiliumProvider")
 		return []Resource{}, nil
 	}
 	ccnps, err := cp.GetCiliumClusterwideNetworkPolicies(ctx, opts)
@@ -479,6 +482,7 @@ func conditionBasedLoad(resourceType string, providerCheck func(Kube) (any, bool
 	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		p, ok := providerCheck(provider)
 		if !ok {
+			slog.Warn("kube fallback", "kind", "loader-provider-missing", "resource", resourceType, "namespace", namespace, "reason", "optional provider not implemented")
 			return []Resource{}, nil
 		}
 		items, err := getter(p, namespace, ctx, opts)

@@ -69,3 +69,20 @@ func TestHighlightYAMLLine_KeyOverrideModePath(t *testing.T) {
 		t.Fatalf("expected highlightYAMLLine to follow key override mode path\nwant: %q\ngot:  %q", want, out)
 	}
 }
+
+func TestHighlightResourceLine_HubbleUsesHubbleHighlighter(t *testing.T) {
+	line := `2 Mar 15 21:53:20.909: ns/web-123:51064 (ID:56723) -> ns/db-456:7687 (ID:26403) policy-verdict:L3-Only`
+	got := highlightResourceLine("hubble", line)
+	want := highlightHubbleLine(line)
+	if got != want {
+		t.Fatalf("expected hubble page dispatch to use highlightHubbleLine\nwant: %q\ngot:  %q", want, got)
+	}
+}
+
+func TestHighlightResourceLine_HubbleLeavesPlainTextUntouched(t *testing.T) {
+	line := "some plain message with no flow markers"
+	out := highlightResourceLine("hubble", line)
+	if out != line {
+		t.Fatalf("expected plain hubble line to remain unchanged\nwant: %q\ngot:  %q", line, out)
+	}
+}

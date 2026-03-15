@@ -13,14 +13,17 @@ import (
 )
 
 var (
-	fieldPrefixPattern = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9 _-]*):(\s*)(.*)$`)
-	anyFieldPattern    = regexp.MustCompile(`^([^:]+):(\s*)(.*)$`)
-	yamlKeyPattern     = regexp.MustCompile(`^(\s*(?:-\s+)??)([^:#\n][^:\n]*):(\s*)(.*)$`)
-	eventSeverityWords = regexp.MustCompile(`(?i)\b(warning|normal|error|failed)\b`)
-	logSeverityWords   = regexp.MustCompile(`(?i)\b(trace|debug|info|warn|warning|error|fatal|panic|failed)\b`)
-	logLinePattern     = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+([A-Za-z]+)\s+(.*)$`)
-	logLevelPattern    = regexp.MustCompile(`^([A-Za-z]+)\s+(.*)$`)
-	logMsgKeyPattern   = regexp.MustCompile(`\b[A-Za-z][A-Za-z0-9_-]*:`)
+	fieldPrefixPattern  = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9 _-]*):(\s*)(.*)$`)
+	anyFieldPattern     = regexp.MustCompile(`^([^:]+):(\s*)(.*)$`)
+	yamlKeyPattern      = regexp.MustCompile(`^(\s*(?:-\s+)??)([^:#\n][^:\n]*):(\s*)(.*)$`)
+	eventSeverityWords  = regexp.MustCompile(`(?i)\b(warning|normal|error|failed)\b`)
+	logSeverityWords    = regexp.MustCompile(`(?i)\b(trace|debug|info|warn|warning|error|fatal|panic|failed)\b`)
+	logLinePattern      = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[\.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+([A-Za-z]+)\s+(.*)$`)
+	logLevelPattern     = regexp.MustCompile(`^([A-Za-z]+)\s+(.*)$`)
+	logMsgKeyPattern    = regexp.MustCompile(`\b[A-Za-z][A-Za-z0-9_-]*:`)
+	hubblePodRefPattern = regexp.MustCompile(`\b[a-z0-9](?:[-a-z0-9]*[a-z0-9])?/[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?\b`)
+	hubbleIPPortPattern = regexp.MustCompile(`\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b`)
+	hubblePolicyPattern = regexp.MustCompile(`\bpolicy-verdict:[^\s]+\b`)
 
 	eventsKnownKeys = map[string]bool{
 		"Type": true, "Reason": true, "Object": true, "InvolvedObject": true,
@@ -79,6 +82,24 @@ var (
 	yamlChromaStyle   *chroma.Style
 )
 
+// Fixed styles for the netpol page — not theme-driven because the semantic
+// meaning (green=open, orange=restricted, red=deny) should not vary by theme.
+var (
+	netpolHeaderStyle   = lipgloss.NewStyle().Bold(true)
+	netpolDimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	netpolOpenStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("76"))
+	netpolRestrictStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	netpolPolicyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
+	netpolAllowStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("76"))
+	netpolDenyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	hubbleHeaderStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
+	hubblePodStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("117"))
+	hubbleIPPortStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
+	hubblePolicyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	hubbleIngressStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("76"))
+	hubbleEgressStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+)
+
 type highlightTheme struct {
 	YAMLStyleCandidates []string
 	YAMLSimpleMode      bool
@@ -126,6 +147,60 @@ func highlightResourceLine(pageName, line string) string {
 		return highlightEventLine(line)
 	case "logs":
 		return highlightLogLine(line)
+	case "hubble":
+		return highlightHubbleLine(line)
+	case "netpol":
+		return highlightNetpolLine(line)
+	default:
+		return line
+	}
+}
+
+func highlightHubbleLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return line
+	}
+	if strings.HasPrefix(trimmed, "hubble observe ") {
+		return hubbleHeaderStyle.Render(line)
+	}
+
+	out := highlightLogSeverities(line)
+	out = hubblePolicyPattern.ReplaceAllStringFunc(out, func(match string) string {
+		return hubblePolicyStyle.Render(match)
+	})
+	out = hubbleIPPortPattern.ReplaceAllStringFunc(out, func(match string) string {
+		return hubbleIPPortStyle.Render(match)
+	})
+	out = hubblePodRefPattern.ReplaceAllStringFunc(out, func(match string) string {
+		return hubblePodStyle.Render(match)
+	})
+	out = strings.ReplaceAll(out, " -> ", " "+hubbleEgressStyle.Render("->")+" ")
+	out = strings.ReplaceAll(out, " <- ", " "+hubbleIngressStyle.Render("<-")+" ")
+	return out
+}
+
+func highlightNetpolLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(trimmed, "NetworkPolicy analysis:"):
+		return netpolHeaderStyle.Render(line)
+	case strings.HasPrefix(trimmed, "Labels:"):
+		return netpolDimStyle.Render(line)
+	case (strings.HasPrefix(trimmed, "INGRESS:") || strings.HasPrefix(trimmed, "EGRESS:")) &&
+		strings.Contains(trimmed, "OPEN"):
+		return netpolOpenStyle.Render(line)
+	case (strings.HasPrefix(trimmed, "INGRESS:") || strings.HasPrefix(trimmed, "EGRESS:")) &&
+		strings.Contains(trimmed, "RESTRICTED"):
+		return netpolRestrictStyle.Render(line)
+	case strings.HasPrefix(trimmed, "No NetworkPolicy"):
+		return netpolDimStyle.Render(line)
+	case strings.HasPrefix(trimmed, "▸"):
+		return netpolPolicyStyle.Render(line)
+	case strings.HasPrefix(trimmed, "✅"):
+		return netpolAllowStyle.Render(line)
+	case strings.HasPrefix(trimmed, "🚫"), strings.HasPrefix(trimmed, "(no allow"):
+		return netpolDenyStyle.Render(line)
 	default:
 		return line
 	}

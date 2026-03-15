@@ -1,10 +1,17 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
 
+	"github.com/karloie/kompass/pkg/diagnostics"
+	"github.com/karloie/kompass/pkg/graph"
+	kube "github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/tree"
 )
 
@@ -23,6 +30,280 @@ var runViewCommand = func(name string, args ...string) (string, error) {
 var runScopeListCommand = func(args ...string) (string, error) {
 	out, err := exec.Command("kubectl", args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// runNetpolAnalysis fetches the pod and all NetworkPolicies in its namespace,
+// then returns a human-readable policy evaluation for that pod.
+var runNetpolAnalysis = func(target resourceTarget, context string) (string, error) {
+	if target.Name == "" || target.Namespace == "" {
+		return "(no pod info available)", nil
+	}
+	args := []string{"get", "pod", target.Name, "-n", target.Namespace, "-o", "json"}
+	args = appendContextArg(args, context)
+	podOut, err := exec.Command("kubectl", args...).CombinedOutput()
+	if err != nil {
+		return "error fetching pod: " + strings.TrimSpace(string(podOut)), err
+	}
+	var podRaw map[string]any
+	if err := json.Unmarshal(podOut, &podRaw); err != nil {
+		return "error parsing pod JSON: " + err.Error(), err
+	}
+
+	npArgs := []string{"get", "networkpolicy", "-n", target.Namespace, "-o", "json"}
+	npArgs = appendContextArg(npArgs, context)
+	npOut, _ := exec.Command("kubectl", npArgs...).CombinedOutput()
+
+	nodes := map[string]kube.Resource{}
+	podKey := "pod/" + target.Namespace + "/" + target.Name
+	nodes[podKey] = kube.Resource{Key: podKey, Type: "pod", Resource: podRaw}
+
+	var npList map[string]any
+	if err := json.Unmarshal(npOut, &npList); err == nil {
+		if items, ok := npList["items"].([]any); ok {
+			for _, item := range items {
+				if m, ok := item.(map[string]any); ok {
+					ns, _ := nestedString(m, "metadata", "namespace")
+					name, _ := nestedString(m, "metadata", "name")
+					if ns != "" && name != "" {
+						k := "networkpolicy/" + ns + "/" + name
+						nodes[k] = kube.Resource{Key: k, Type: "networkpolicy", Resource: m}
+					}
+				}
+			}
+		}
+	}
+
+	podResource := nodes[podKey]
+	verdict := graph.AnalyzePodNetworkPolicies(nodes, podResource)
+	return graph.FormatNetPolVerdict(verdict), nil
+}
+
+func buildNetpolPage(target resourceTarget, context string) ViewPage {
+	return buildNetpolPageWithProvider(target, context, nil, nil)
+}
+
+func buildNetpolPageWithProvider(target resourceTarget, context string, provider NetpolProvider, resources map[string]*kube.Resource) ViewPage {
+	body, err := resolveNetpolProvider(provider).AnalyzePod(diagnostics.PodTarget{
+		ResourceType: target.ResourceType,
+		Name:         target.Name,
+		Namespace:    target.Namespace,
+	}, context, resources)
+	if err != nil && strings.TrimSpace(body) == "" {
+		body = "(netpol analysis unavailable)"
+	}
+	title := "netpol: " + target.Namespace + "/" + target.Name
+	rows := strings.Split(body, "\n")
+	return ViewPage{Name: "netpol", Kind: FileOutput, Title: title, Rows: rows, Raw: body}
+}
+
+// runNetpolAnalysisFromResources avoids shelling out to kubectl when the
+// current selector tree already has the target pod and networkpolicies loaded.
+func runNetpolAnalysisFromResources(target resourceTarget, resources map[string]*kube.Resource) (string, bool) {
+	if target.Name == "" || target.Namespace == "" {
+		return "", false
+	}
+	loaded := resources
+	if len(loaded) == 0 {
+		return "", false
+	}
+
+	podKey := "pod/" + target.Namespace + "/" + target.Name
+	podPtr, ok := loaded[podKey]
+	if !ok || podPtr == nil {
+		return "", false
+	}
+	podObj := podPtr.AsMap()
+	meta, ok := podObj["metadata"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	podName, _ := meta["name"].(string)
+	podNS, _ := meta["namespace"].(string)
+	if strings.TrimSpace(podName) == "" || strings.TrimSpace(podNS) == "" {
+		return "", false
+	}
+
+	nodes := make(map[string]kube.Resource, len(loaded))
+	for key, res := range loaded {
+		if res == nil {
+			continue
+		}
+		if res.Type != "networkpolicy" && key != podKey {
+			continue
+		}
+		nodes[key] = *res
+	}
+	if len(nodes) == 0 {
+		return "", false
+	}
+
+	verdict := graph.AnalyzePodNetworkPolicies(nodes, *podPtr)
+	return graph.FormatNetPolVerdict(verdict), true
+}
+
+// runHubbleCommand executes the hubble CLI tool.
+var runHubbleCommand = func(args ...string) (string, error) {
+	out, err := exec.Command("hubble", args...).CombinedOutput()
+	body := strings.TrimRight(string(out), "\n")
+	if err != nil && isHubbleRelayUnavailable(body) {
+		// Relay not reachable — try to start it and retry once.
+		if pfErr := startHubblePortForward(); pfErr == nil {
+			out2, err2 := exec.Command("hubble", args...).CombinedOutput()
+			body = strings.TrimRight(string(out2), "\n")
+			err = err2
+		}
+	}
+	if body == "" && err != nil {
+		body = "hubble observe unavailable; ensure the hubble CLI is installed and relay is running"
+	}
+	return body, err
+}
+
+// startHubblePortForward runs "cilium hubble port-forward" in the background
+// and waits briefly for the relay to become reachable.
+var startHubblePortForward = func() error {
+	cmd := exec.Command("cilium", "hubble", "port-forward")
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Give the port-forward up to 3 seconds to become ready.
+	deadline := 30 // × 100ms
+	for i := 0; i < deadline; i++ {
+		time.Sleep(100 * time.Millisecond)
+		probe, err := exec.Command("hubble", "observe", "--last", "1").CombinedOutput()
+		if err == nil || !isHubbleRelayUnavailable(string(probe)) {
+			return nil
+		}
+	}
+	return nil // proceed anyway — the retry in runHubbleCommand will surface the error
+}
+
+func isHubbleRelayUnavailable(output string) bool {
+	return strings.Contains(output, "rpc error") && strings.Contains(output, "Unavailable")
+}
+
+var hubbleProviderMode = func() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("KOMPASS_HUBBLE_PROVIDER")))
+	switch mode {
+	case "native", "cli", "auto":
+		return mode
+	default:
+		return "auto"
+	}
+}
+
+// runHubbleObserve is the provider entrypoint. It supports native-ready mode
+// selection while defaulting to current CLI behavior for compatibility.
+var runHubbleObserve = func(podRef string, last int, context string) (string, error) {
+	return observeHubbleByMode(podRef, last, context, hubbleProviderMode())
+}
+
+func observeHubbleByMode(podRef string, last int, context, mode string) (string, error) {
+	switch mode {
+	case "cli":
+		return observeHubbleWithCLI(podRef, last, context)
+	case "native":
+		return observeHubbleNative(podRef, last, context)
+	default: // auto
+		body, err := observeHubbleNative(podRef, last, context)
+		if err == nil && !isNativeHubbleNoData(body) {
+			return body, nil
+		}
+		reason := "no native flow data"
+		if err != nil {
+			reason = err.Error()
+		}
+		slog.Warn("hubble provider fallback", "from", "native", "to", "cli", "pod", podRef, "reason", reason)
+		return observeHubbleWithCLI(podRef, last, context)
+	}
+}
+
+func isNativeHubbleNoData(body string) bool {
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		return true
+	}
+	return strings.HasPrefix(trimmed, "(no hubble flows observed")
+}
+
+func observeHubbleWithCLI(podRef string, last int, context string) (string, error) {
+	_ = context // hubble CLI does not support a kubectl-style --context flag
+	if last <= 0 {
+		last = 100
+	}
+	args := []string{"observe", "--pod", podRef, "--last", fmt.Sprintf("%d", last)}
+	return runHubbleCommand(args...)
+}
+
+func buildHubblePage(target resourceTarget, context string, provider HubbleProvider) ViewPage {
+	podRef := target.Namespace + "/" + target.Name
+	body, _ := resolveHubbleProvider(provider).ObservePod(podRef, 100, context)
+	title := "hubble observe --pod " + podRef
+	rows := decorateHubbleRows(body)
+	return ViewPage{Name: "hubble", Kind: FileOutput, Title: title, Rows: rows, Raw: body}
+}
+
+func decorateHubbleRows(body string) []string {
+	lines := strings.Split(body, "\n")
+	rows := make([]string, 0, len(lines))
+	for _, line := range lines {
+		rows = append(rows, decorateHubbleLine(line))
+	}
+	return rows
+}
+
+func decorateHubbleLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return line
+	}
+	lower := strings.ToLower(trimmed)
+
+	var badges []string
+	if strings.HasPrefix(lower, "hubble observe ") {
+		badges = append(badges, "🔎")
+	}
+	if strings.Contains(lower, "warn") || strings.Contains(lower, "error") || strings.Contains(lower, "failed") {
+		badges = append(badges, "⚠️")
+	}
+	if strings.Contains(lower, "denied") || strings.Contains(lower, "deny") || strings.Contains(lower, "dropped") || strings.Contains(lower, "drop") {
+		badges = append(badges, "🚫")
+	} else if strings.Contains(lower, "forwarded") || strings.Contains(lower, "allowed") || strings.Contains(lower, "allow") {
+		badges = append(badges, "✅")
+	}
+	if strings.Contains(line, " <- ") {
+		badges = append(badges, "⬅️")
+	} else if strings.Contains(line, " -> ") {
+		badges = append(badges, "➡️")
+	}
+
+	if len(badges) == 0 {
+		return line
+	}
+	return strings.Join(badges, " ") + " " + line
+}
+
+func appendContextArg(args []string, context string) []string {
+	if strings.TrimSpace(context) != "" {
+		return append(args, "--context", strings.TrimSpace(context))
+	}
+	return args
+}
+
+func nestedString(m map[string]any, keys ...string) (string, bool) {
+	cur := m
+	for i, k := range keys {
+		if i == len(keys)-1 {
+			s, ok := cur[k].(string)
+			return s, ok
+		}
+		next, ok := cur[k].(map[string]any)
+		if !ok {
+			return "", false
+		}
+		cur = next
+	}
+	return "", false
 }
 
 func listScopeOptions(mode, context string) ([]string, error) {
@@ -117,12 +398,12 @@ func (m Model) rowActionArgs(r *Row, action string) []string {
 	}
 }
 
-func viewResource(r Row, context, defaultNamespace string) *View {
+func viewResource(r Row, context, defaultNamespace string, resources map[string]*kube.Resource, netpolProvider NetpolProvider, hubbleProvider HubbleProvider) *View {
 	target := resourceViewTarget(r, defaultNamespace)
-	return viewResourceFromTarget(target, context)
+	return viewResourceFromTarget(target, context, resources, netpolProvider, hubbleProvider)
 }
 
-func viewResourceFromTarget(target resourceTarget, context string) *View {
+func viewResourceFromTarget(target resourceTarget, context string, resources map[string]*kube.Resource, netpolProvider NetpolProvider, hubbleProvider HubbleProvider) *View {
 	resourceName := strings.TrimSpace(target.Name)
 	if resourceName == "" {
 		resourceName = normalizeResourceType(target.ResourceType)
@@ -131,11 +412,15 @@ func viewResourceFromTarget(target resourceTarget, context string) *View {
 	logsArgs, _ := buildLogsCommand(target, context)
 	eventsArgs, _ := buildEventsCommand(target, context)
 	yamlArgs, _ := buildYAMLCommand(target, context)
-	pages := make([]ViewPage, 0, 4)
+	pages := make([]ViewPage, 0, 6)
 	pages = appendViewPage(pages, "describe", describeArgs)
 	pages = appendViewPage(pages, "logs", logsArgs)
 	pages = appendViewPage(pages, "events", eventsArgs)
 	pages = appendViewPage(pages, "yaml", yamlArgs)
+	if normalizeResourceType(target.ResourceType) == "pod" {
+		pages = append(pages, buildNetpolPageWithProvider(target, context, netpolProvider, resources))
+		pages = append(pages, buildHubblePage(target, context, hubbleProvider))
+	}
 	if len(pages) == 0 {
 		pages = append(pages, unavailableViewPage("resource", "resource unavailable"))
 	}

@@ -295,7 +295,7 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.footerHeight = maxInt(1, m.footerHeight-1)
 	case "enter":
 		if r := m.currentRow(); m.canDescribeRow(r) {
-			v := viewResource(*r, m.context, m.namespace)
+			v := viewResource(*r, m.context, m.namespace, m.resources, m.netpolProvider, m.hubbleProvider)
 			action := m.effectiveAction(r)
 			for i, page := range v.Pages {
 				if page.Name == action {

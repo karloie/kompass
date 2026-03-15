@@ -162,6 +162,8 @@ sudo rpm -i kompass_<version>_linux_amd64.rpm
 
 The Docker image is intended to be deployed inside a Kubernetes cluster as a service running the REST API. For local CLI usage, install the binary instead.
 
+The image also includes `kubectl`, `cilium`, and `hubble` binaries so pod-level diagnostics (for example TUI netpol/hubble pages when running interactively) can run in-cluster without installing extra tools.
+
 ```bash
 # Run API server
 docker run -p 8080:8080 karloie/kompass:latest --service 0.0.0.0:8080

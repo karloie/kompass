@@ -14,6 +14,8 @@ type Model struct {
 	namespace       string
 	reload          ReloadFunc
 	refreshInterval time.Duration
+	netpolProvider  NetpolProvider
+	hubbleProvider  HubbleProvider
 
 	width  int
 	height int
@@ -74,6 +76,8 @@ func newRun(opts Options) Model {
 		namespace:       opts.Namespace,
 		reload:          opts.Reload,
 		refreshInterval: opts.RefreshInterval,
+		netpolProvider:  resolveNetpolProvider(opts.NetpolProvider),
+		hubbleProvider:  resolveHubbleProvider(opts.HubbleProvider),
 		footerHeight:    1,
 		themeName:       currentThemeName,
 	}
@@ -284,7 +288,7 @@ func (m *Model) refreshOpenView() {
 		previousByName[page.Name] = page
 	}
 
-	next := viewResourceFromTarget(target, m.context)
+	next := viewResourceFromTarget(target, m.context, m.resources, m.netpolProvider, m.hubbleProvider)
 	for i := range next.Pages {
 		if prev, ok := previousByName[next.Pages[i].Name]; ok {
 			next.Pages[i].Scroll = prev.Scroll

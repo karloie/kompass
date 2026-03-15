@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/karloie/kompass/pkg/diagnostics"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -27,6 +28,36 @@ func stubRunScopeListCommand(t *testing.T, fn func(args ...string) (string, erro
 	t.Cleanup(func() {
 		runScopeListCommand = prev
 	})
+}
+
+func stubRunNetpolAnalysis(t *testing.T, fn func(target resourceTarget, context string) (string, error)) {
+	t.Helper()
+	prev := runNetpolAnalysis
+	runNetpolAnalysis = fn
+	t.Cleanup(func() {
+		runNetpolAnalysis = prev
+	})
+}
+
+func stubRunHubbleCommand(t *testing.T, fn func(args ...string) (string, error)) {
+	t.Helper()
+	prev := runHubbleCommand
+	runHubbleCommand = fn
+	t.Cleanup(func() {
+		runHubbleCommand = prev
+	})
+}
+
+type fakeNetpolProvider struct{}
+
+func (fakeNetpolProvider) AnalyzePod(target diagnostics.PodTarget, context string, resources map[string]*kube.Resource) (string, error) {
+	return "INJECTED-NETPOL", nil
+}
+
+type fakeHubbleProvider struct{}
+
+func (fakeHubbleProvider) ObservePod(podRef string, last int, context string) (string, error) {
+	return "INJECTED-HUBBLE FORWARDED", nil
 }
 
 func TestTabAndShiftTabJumpBetweenRoots(t *testing.T) {
@@ -629,6 +660,12 @@ func TestTabCyclesInspectPages(t *testing.T) {
 	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
 		return strings.Join(args, " "), nil
 	})
+	stubRunNetpolAnalysis(t, func(target resourceTarget, context string) (string, error) {
+		return "INGRESS: OPEN", nil
+	})
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		return "no flows", nil
+	})
 
 	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
@@ -639,8 +676,8 @@ func TestTabCyclesInspectPages(t *testing.T) {
 	if m1.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
-	if got := len(m1.view.Pages); got != 4 {
-		t.Fatalf("expected 4 inspect pages, got %d", got)
+	if got := len(m1.view.Pages); got != 6 {
+		t.Fatalf("expected 6 inspect pages (describe/logs/events/yaml/netpol/hubble), got %d", got)
 	}
 	if m1.view.pageName() != "describe" {
 		t.Fatalf("expected describe page first, got %q", m1.view.pageName())
@@ -1482,5 +1519,211 @@ func TestBuildDescribeArgs(t *testing.T) {
 	}
 	if title != "pod/nginx" {
 		t.Fatalf("unexpected title: %q", title)
+	}
+}
+
+func TestPodViewIncludesNetpolAndHubblePages(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return strings.Join(args, " "), nil
+	})
+	stubRunNetpolAnalysis(t, func(target resourceTarget, context string) (string, error) {
+		return "INGRESS: OPEN\nEGRESS: OPEN", nil
+	})
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		return "ns/pod FORWARDED", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+
+	pageNames := make([]string, 0, len(m1.view.Pages))
+	for _, p := range m1.view.Pages {
+		pageNames = append(pageNames, p.Name)
+	}
+	if len(m1.view.Pages) < 6 {
+		t.Fatalf("expected at least 6 pages for pod (describe/logs/events/yaml/netpol/hubble), got %v", pageNames)
+	}
+
+	found := map[string]bool{}
+	for _, p := range m1.view.Pages {
+		found[p.Name] = true
+	}
+	for _, want := range []string{"netpol", "hubble"} {
+		if !found[want] {
+			t.Fatalf("expected %q page, got pages: %v", want, pageNames)
+		}
+	}
+}
+
+func TestNetpolPageShowsAnalysisOutput(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return "ok", nil
+	})
+	stubRunNetpolAnalysis(t, func(target resourceTarget, context string) (string, error) {
+		return "INGRESS: RESTRICTED  (1 policy)\n  Policy: deny-all\n  🚫 default deny", nil
+	})
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		return "", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected view to open")
+	}
+
+	var netpolPage *ViewPage
+	for i := range m1.view.Pages {
+		if m1.view.Pages[i].Name == "netpol" {
+			netpolPage = &m1.view.Pages[i]
+		}
+	}
+	if netpolPage == nil {
+		t.Fatalf("expected netpol page")
+	}
+	if !strings.Contains(netpolPage.Raw, "INGRESS: RESTRICTED") {
+		t.Fatalf("expected analysis output in netpol page, got %q", netpolPage.Raw)
+	}
+}
+
+func TestHubblePageShowsFlows(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return "ok", nil
+	})
+	stubRunNetpolAnalysis(t, func(target resourceTarget, context string) (string, error) {
+		return "INGRESS: OPEN", nil
+	})
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		// verify that --pod and --last flags are passed
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--pod") || !strings.Contains(joined, "--last") {
+			return "", fmt.Errorf("unexpected hubble args: %q", joined)
+		}
+		return "ns/foo:80 <- ns/bar:52000 FORWARDED", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected view to open")
+	}
+
+	var hubblePage *ViewPage
+	for i := range m1.view.Pages {
+		if m1.view.Pages[i].Name == "hubble" {
+			hubblePage = &m1.view.Pages[i]
+		}
+	}
+	if hubblePage == nil {
+		t.Fatalf("expected hubble page")
+	}
+	if !strings.Contains(hubblePage.Raw, "FORWARDED") {
+		t.Fatalf("expected flow output in hubble page, got %q", hubblePage.Raw)
+	}
+	rows := strings.Join(hubblePage.Rows, "\n")
+	if !strings.Contains(rows, "✅") || !strings.Contains(rows, "⬅️") {
+		t.Fatalf("expected decorated hubble rows with allow/direction emojis, got %q", rows)
+	}
+}
+
+func TestObserveHubbleByModeCLI(t *testing.T) {
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--pod ns/foo") || !strings.Contains(joined, "--last 42") || strings.Contains(joined, "--context") {
+			return "", fmt.Errorf("unexpected args: %q", joined)
+		}
+		return "ok", nil
+	})
+
+	body, err := observeHubbleByMode("ns/foo", 42, "ctx-a", "cli")
+	if err != nil {
+		t.Fatalf("expected CLI mode to succeed, got %v", err)
+	}
+	if body != "ok" {
+		t.Fatalf("expected CLI mode body, got %q", body)
+	}
+}
+
+func TestObserveHubbleByModeAutoFallsBackToCLI(t *testing.T) {
+	stubRunHubbleCommand(t, func(args ...string) (string, error) {
+		return "cli-flow", nil
+	})
+
+	body, err := observeHubbleByMode("ns/foo", 10, "", "auto")
+	if err != nil {
+		t.Fatalf("expected auto mode fallback to CLI, got %v", err)
+	}
+	if body != "cli-flow" {
+		t.Fatalf("expected fallback CLI body, got %q", body)
+	}
+}
+
+func TestPodViewUsesInjectedProviders(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return "ok", nil
+	})
+
+	m := newRun(Options{
+		Mode:           ModeSelector,
+		Context:        "ctx-a",
+		Namespace:      "ns",
+		NetpolProvider: fakeNetpolProvider{},
+		HubbleProvider: fakeHubbleProvider{},
+	})
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "foo", "namespace": "ns"}}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected view to open")
+	}
+
+	pages := map[string]ViewPage{}
+	for _, p := range m1.view.Pages {
+		pages[p.Name] = p
+	}
+	if got := pages["netpol"].Raw; !strings.Contains(got, "INJECTED-NETPOL") {
+		t.Fatalf("expected injected netpol provider output, got %q", got)
+	}
+	if got := pages["hubble"].Raw; !strings.Contains(got, "INJECTED-HUBBLE") {
+		t.Fatalf("expected injected hubble provider output, got %q", got)
+	}
+}
+
+func TestNonPodResourceDoesNotGetNetpolOrHubblePages(t *testing.T) {
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		return "ok", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns"})
+	m.rowsByPane[0] = []Row{{Key: "deployment/ns/myapp", Type: "deployment", Name: "myapp", Status: "Running"}}
+	m.resources["deployment/ns/myapp"] = &kube.Resource{Key: "deployment/ns/myapp", Type: "deployment"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := updated.(Model)
+	if m1.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+
+	for _, p := range m1.view.Pages {
+		if p.Name == "netpol" || p.Name == "hubble" {
+			t.Fatalf("expected no %q page for deployment resource", p.Name)
+		}
 	}
 }
