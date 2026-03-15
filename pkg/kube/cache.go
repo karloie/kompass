@@ -120,13 +120,26 @@ func (c *Client) syncLoop() {
 }
 
 func (c *Client) performSync() {
-	if len(c.syncNamespaces) == 0 {
-		return
-	}
 	ctx, opts := context.Background(), metav1.ListOptions{}
 	var wg sync.WaitGroup
 
-	for _, ns := range c.syncNamespaces {
+	namespaces := c.syncNamespaces
+	if len(namespaces) == 0 {
+		nsList, err := c.GetNamespaces(ctx, opts)
+		if err == nil {
+			namespaces = make([]string, 0, len(nsList.Items))
+			for _, ns := range nsList.Items {
+				if ns.Name != "" {
+					namespaces = append(namespaces, ns.Name)
+				}
+			}
+		}
+	}
+	if len(namespaces) == 0 {
+		return
+	}
+
+	for _, ns := range namespaces {
 		wg.Add(1)
 		go func(n string) {
 			defer wg.Done()

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ type server struct {
 	namespaceArg  string
 	client        *kube.Client
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
+	providerMu    sync.Mutex
 }
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
@@ -45,7 +47,8 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	}
 	namespacesToWatch := []string{namespaceArg}
 	if namespaceArg == "" {
-		namespacesToWatch = []string{"default"}
+		// Empty list means "sync all namespaces" in performSync.
+		namespacesToWatch = []string{}
 	}
 	if err := client.StartSync(30*time.Second, namespacesToWatch); err != nil {
 		slog.Warn("Failed to start cache sync", "error", err)
@@ -219,6 +222,12 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	if namespace == "" {
 		namespace = s.namespaceArg
 	}
+
+	// Requests share one client in server mode. Serialize provider selection + inference
+	// so namespace-scoped calls do not bleed across concurrent requests.
+	s.providerMu.Lock()
+	defer s.providerMu.Unlock()
+
 	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
 	if err != nil {
 		return nil, namespace, nil, nil, err
