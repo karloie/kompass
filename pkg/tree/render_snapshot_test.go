@@ -25,27 +25,28 @@ func loadMockSnapshotGraphs(t *testing.T) *kube.Response {
 	}
 
 	var direct kube.Response
-	if err := json.Unmarshal(data, &direct); err == nil && (len(direct.Graphs) > 0 || len(direct.Nodes) > 0) {
+	if err := json.Unmarshal(data, &direct); err == nil && (len(direct.Components) > 0 || len(direct.Nodes) > 0) {
 		return &direct
 	}
 
 	var env snapshotEnvelope
-	if err := json.Unmarshal(data, &env); err != nil {
-		t.Fatalf("unmarshal mock snapshot fixture: %v", err)
-	}
-	if len(env.Response.Graphs) == 0 || len(env.Response.Nodes) == 0 {
-		t.Fatalf("fixture response is empty")
+	if err := json.Unmarshal(data, &env); err == nil {
+		if len(env.Response.Components) > 0 || len(env.Response.Nodes) > 0 {
+			return &env.Response
+		}
 	}
 
-	return &env.Response
+	t.Fatalf("fixture response is empty or not in current DTO shape")
+	return nil
 }
 
 func renderAllTrees(t *testing.T, trees *kube.Response, plain bool) string {
 	t.Helper()
 
 	var rendered []string
+	nodeMap := trees.NodeMap()
 	for i := range trees.Trees {
-		rendered = append(rendered, RenderTree(&trees.Trees[i], trees.Nodes, plain))
+		rendered = append(rendered, RenderTree(&trees.Trees[i], nodeMap, plain))
 	}
 	return strings.Join(rendered, "\n")
 }

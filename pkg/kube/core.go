@@ -75,28 +75,27 @@ func (warningHandler) HandleWarningHeader(code int, agent string, message string
 	}
 }
 
-const jsonAPIVersion = "v1"
-
 type CRDSelector struct {
 	Kind      string
 	Namespace string
 }
 
 type Request struct {
-	Context     string        `json:"context,omitempty"`
-	Namespace   string        `json:"namespace,omitempty"`
-	ConfigPath  string        `json:"configPath,omitempty"`
-	KeySelector string        `json:"keySelector"`
-	CRDSelector []CRDSelector `json:"crdSelector"`
+	Context      string        `json:"context,omitempty"`
+	Namespace    string        `json:"namespace,omitempty"`
+	ConfigPath   string        `json:"configPath,omitempty"`
+	Selectors    []string      `json:"selectors,omitempty"`
+	CRDSelectors []CRDSelector `json:"crdSelectors,omitempty"`
 }
 
 type Response struct {
-	APIVersion string               `json:"apiVersion"`
-	Request    Request              `json:"request"`
-	Nodes      map[string]*Resource `json:"nodes,omitempty"`
-	Graphs     []Graph              `json:"graphs"`
-	Trees      []Tree               `json:"trees"`
-	Metadata   *Metadata            `json:"metadata,omitempty"`
+	APIVersion string         `json:"apiVersion"`
+	Request    Request        `json:"request"`
+	Nodes      []Resource     `json:"nodes,omitempty"`
+	Edges      []ResourceEdge `json:"edges,omitempty"`
+	Components []Component    `json:"components,omitempty"`
+	Trees      []Tree         `json:"trees,omitempty"`
+	Metadata   *Metadata      `json:"metadata,omitempty"`
 }
 
 type Metadata struct {
@@ -111,9 +110,10 @@ type Metadata struct {
 	CacheHitRate      float64       `json:"cacheHitRate"`
 }
 
-type Graph struct {
-	ID    string         `json:"id"`
-	Edges []ResourceEdge `json:"edges,omitempty"`
+type Component struct {
+	ID       string   `json:"id"`
+	Root     string   `json:"root"`
+	NodeKeys []string `json:"nodeKeys,omitempty"`
 }
 
 type Tree struct {

@@ -16,8 +16,8 @@ func TestInferGraphsSuccess(t *testing.T) {
 	if res == nil {
 		t.Fatalf("expected non-nil graph response")
 	}
-	if len(res.Graphs) == 0 {
-		t.Fatalf("expected at least one graph in response")
+	if len(res.Components) == 0 {
+		t.Fatalf("expected at least one component in response")
 	}
 }
 
@@ -32,25 +32,21 @@ func TestInferGraphsPropagatesProviderError(t *testing.T) {
 	}
 }
 
-func TestGraphNodesForGraph_UsesResponseNodes(t *testing.T) {
-	shared := &kube.Resource{Key: "service/default/api", Type: "service", Resource: map[string]any{"metadata": map[string]any{"name": "api", "namespace": "default"}}}
-	podA := &kube.Resource{Key: "pod/default/a", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "a", "namespace": "default"}}}
-	podB := &kube.Resource{Key: "pod/default/b", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "b", "namespace": "default"}}}
+func TestGraphNodesForComponent_UsesResponseNodes(t *testing.T) {
+	shared := kube.Resource{Key: "service/default/api", Type: "service", Resource: map[string]any{"metadata": map[string]any{"name": "api", "namespace": "default"}}}
+	podA := kube.Resource{Key: "pod/default/a", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "a", "namespace": "default"}}}
+	podB := kube.Resource{Key: "pod/default/b", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "b", "namespace": "default"}}}
 
 	resp := &kube.Response{
-		Nodes: map[string]*kube.Resource{
-			"pod/default/a":       podA,
-			"pod/default/b":       podB,
-			"service/default/api": shared,
-		},
-		Graphs: []kube.Graph{
-			{ID: "pod/default/a"},
-			{ID: "pod/default/b"},
+		Nodes: []kube.Resource{podA, podB, shared},
+		Components: []kube.Component{
+			{ID: "pod/default/a", Root: "pod/default/a"},
+			{ID: "pod/default/b", Root: "pod/default/b"},
 		},
 	}
 
-	nodesA := GraphNodesForGraph(resp, &resp.Graphs[0])
-	nodesB := GraphNodesForGraph(resp, &resp.Graphs[1])
+	nodesA := GraphNodesForComponent(resp, &resp.Components[0])
+	nodesB := GraphNodesForComponent(resp, &resp.Components[1])
 
 	if len(nodesA) != 3 || len(nodesB) != 3 {
 		t.Fatalf("expected full response node map, got %d and %d", len(nodesA), len(nodesB))
@@ -60,34 +56,32 @@ func TestGraphNodesForGraph_UsesResponseNodes(t *testing.T) {
 	}
 }
 
-func TestGraphNodesForGraph_ReturnsNilWithoutResponseNodes(t *testing.T) {
-	resp := &kube.Response{Graphs: []kube.Graph{{ID: "pod/default/a"}}}
+func TestGraphNodesForComponent_ReturnsNilWithoutResponseNodes(t *testing.T) {
+	resp := &kube.Response{Components: []kube.Component{{ID: "pod/default/a", Root: "pod/default/a"}}}
 
-	nodes := GraphNodesForGraph(resp, &resp.Graphs[0])
+	nodes := GraphNodesForComponent(resp, &resp.Components[0])
 	if nodes != nil {
 		t.Fatalf("expected nil when response nodes are not present, got %#v", nodes)
 	}
 }
 
-func TestGraphNodesForGraph_NilGraph(t *testing.T) {
+func TestGraphNodesForComponent_NilComponent(t *testing.T) {
 	resp := &kube.Response{}
-	if nodes := GraphNodesForGraph(resp, nil); nodes != nil {
-		t.Fatalf("expected nil nodes for nil graph input, got %#v", nodes)
+	if nodes := GraphNodesForComponent(resp, nil); nodes != nil {
+		t.Fatalf("expected nil nodes for nil component input, got %#v", nodes)
 	}
 }
 
-func TestGraphNodesForGraph_UsesAllResponseNodes(t *testing.T) {
+func TestGraphNodesForComponent_UsesAllResponseNodes(t *testing.T) {
 	resp := &kube.Response{
-		Nodes: map[string]*kube.Resource{
-			"pod/default/a":           {Key: "pod/default/a", Type: "pod"},
-			"service/default/missing": {Key: "service/default/missing", Type: "service"},
+		Nodes: []kube.Resource{
+			{Key: "pod/default/a", Type: "pod"},
+			{Key: "service/default/missing", Type: "service"},
 		},
-		Graphs: []kube.Graph{{
-			ID: "pod/default/a",
-		}},
+		Components: []kube.Component{{ID: "pod/default/a", Root: "pod/default/a"}},
 	}
 
-	nodes := GraphNodesForGraph(resp, &resp.Graphs[0])
+	nodes := GraphNodesForComponent(resp, &resp.Components[0])
 	if len(nodes) != 2 {
 		t.Fatalf("expected full response nodes to be returned, got %#v", nodes)
 	}

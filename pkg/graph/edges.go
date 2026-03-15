@@ -104,7 +104,7 @@ func findWorkloadRoot(key string, keyType string, nodeMap map[string]kube.Resour
 }
 
 func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
-	selectors := req.Selectors()
+	selectors := req.NormalizedSelectors()
 	defaultNamespace := req.DefaultNamespace()
 
 	if defaultNamespace == "" {
@@ -280,7 +280,7 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 	sort.Strings(workloadKeys)
 
 	coveredKeys := make(map[string]bool)
-	var graphs []kube.Graph
+	var components []kube.Component
 
 	for _, rootKey := range workloadKeys {
 		if rootKey == "" {
@@ -306,7 +306,7 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 			}
 		}
 
-		graphs = append(graphs, buildGraph(rootKey, visited, matchedKeySet, nodeMap, edges))
+		components = append(components, buildComponent(rootKey, visited))
 	}
 
 	for _, key := range keys {
@@ -332,7 +332,7 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 			}
 		}
 
-		graphs = append(graphs, buildGraph(key, visited, matchedKeySet, nodeMap, edges))
+		components = append(components, buildComponent(key, visited))
 	}
 
 	inferredRootTypes := map[string]bool{
@@ -393,12 +393,12 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 			}
 		}
 
-		graphs = append(graphs, buildGraph(rootKey, visited, matchedKeySet, nodeMap, edges))
+		components = append(components, buildComponent(rootKey, visited))
 	}
 
-	sort.Slice(graphs, func(i, j int) bool {
-		typeI, namespaceI, nameI := graphIDParts(graphs[i].ID)
-		typeJ, namespaceJ, nameJ := graphIDParts(graphs[j].ID)
+	sort.Slice(components, func(i, j int) bool {
+		typeI, namespaceI, nameI := graphIDParts(components[i].Root)
+		typeJ, namespaceJ, nameJ := graphIDParts(components[j].Root)
 
 		isWorkloadI := isWorkloadType(typeI)
 		isWorkloadJ := isWorkloadType(typeJ)
@@ -431,16 +431,33 @@ func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]ku
 		if namespaceI != namespaceJ {
 			return namespaceI < namespaceJ
 		}
-		return graphs[i].ID < graphs[j].ID
+		return components[i].Root < components[j].Root
 	})
-	responseNodes := make(map[string]*kube.Resource, len(nodeMap))
-	for _, n := range nodeMap {
-		nCopy := n
-		nCopy.Discovered = !matchedKeySet[n.Key]
-		responseNodes[n.Key] = &nCopy
+
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].Source != edges[j].Source {
+			return edges[i].Source < edges[j].Source
+		}
+		if edges[i].Target != edges[j].Target {
+			return edges[i].Target < edges[j].Target
+		}
+		return edges[i].Label < edges[j].Label
+	})
+
+	nodeKeys := make([]string, 0, len(nodeMap))
+	for key := range nodeMap {
+		nodeKeys = append(nodeKeys, key)
+	}
+	sort.Strings(nodeKeys)
+
+	responseNodes := make([]kube.Resource, 0, len(nodeKeys))
+	for _, key := range nodeKeys {
+		node := nodeMap[key]
+		node.Discovered = !matchedKeySet[key]
+		responseNodes = append(responseNodes, node)
 	}
 
-	return &kube.Response{Graphs: graphs, Nodes: responseNodes}
+	return &kube.Response{Nodes: responseNodes, Edges: edges, Components: components}
 }
 
 func graphIDParts(id string) (resourceType, namespace, name string) {
@@ -457,21 +474,16 @@ func graphIDParts(id string) (resourceType, namespace, name string) {
 	return resourceType, namespace, name
 }
 
-func buildGraph(id string, visited map[string]bool, _ map[string]bool, _ map[string]kube.Resource, edges []kube.ResourceEdge) kube.Graph {
-	graph := kube.Graph{ID: id}
-
-	for _, e := range edges {
-		if visited[e.Source] && visited[e.Target] {
-			graph.Edges = append(graph.Edges, e)
-		}
+func buildComponent(rootKey string, visited map[string]bool) kube.Component {
+	nodeKeys := make([]string, 0, len(visited))
+	for key := range visited {
+		nodeKeys = append(nodeKeys, key)
 	}
+	sort.Strings(nodeKeys)
 
-	sort.Slice(graph.Edges, func(i, j int) bool {
-		if graph.Edges[i].Source != graph.Edges[j].Source {
-			return graph.Edges[i].Source < graph.Edges[j].Source
-		}
-		return graph.Edges[i].Target < graph.Edges[j].Target
-	})
-
-	return graph
+	return kube.Component{
+		ID:       rootKey,
+		Root:     rootKey,
+		NodeKeys: nodeKeys,
+	}
 }

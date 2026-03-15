@@ -29,7 +29,7 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 
 	resp, err := graph.InferGraphs(
 		client,
-		kube.Request{KeySelector: ""},
+		kube.Request{},
 	)
 	if err != nil {
 		t.Fatalf("InferGraphs failed: %v", err)
@@ -37,8 +37,8 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 	treeResp := tree.BuildResponseTree(resp)
 
 	t.Run("GraphOrdering", func(t *testing.T) {
-		if len(resp.Graphs) == 0 {
-			t.Fatal("Expected at least one graph")
+		if len(resp.Components) == 0 {
+			t.Fatal("Expected at least one component")
 		}
 
 		firstWorkloadIdx := -1
@@ -47,8 +47,8 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 		lastWorkloadIdx := -1
 		lastStandaloneIdx := -1
 
-		for idx, g := range resp.Graphs {
-			parts := strings.Split(g.ID, "/")
+		for idx, component := range resp.Components {
+			parts := strings.Split(component.Root, "/")
 			if len(parts) < 1 {
 				continue
 			}
@@ -95,8 +95,8 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 		standaloneServiceAccounts := 0
 		crossNamespaceGraphs := 0
 
-		for _, g := range resp.Graphs {
-			parts := strings.Split(g.ID, "/")
+		for _, component := range resp.Components {
+			parts := strings.Split(component.Root, "/")
 			if len(parts) < 3 {
 				continue
 			}
@@ -164,8 +164,9 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 	t.Run("RenderedMetadata", func(t *testing.T) {
 
 		var rendered strings.Builder
+		nodeMap := treeResp.NodeMap()
 		for i := range treeResp.Trees {
-			rendered.WriteString(tree.RenderTree(&treeResp.Trees[i], treeResp.Nodes, true))
+			rendered.WriteString(tree.RenderTree(&treeResp.Trees[i], nodeMap, true))
 			rendered.WriteString("\n")
 		}
 		output := rendered.String()

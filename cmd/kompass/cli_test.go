@@ -32,7 +32,7 @@ func TestPrintGraphsOutputsValidJSON(t *testing.T) {
 	if parsed.APIVersion != "v1" {
 		t.Fatalf("expected apiVersion %q, got %q", "v1", parsed.APIVersion)
 	}
-	if parsed.Request.KeySelector != "*/ns-a/*" {
+	if len(parsed.Request.Selectors) != 1 || parsed.Request.Selectors[0] != "*/ns-a/*" {
 		t.Fatalf("unexpected request metadata in output: %+v", parsed.Request)
 	}
 	if parsed.Request.Context != "ctx-a" || parsed.Request.Namespace != "ns-a" || parsed.Request.ConfigPath != "mock" {

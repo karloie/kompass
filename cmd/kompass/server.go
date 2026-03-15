@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"strings"
 
 	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
@@ -32,18 +33,20 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "localhost" + addr
 	}
+	fatalStart := func(msg string, err error) {
+		slog.Error(msg, "error", err)
+		os.Exit(1)
+	}
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
 	port := ":" + parts[len(parts)-1]
 	provider, _, _, err := initProvider(useMock, contextArg, namespaceArg)
 	if err != nil {
-		slog.Error("Failed to create provider", "error", err)
-		os.Exit(1)
+		fatalStart("Failed to create provider", err)
 	}
 	client, ok := provider.(*kube.Client)
 	if !ok {
-		slog.Error("Provider type assertion failed", "error", "provider is not *kube.Client")
-		os.Exit(1)
+		fatalStart("Provider type assertion failed", fmt.Errorf("provider is %T, expected *kube.Client", provider))
 	}
 	namespacesToWatch := []string{namespaceArg}
 	if namespaceArg == "" {
@@ -51,10 +54,9 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		namespacesToWatch = []string{}
 	}
 	if err := client.StartSync(30*time.Second, namespacesToWatch); err != nil {
-		slog.Warn("Failed to start cache sync", "error", err)
-	} else {
-		slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
+		fatalStart("Failed to start cache sync", err)
 	}
+	slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
 	srv := &server{contextArg: contextArg, namespaceArg: namespaceArg, client: client}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
@@ -67,8 +69,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Server failed", "error", err)
-			os.Exit(1)
+			fatalStart("Server failed", err)
 		}
 	}()
 	quit := make(chan os.Signal, 1)
@@ -130,10 +131,10 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	configPath, _ := provider.GetConfigPath()
 	result.APIVersion = "v1"
 	result.Request = kube.Request{
-		Context:     context_,
-		Namespace:   namespace_,
-		ConfigPath:  configPath,
-		KeySelector: strings.Join(selectors, ","),
+		Context:    context_,
+		Namespace:  namespace_,
+		ConfigPath: configPath,
+		Selectors:  selectors,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=60")
@@ -166,10 +167,10 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	configPath, _ := provider.GetConfigPath()
 	treeResult.APIVersion = "v1"
 	treeResult.Request = kube.Request{
-		Context:     context_,
-		Namespace:   namespace_,
-		ConfigPath:  configPath,
-		KeySelector: strings.Join(selectors, ","),
+		Context:    context_,
+		Namespace:  namespace_,
+		ConfigPath: configPath,
+		Selectors:  selectors,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
@@ -215,7 +216,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
-	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, !staticMode)))
+	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, staticMode)))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
@@ -225,8 +226,6 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 		namespace = s.namespaceArg
 	}
 
-	// Requests share one client in server mode. Serialize provider selection + inference
-	// so namespace-scoped calls do not bleed across concurrent requests.
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 
@@ -247,17 +246,14 @@ func graphOnlyResponse(result *kube.Response) *kube.Response {
 	if result == nil {
 		return nil
 	}
-	out := &kube.Response{
+	return &kube.Response{
 		APIVersion: result.APIVersion,
 		Request:    result.Request,
 		Nodes:      result.Nodes,
+		Edges:      result.Edges,
+		Components: result.Components,
 		Metadata:   result.Metadata,
-		Graphs:     make([]kube.Graph, 0, len(result.Graphs)),
 	}
-	for _, g := range result.Graphs {
-		out.Graphs = append(out.Graphs, kube.Graph{ID: g.ID, Edges: g.Edges})
-	}
-	return out
 }
 
 func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) {

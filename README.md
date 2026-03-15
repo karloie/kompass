@@ -219,8 +219,8 @@ kompass --debug '*/petshop/*'
 
 ### Available Output Formats
 
-- **JSON Graph** - Graph-oriented JSON (`/api/graph`)
-- **JSON Tree** - Tree-oriented JSON (`/api/tree`, `Accept: application/json`)
+- **JSON Graph** - Flat graph JSON with `nodes`, `edges`, and `components` (`/api/graph`)
+- **JSON Tree** - Tree-oriented JSON with `trees` plus shared `nodes` (`/api/tree`, `Accept: application/json`)
 - **Text Tree** - ASCII tree rendering (`/api/tree`, `Accept: text/plain`)
 - **HTML Tree** - interactive HTML tree (`/api/tree`, `Accept: text/html`)
 
@@ -241,6 +241,8 @@ Endpoints accept query parameters:
 | `mock` | Use mock data when set to `mock` |
 | `q` | HTML tree filter query (`Accept: text/html`) |
 | `static` | Hide namespace selector in HTML output (`Accept: text/html`) |
+
+Graph and tree JSON responses include request metadata under `request.selectors` as an array.
 
 ### API Examples
 

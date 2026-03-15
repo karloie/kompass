@@ -112,14 +112,14 @@ func TestHandleGraphSuccess(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("expected JSON output, got err: %v body=%q", err, rr.Body.String())
 	}
-	if len(out.Graphs) == 0 {
+	if len(out.Components) == 0 {
 		t.Fatalf("expected non-empty graph response")
 	}
 	if out.APIVersion != "v1" {
 		t.Fatalf("expected apiVersion %q, got %q", "v1", out.APIVersion)
 	}
-	if out.Request.KeySelector != "*/petshop/*" {
-		t.Fatalf("expected request keySelector to round-trip, got %+v", out.Request)
+	if len(out.Request.Selectors) != 1 || out.Request.Selectors[0] != "*/petshop/*" {
+		t.Fatalf("expected request selectors to round-trip, got %+v", out.Request)
 	}
 	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
 		t.Fatalf("expected normalized request metadata, got %+v", out.Request)

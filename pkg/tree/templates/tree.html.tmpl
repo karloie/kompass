@@ -30,7 +30,7 @@ select{cursor:pointer}
 </head>
 <body>
 <p>{{.Header}}</p>
-{{if .ShowNamespaceSelect}}
+{{if not .StaticMode}}
 <label for="namespace-select">Namespace</label>
 <select id="namespace-select" aria-label="Namespace">
 {{range .Namespaces}}

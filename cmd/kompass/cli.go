@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/tree"
@@ -57,10 +56,10 @@ func printGraphs(result *kube.Response, context, namespace, configPath string, s
 	}
 	result.APIVersion = "v1"
 	result.Request = kube.Request{
-		Context:     context,
-		Namespace:   namespace,
-		ConfigPath:  configPath,
-		KeySelector: strings.Join(selectors, ","),
+		Context:    context,
+		Namespace:  namespace,
+		ConfigPath: configPath,
+		Selectors:  selectors,
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	if err := encoder.Encode(result); err != nil {

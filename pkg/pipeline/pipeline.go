@@ -3,7 +3,6 @@ package pipeline
 import (
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/karloie/kompass/pkg/graph"
@@ -17,7 +16,7 @@ func InferGraphs(provider kube.Kube, selectors []string) (*kube.Response, error)
 	graphStart := time.Now()
 	slog.Debug("graph generation started", "selectors", selectors)
 
-	req := kube.Request{KeySelector: strings.Join(selectors, ",")}
+	req := kube.Request{Selectors: selectors}
 	result, err := graph.InferGraphs(provider, req)
 	if err != nil {
 		slog.Debug("graph generation failed", "selectors", selectors, "duration", time.Since(graphStart).String(), "error", err)
@@ -27,23 +26,20 @@ func InferGraphs(provider kube.Kube, selectors []string) (*kube.Response, error)
 	if client, ok := provider.(*kube.Client); ok {
 		result.Metadata = client.GetResponseMeta()
 	}
-	nodeCount, edgeCount := len(result.Nodes), 0
-	for _, g := range result.Graphs {
-		edgeCount += len(g.Edges)
-	}
-	slog.Debug("graph generation completed", "selectors", selectors, "graphs", len(result.Graphs), "nodes", nodeCount, "edges", edgeCount, "duration", time.Since(graphStart).String())
+	nodeCount, edgeCount := len(result.Nodes), len(result.Edges)
+	slog.Debug("graph generation completed", "selectors", selectors, "components", len(result.Components), "nodes", nodeCount, "edges", edgeCount, "duration", time.Since(graphStart).String())
 
 	policyStart := time.Now()
-	slog.Debug("tree policy started", "graphs", len(result.Graphs))
+	slog.Debug("tree policy started", "components", len(result.Components))
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Debug("tree policy failed", "graphs", len(result.Graphs), "duration", time.Since(policyStart).String(), "error", r)
+			slog.Debug("tree policy failed", "components", len(result.Components), "duration", time.Since(policyStart).String(), "error", r)
 			err = fmt.Errorf("tree policy panic: %v", r)
 			result = nil
 		}
 	}()
 	tree.FilterOwnedJobRoots(result)
 	tree.FilterOwnedSecretRoots(result)
-	slog.Debug("tree policy completed", "graphs", len(result.Graphs), "duration", time.Since(policyStart).String())
+	slog.Debug("tree policy completed", "components", len(result.Components), "duration", time.Since(policyStart).String())
 	return result, err
 }

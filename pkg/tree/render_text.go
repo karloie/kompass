@@ -12,6 +12,7 @@ import (
 // (context/namespace info); cache stats are appended if present in the result.
 func RenderText(result *kube.Response, header string, plain bool) string {
 	var sb strings.Builder
+	nodeMap := result.NodeMap()
 	if result.Metadata != nil && result.Metadata.CacheCalls > 0 {
 		header += fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate",
 			result.Metadata.CacheCalls, result.Metadata.CacheHits, result.Metadata.CacheMisses, result.Metadata.CacheHitRate)
@@ -22,7 +23,7 @@ func RenderText(result *kube.Response, header string, plain bool) string {
 	}
 	sb.WriteString("\n")
 	for i := range result.Trees {
-		sb.WriteString(RenderTree(&result.Trees[i], result.Nodes, plain))
+		sb.WriteString(RenderTree(&result.Trees[i], nodeMap, plain))
 		if i < len(result.Trees)-1 {
 			sb.WriteString("\n")
 		}

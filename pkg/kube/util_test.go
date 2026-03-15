@@ -84,8 +84,8 @@ func TestToMapMarshalError(t *testing.T) {
 }
 
 func TestRequestSelectorsAndDefaultNamespace(t *testing.T) {
-	req := Request{KeySelector: " pod/petshop/api , */management/* ,,service/default/web "}
-	sel := req.Selectors()
+	req := Request{Selectors: []string{" pod/petshop/api ", " */management/* ", "", "service/default/web "}}
+	sel := req.NormalizedSelectors()
 	if len(sel) != 3 {
 		t.Fatalf("expected 3 selectors, got %#v", sel)
 	}
@@ -97,7 +97,7 @@ func TestRequestSelectorsAndDefaultNamespace(t *testing.T) {
 	}
 
 	empty := Request{}
-	if empty.Selectors() != nil {
+	if empty.NormalizedSelectors() != nil {
 		t.Fatalf("expected nil selectors for empty request")
 	}
 	if empty.DefaultNamespace() != "" {

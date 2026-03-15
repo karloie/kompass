@@ -130,11 +130,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	totalNodes, totalEdges := len(result.Nodes), 0
-	for _, g := range result.Graphs {
-		totalEdges += len(g.Edges)
-	}
-	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)
+	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
+	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Components), "nodes", totalNodes, "edges", totalEdges)
 
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
