@@ -289,6 +289,10 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.view = viewHelp()
 	case "f":
 		m.filterMode = true
+	case "r":
+		if cmd := m.startRefresh(); cmd != nil {
+			return *m, cmd
+		}
 	}
 	return *m, nil
 }

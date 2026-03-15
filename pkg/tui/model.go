@@ -1,14 +1,18 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
 type Model struct {
-	mode      Mode
-	context   string
-	namespace string
+	mode            Mode
+	context         string
+	namespace       string
+	reload          ReloadFunc
+	refreshInterval time.Duration
 
 	width  int
 	height int
@@ -27,33 +31,33 @@ type Model struct {
 	emitSelection bool
 	filterMode    bool
 	filterQuery   string
+	refreshing    bool
+	lastRefresh   time.Time
+	refreshError  string
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.canAutoRefresh() {
+		return m.nextRefreshTick()
+	}
 	return nil
 }
 
 func newRun(opts Options) Model {
 	m := Model{
-		mode:         opts.Mode,
-		context:      opts.Context,
-		namespace:    opts.Namespace,
-		footerHeight: 1,
+		mode:            opts.Mode,
+		context:         opts.Context,
+		namespace:       opts.Namespace,
+		reload:          opts.Reload,
+		refreshInterval: opts.RefreshInterval,
+		footerHeight:    1,
 	}
 	m.selected[0] = map[string]bool{}
 	m.selected[1] = map[string]bool{}
 	m.resources = map[string]*kube.Resource{}
 
 	if opts.Mode == ModeSelector && opts.Trees != nil {
-		m.sourceTrees = opts.Trees
-		allRows := flattenTrees(opts.Trees)
-		m.allRowsByPane[0] = allRows
-		m.allRowsByPane[1] = singleRows(allRows)
-		m.rowsByPane[0] = allRows
-		m.rowsByPane[1] = m.allRowsByPane[1]
-		for k, v := range opts.Trees.NodeMap() {
-			m.resources[k] = v
-		}
+		m.setTrees(opts.Trees)
 	}
 
 	if opts.Mode == ModeDashboard {
@@ -107,7 +111,34 @@ func Update(msg tea.Msg, cfg UpdateConfig) (tea.Model, tea.Cmd) {
 	return nil, nil
 }
 
+type refreshTickMsg struct{}
+
+type refreshResultMsg struct {
+	trees *kube.Response
+	err   error
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch v := msg.(type) {
+	case refreshTickMsg:
+		if cmd := m.startRefresh(); cmd != nil {
+			return m, cmd
+		}
+	case refreshResultMsg:
+		m.refreshing = false
+		if v.err == nil && v.trees != nil {
+			m.refreshError = ""
+			m.lastRefresh = time.Now()
+			m.setTrees(v.trees)
+		} else if v.err != nil {
+			m.refreshError = v.err.Error()
+		}
+		if m.canAutoRefresh() {
+			return m, m.nextRefreshTick()
+		}
+		return m, nil
+	}
+
 	return Update(msg, UpdateConfig{
 		OnWindowSize: func(v tea.WindowSizeMsg) {
 			m.width = v.Width
@@ -136,4 +167,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m
 		},
 	})
+}
+
+func (m *Model) startRefresh() tea.Cmd {
+	if !m.canAutoRefresh() || m.refreshing {
+		return nil
+	}
+	m.refreshing = true
+	m.refreshError = ""
+	return m.reloadTreesCmd()
+}
+
+func (m Model) canAutoRefresh() bool {
+	return m.mode == ModeSelector && m.reload != nil && m.refreshInterval > 0
+}
+
+func (m Model) nextRefreshTick() tea.Cmd {
+	return tea.Tick(m.refreshInterval, func(time.Time) tea.Msg {
+		return refreshTickMsg{}
+	})
+}
+
+func (m Model) reloadTreesCmd() tea.Cmd {
+	reload := m.reload
+	return func() tea.Msg {
+		trees, err := reload()
+		return refreshResultMsg{trees: trees, err: err}
+	}
+}
+
+func (m *Model) setTrees(trees *kube.Response) {
+	m.sourceTrees = trees
+	m.resources = map[string]*kube.Resource{}
+	if trees == nil {
+		m.allRowsByPane[0] = nil
+		m.allRowsByPane[1] = nil
+		m.rowsByPane[0] = nil
+		m.rowsByPane[1] = nil
+		m.cursorByPane[0] = 0
+		m.cursorByPane[1] = 0
+		return
+	}
+
+	allRows := flattenTrees(trees)
+	m.allRowsByPane[0] = allRows
+	m.allRowsByPane[1] = singleRows(allRows)
+	for k, v := range trees.NodeMap() {
+		m.resources[k] = v
+	}
+	m.applyMainFilter()
+}
+
+func (m Model) refreshStatusText() string {
+	if !m.canAutoRefresh() {
+		return ""
+	}
+	if m.refreshing {
+		return "syncing"
+	}
+	if m.refreshError != "" {
+		return "refresh failed: " + m.refreshError
+	}
+	if !m.lastRefresh.IsZero() {
+		return "synced " + m.lastRefresh.Format("15:04:05")
+	}
+	return "auto-refresh enabled"
 }

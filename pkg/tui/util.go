@@ -70,6 +70,7 @@ func viewHelp() *View {
 		"Actions",
 		"  Space           toggle Row selection",
 		"  Enter           run kubectl describe and open result",
+		"  r               refresh selector data from cluster",
 		"  o               output selected/current keys and quit",
 		"  + / -           increase/decrease footer panel height",
 		"",

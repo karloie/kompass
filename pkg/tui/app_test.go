@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -79,6 +80,90 @@ func TestQuestionMarkOpensHelpFile(t *testing.T) {
 	}
 	if m1.view.Kind != FileHelp {
 		t.Fatalf("expected help view kind, got %q", m1.view.Kind)
+	}
+}
+
+func TestSelectorRefreshReplacesTreeData(t *testing.T) {
+	initial := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/old", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/old", Type: "pod", Meta: map[string]any{"name": "old"}}},
+	}
+	refreshed := &kube.Response{
+		Nodes: []kube.Resource{{Key: "pod/ns/new", Type: "pod"}},
+		Trees: []kube.Tree{{Key: "pod/ns/new", Type: "pod", Meta: map[string]any{"name": "new"}}},
+	}
+	reloadCalls := 0
+	m := newRun(Options{
+		Mode:            ModeSelector,
+		Trees:           initial,
+		RefreshInterval: time.Second,
+		Reload: func() (*kube.Response, error) {
+			reloadCalls++
+			return refreshed, nil
+		},
+	})
+
+	updated, cmd := m.Update(refreshTickMsg{})
+	m1 := updated.(Model)
+	if cmd == nil {
+		t.Fatalf("expected refresh tick to trigger reload command")
+	}
+	if reloadCalls != 0 {
+		t.Fatalf("expected reload to happen inside command, got %d calls before command execution", reloadCalls)
+	}
+
+	msg := cmd().(refreshResultMsg)
+	if reloadCalls != 1 {
+		t.Fatalf("expected one reload call, got %d", reloadCalls)
+	}
+
+	updated, nextCmd := m1.Update(msg)
+	m2 := updated.(Model)
+	if nextCmd == nil {
+		t.Fatalf("expected successful refresh to schedule next tick")
+	}
+	if len(m2.rowsByPane[0]) == 0 || m2.rowsByPane[0][0].Key != "pod/ns/new" {
+		t.Fatalf("expected refreshed rows to contain new tree data, got %+v", m2.rowsByPane[0])
+	}
+	if _, ok := m2.resources["pod/ns/new"]; !ok {
+		t.Fatalf("expected refreshed resources map to include new node")
+	}
+}
+
+func TestManualRefreshKeyStartsReload(t *testing.T) {
+	m := newRun(Options{
+		Mode:            ModeSelector,
+		RefreshInterval: time.Second,
+		Reload: func() (*kube.Response, error) {
+			return &kube.Response{}, nil
+		},
+	})
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m1 := updated.(Model)
+	if cmd == nil {
+		t.Fatalf("expected manual refresh key to trigger reload command")
+	}
+	if !m1.refreshing {
+		t.Fatalf("expected manual refresh to mark model as refreshing")
+	}
+}
+
+func TestFooterIncludesRefreshStatus(t *testing.T) {
+	m := newRun(Options{
+		Mode:            ModeSelector,
+		RefreshInterval: time.Second,
+		Reload: func() (*kube.Response, error) {
+			return &kube.Response{}, nil
+		},
+	})
+	m.width = 80
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "a", Status: "Running"}}
+	m.refreshing = true
+
+	footer := m.Footer()
+	if !strings.Contains(footer, "syncing") {
+		t.Fatalf("expected footer to include refresh status, got %q", footer)
 	}
 }
 

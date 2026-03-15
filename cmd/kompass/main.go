@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
@@ -147,12 +148,20 @@ func main() {
 	if *tuiArg {
 		selectorResult := tree.BuildResponseTree(result)
 		if err := tui.Run(tui.Options{
-			Mode:       tui.ModeSelector,
-			Trees:      selectorResult,
-			Context:    context_,
-			Namespace:  namespace_,
-			OutputJSON: *jsonArg,
-			Plain:      *plainArg,
+			Mode:  tui.ModeSelector,
+			Trees: selectorResult,
+			Reload: func() (*kube.Response, error) {
+				next, err := pipeline.InferGraphs(provider, selectors)
+				if err != nil {
+					return nil, err
+				}
+				return tree.BuildResponseTree(next), nil
+			},
+			RefreshInterval: 15 * time.Second,
+			Context:         context_,
+			Namespace:       namespace_,
+			OutputJSON:      *jsonArg,
+			Plain:           *plainArg,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)

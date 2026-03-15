@@ -49,7 +49,7 @@ func (m Model) Header() string {
 		paneName = "Single"
 	}
 	selectedCount := len(m.selected[m.activePane])
-	text := fmt.Sprintf("%s | selected:%d | Tab/Shift+Tab roots | Up/Down rows | Space select | Enter inspect | f filter | ? help | Esc quit", paneName, selectedCount)
+	text := fmt.Sprintf("%s | selected:%d | Tab/Shift+Tab roots | Up/Down rows | Space select | Enter inspect | r refresh | f filter | ? help | Esc quit", paneName, selectedCount)
 	return renderFullWidthBar(headerStyle, text, m.width)
 }
 
@@ -73,13 +73,36 @@ func renderFullWidthBar(style lipgloss.Style, text string, width int) string {
 	return style.Render(content)
 }
 
+func renderFooterBar(text, status string, width int) string {
+	if status == "" {
+		return renderFullWidthBar(footerStyle, text, width)
+	}
+	if width <= 0 {
+		return footerStyle.Render(text + " | " + refreshStatusStyle.Render(status))
+	}
+
+	contentWidth := maxInt(0, width-2)
+	plainText := text + " | " + status
+	if lipgloss.Width(plainText) > contentWidth {
+		return renderFullWidthBar(footerStyle, plainText, width)
+	}
+
+	content := text + " | " + refreshStatusStyle.Render(status)
+	padding := contentWidth - lipgloss.Width(plainText)
+	if padding > 0 {
+		content += strings.Repeat(" ", padding)
+	}
+	return footerStyle.Render(content)
+}
+
 func (m Model) Footer() string {
 	r := m.currentRow()
+	status := m.refreshStatusText()
 	if r == nil {
-		return renderFullWidthBar(footerStyle, "No items", m.width)
+		return renderFooterBar("No items", status, m.width)
 	}
 	footer := footerSummary(m.context, m.namespace, r)
-	row := renderFullWidthBar(footerStyle, footer, m.width)
+	row := renderFooterBar(footer, status, m.width)
 	if m.footerHeight == 1 {
 		return row
 	}

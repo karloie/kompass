@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"time"
+
 	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
+
+type ReloadFunc func() (*kube.Response, error)
 
 type Mode int
 
@@ -13,15 +17,17 @@ const (
 )
 
 type Options struct {
-	Mode       Mode
-	Trees      *kube.Response
-	Context    string
-	Namespace  string
-	OutputJSON bool
-	JSON       bool
-	Plain      bool
-	FancyOn    bool
-	FancyOff   bool
+	Mode            Mode
+	Trees           *kube.Response
+	Reload          ReloadFunc
+	RefreshInterval time.Duration
+	Context         string
+	Namespace       string
+	OutputJSON      bool
+	JSON            bool
+	Plain           bool
+	FancyOn         bool
+	FancyOff        bool
 }
 
 type Row struct {
@@ -78,6 +84,7 @@ var (
 	accentBackground         = lipgloss.Color("24")
 	headerStyle              = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground).Padding(0, 1)
 	footerStyle              = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("238")).Padding(0, 1)
+	refreshStatusStyle       = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("246")).Background(lipgloss.Color("238"))
 	fileedCell               = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("31"))
 	disabledFocusedRowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238"))
 	selectedRowStyle         = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)
