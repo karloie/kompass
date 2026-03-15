@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"time"
-
 	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
@@ -16,7 +14,7 @@ const (
 
 type Options struct {
 	Mode       Mode
-	Trees      *kube.Trees
+	Trees      *kube.Response
 	Context    string
 	Namespace  string
 	OutputJSON bool
@@ -36,6 +34,7 @@ type Row struct {
 	Status    string
 	Metadata  map[string]any
 	Depth     int
+	Separator bool
 }
 
 type Kind string
@@ -72,11 +71,6 @@ type rowState struct {
 	Focused  bool
 	Selected bool
 }
-
-const (
-	doubleTapMin = 120 * time.Millisecond
-	doubleTapMax = 240 * time.Millisecond
-)
 
 var (
 	accentForeground  = lipgloss.Color("230")

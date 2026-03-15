@@ -3,70 +3,63 @@ package tui
 import (
 	"strings"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func TestTabAndShiftTabSwitchPanes(t *testing.T) {
+func TestTabAndShiftTabJumpBetweenRoots(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{
+		{Key: "root/a", Depth: 0},
+		{Key: "child/a1", Depth: 1},
+		{Key: "root/b", Depth: 0},
+		{Key: "child/b1", Depth: 1},
+	}
+	m.cursorByPane[0] = 0
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m1 := updated.(Model)
+	if m1.cursorByPane[0] != 2 {
+		t.Fatalf("expected Tab to jump to next root row (2), got %d", m1.cursorByPane[0])
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m2 := updated.(Model)
+	if m2.cursorByPane[0] != 0 {
+		t.Fatalf("expected Shift+Tab to jump to previous root row (0), got %d", m2.cursorByPane[0])
+	}
+}
+
+func TestTabNoOpWhenNoFurtherRoot(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{{Key: "root/a", Depth: 0}, {Key: "child/a1", Depth: 1}}
+	m.cursorByPane[0] = 1
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m1 := updated.(Model)
+	if m1.cursorByPane[0] != 1 {
+		t.Fatalf("expected Tab to stay on current row when no next root, got %d", m1.cursorByPane[0])
+	}
+}
+
+func TestOneAndTwoSwitchPanes(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{{Key: "selector/a"}}
 	m.rowsByPane[1] = []Row{{Key: "single/a"}}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m1 := updated.(Model)
-	if m1.activePane != 1 {
-		t.Fatalf("expected active pane 1 after Tab, got %d", m1.activePane)
-	}
-
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m2 := updated.(Model)
-	if m2.activePane != 0 {
-		t.Fatalf("expected active pane 0 after Shift+Tab, got %d", m2.activePane)
-	}
-}
-
-func TestTabSkipsSingleWhenEmpty(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
 	m.activePane = 0
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m1 := updated.(Model)
-	if m1.activePane != 0 {
-		t.Fatalf("expected Tab to stay on pane 0 when no single rows, got %d", m1.activePane)
-	}
-
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m2 := updated.(Model)
-	if m2.activePane != 0 {
-		t.Fatalf("expected Shift+Tab to stay on pane 0 when no single rows, got %d", m2.activePane)
-	}
-}
-
-func TestTabSkipsSelectorWhenEmpty(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = nil
-	m.rowsByPane[1] = []Row{{Key: "single/a"}}
-	m.activePane = 0
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
 	m1 := updated.(Model)
 	if m1.activePane != 1 {
-		t.Fatalf("expected Tab to move to pane 1 when selector is empty, got %d", m1.activePane)
+		t.Fatalf("expected key 2 to switch to pane 1, got %d", m1.activePane)
 	}
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
 	m2 := updated.(Model)
-	if m2.activePane != 1 {
-		t.Fatalf("expected Shift+Tab to stay on pane 1 when selector is empty, got %d", m2.activePane)
-	}
-
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-	m3 := updated.(Model)
-	if m3.activePane != 1 {
-		t.Fatalf("expected key 1 to fall back to pane 1 when selector is empty, got %d", m3.activePane)
+	if m2.activePane != 0 {
+		t.Fatalf("expected key 1 to switch to pane 0, got %d", m2.activePane)
 	}
 }
 
@@ -162,8 +155,8 @@ func TestFooterSummaryByColumn(t *testing.T) {
 
 func TestWithSelectionMarkerOnRowEmbedsEmojiWhenUnchecked(t *testing.T) {
 	line := withSelectionMarkerOnRow("└─ 💬 secret value", "[ ]")
-	if !strings.Contains(line, "└─ [💬] secret value") {
-		t.Fatalf("expected unchecked marker to embed emoji, got %q", line)
+	if !strings.Contains(line, "└─ 💬 secret value") {
+		t.Fatalf("expected unchecked marker to keep emoji without brackets, got %q", line)
 	}
 }
 
@@ -173,7 +166,7 @@ func TestWithSelectionMarkerOnRowKeepsEmojiOutsideWhenChecked(t *testing.T) {
 		t.Fatalf("expected checked marker to keep emoji outside marker, got %q", line)
 	}
 }
-func TestFileSearchFindsMatchesAndJumps(t *testing.T) {
+func TestFileSearchFindsMatchesAndAdvances(t *testing.T) {
 	r := Row{Key: "k", Type: "pod", Name: "foo"}
 	resource := &kube.Resource{Resource: map[string]any{
 		"kind": "Pod",
@@ -229,110 +222,89 @@ func TestCtrlASelectsAllRowsInActivePane(t *testing.T) {
 	}
 }
 
-func TestDoubleDownJumpsHalfBodyRows(t *testing.T) {
+func TestFilterInputModeAndApply(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]Row, 30)
-	m.height = 30
-	t0 := time.Unix(0, 0)
-	step := 0
-	m.now = func() time.Time {
-		if step == 0 {
-			step++
-			return t0
-		}
-		return t0.Add(150 * time.Millisecond)
-	}
+	m.rowsByPane[0] = []Row{{Key: "pod/ns/a", Type: "pod", Name: "api"}, {Key: "svc/ns/a", Type: "service", Name: "api-svc"}}
+	m.allRowsByPane[0] = m.rowsByPane[0]
+	m.width = 80
+	m.height = 20
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	m1 := updated.(Model)
-	if m1.cursorByPane[0] != 1 {
-		t.Fatalf("expected first down to move 1 row, got %d", m1.cursorByPane[0])
+	if !m1.filterMode {
+		t.Fatalf("expected f to enable filter mode")
 	}
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p', 'o', 'd'}})
 	m2 := updated.(Model)
-	if m2.cursorByPane[0] != 15 {
-		t.Fatalf("expected second down to jump to row 15, got %d", m2.cursorByPane[0])
+	if m2.filterQuery != "pod" {
+		t.Fatalf("expected filter query to update, got %q", m2.filterQuery)
 	}
-}
-
-func TestDoubleUpJumpsHalfBodyRows(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]Row, 30)
-	m.height = 30
-	m.cursorByPane[0] = 20
-	t0 := time.Unix(0, 0)
-	step := 0
-	m.now = func() time.Time {
-		if step == 0 {
-			step++
-			return t0
-		}
-		return t0.Add(150 * time.Millisecond)
+	if len(m2.rowsByPane[0]) != 1 {
+		t.Fatalf("expected live filter to reduce rows to 1, got %d", len(m2.rowsByPane[0]))
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m1 := updated.(Model)
-	if m1.cursorByPane[0] != 19 {
-		t.Fatalf("expected first up to move 1 row, got %d", m1.cursorByPane[0])
-	}
-
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m2 := updated.(Model)
-	if m2.cursorByPane[0] != 5 {
-		t.Fatalf("expected second up to jump to row 5, got %d", m2.cursorByPane[0])
-	}
-}
-
-func TestNavJumpResetsAfterOtherKey(t *testing.T) {
-	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]Row, 30)
-	t0 := time.Unix(0, 0)
-	step := 0
-	m.now = func() time.Time {
-		if step == 0 {
-			step++
-			return t0
-		}
-		return t0.Add(150 * time.Millisecond)
-	}
-
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(Model)
-
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	m2 := updated.(Model)
-
-	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m3 := updated.(Model)
-	if m3.cursorByPane[0] != 2 {
-		t.Fatalf("expected down after other key to move 1 row, got %d", m3.cursorByPane[0])
+	if m3.filterMode {
+		t.Fatalf("expected Enter to exit filter mode")
+	}
+
+	view := m3.View()
+	if !strings.Contains(view, "Filter:") {
+		t.Fatalf("expected selector view to show filter bar")
 	}
 }
 
-func TestHeldDownDoesNotTriggerJump(t *testing.T) {
+func TestFilterMatcherWildcardAndNegation(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
-	m.rowsByPane[0] = make([]Row, 30)
-	t0 := time.Unix(0, 0)
-	step := 0
-	m.now = func() time.Time {
-		if step == 0 {
-			step++
-			return t0
-		}
-		return t0.Add(40 * time.Millisecond)
+	m.allRowsByPane[0] = []Row{
+		{Key: "pod/ns/api", Type: "pod", Name: "api"},
+		{Key: "pod/ns/worker", Type: "pod", Name: "worker"},
+		{Key: "svc/ns/api", Type: "service", Name: "api"},
+	}
+	m.applyMainFilter()
+
+	m.filterQuery = "pod/* !worker"
+	m.applyMainFilter()
+
+	if len(m.rowsByPane[0]) != 1 {
+		t.Fatalf("expected 1 row after wildcard+negation filter, got %d", len(m.rowsByPane[0]))
+	}
+	if m.rowsByPane[0][0].Key != "pod/ns/api" {
+		t.Fatalf("expected remaining key pod/ns/api, got %q", m.rowsByPane[0][0].Key)
+	}
+}
+
+func TestFilterRebuildsAsciiBranchesAfterFiltering(t *testing.T) {
+	trees := &kube.Response{
+		Nodes: []kube.Resource{},
+		Trees: []kube.Tree{
+			{
+				Key:  "deploy/ns/root",
+				Type: "deployment",
+				Meta: map[string]any{"name": "root"},
+				Children: []*kube.Tree{
+					{Key: "pod/ns/a", Type: "pod", Meta: map[string]any{"name": "alpha"}},
+					{Key: "pod/ns/b", Type: "pod", Meta: map[string]any{"name": "bravo"}},
+				},
+			},
+		},
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m1 := updated.(Model)
-	if m1.cursorByPane[0] != 1 {
-		t.Fatalf("expected first down to move 1 row, got %d", m1.cursorByPane[0])
-	}
+	m := newRun(Options{Mode: ModeSelector, Trees: trees})
+	m.filterQuery = "bravo"
+	m.applyMainFilter()
 
-	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m2 := updated.(Model)
-	if m2.cursorByPane[0] != 2 {
-		t.Fatalf("expected held down repeat to move 1 row, got %d", m2.cursorByPane[0])
+	if len(m.rowsByPane[0]) != 2 {
+		t.Fatalf("expected root + one filtered child row, got %d", len(m.rowsByPane[0]))
+	}
+	child := m.rowsByPane[0][1]
+	if !strings.Contains(child.Text, "└") {
+		t.Fatalf("expected filtered child to be re-rendered as last branch, got %q", child.Text)
+	}
+	if strings.Contains(child.Text, "├") {
+		t.Fatalf("expected no sibling branch glyph after filtering, got %q", child.Text)
 	}
 }
 
@@ -435,9 +407,9 @@ func TestWithSelectionMarkerOnTreeBranch(t *testing.T) {
 }
 
 func TestFlattenTreesUsesASCIITreeRows(t *testing.T) {
-	trees := &kube.Trees{
-		Nodes: map[string]*kube.Resource{},
-		Trees: []*kube.Tree{
+	trees := &kube.Response{
+		Nodes: []kube.Resource{},
+		Trees: []kube.Tree{
 			{
 				Key:  "deploy/ns/root",
 				Type: "deployment",
@@ -461,6 +433,45 @@ func TestFlattenTreesUsesASCIITreeRows(t *testing.T) {
 	}
 	if !strings.Contains(rows[1].Text, "└") && !strings.Contains(rows[1].Text, "├") {
 		t.Fatalf("expected child row to include ASCII branch prefix, got %q", rows[1].Text)
+	}
+}
+
+func TestFlattenTreesAddsSeparatorBetweenRoots(t *testing.T) {
+	trees := &kube.Response{
+		Nodes: []kube.Resource{},
+		Trees: []kube.Tree{
+			{Key: "deploy/ns/root-a", Type: "deployment", Meta: map[string]any{"name": "a"}},
+			{Key: "deploy/ns/root-b", Type: "deployment", Meta: map[string]any{"name": "b"}},
+		},
+	}
+
+	rows := flattenTrees(trees)
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows (root + separator + root), got %d", len(rows))
+	}
+	if !rows[1].Separator {
+		t.Fatalf("expected middle row to be separator")
+	}
+}
+
+func TestNavigationSkipsSeparatorRows(t *testing.T) {
+	m := newRun(Options{Mode: ModeSelector})
+	m.rowsByPane[0] = []Row{
+		{Key: "a", Name: "a"},
+		{Separator: true},
+		{Key: "b", Name: "b"},
+	}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m1 := updated.(Model)
+	if m1.cursorByPane[0] != 2 {
+		t.Fatalf("expected cursor to skip separator row, got %d", m1.cursorByPane[0])
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m2 := updated.(Model)
+	if m2.cursorByPane[0] != 0 {
+		t.Fatalf("expected cursor to skip separator row on up, got %d", m2.cursorByPane[0])
 	}
 }
 
@@ -535,13 +546,13 @@ func TestFileHomeEndNavigation(t *testing.T) {
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
 	m1 := updated.(Model)
 	if m1.view.ColScroll != 0 {
-		t.Fatalf("expected Home to jump to row start, got %d", m1.view.ColScroll)
+		t.Fatalf("expected Home to move to row start, got %d", m1.view.ColScroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	m2 := updated.(Model)
 	if m2.view.ColScroll == 0 {
-		t.Fatalf("expected End to jump to row end, got %d", m2.view.ColScroll)
+		t.Fatalf("expected End to move to row end, got %d", m2.view.ColScroll)
 	}
 }
 
@@ -552,13 +563,13 @@ func TestFileGAndGNavigation(t *testing.T) {
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	m1 := updated.(Model)
 	if m1.view.Scroll != 0 {
-		t.Fatalf("expected g to jump to top, got %d", m1.view.Scroll)
+		t.Fatalf("expected g to move to top, got %d", m1.view.Scroll)
 	}
 
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 	m2 := updated.(Model)
 	if m2.view.Scroll != 3 {
-		t.Fatalf("expected G to jump to bottom, got %d", m2.view.Scroll)
+		t.Fatalf("expected G to move to bottom, got %d", m2.view.Scroll)
 	}
 }
 
@@ -666,7 +677,7 @@ func TestApplyFileSearchKeepsActiveMatchVisible(t *testing.T) {
 	}
 }
 
-func TestJumpFileMatchKeepsNextMatchVisible(t *testing.T) {
+func TestActiveFileMatchKeepsNextMatchVisible(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.width = 20
 	m.view = &View{

@@ -2,9 +2,21 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+type queryTerm struct {
+	negated  bool
+	wildcard bool
+	re       *regexp.Regexp
+	lower    string
+}
+
+type queryMatcher struct {
+	terms []queryTerm
+}
 
 func rowStyle(row string, rowIndex int, matchRows []int, activeMatchRow int) string {
 	if rowIndex == activeMatchRow {
@@ -124,6 +136,101 @@ func matchColumn(row, query string) int {
 	}
 
 	return -1
+}
+
+func buildQueryMatcher(raw string) queryMatcher {
+	items := strings.Fields(strings.TrimSpace(raw))
+	terms := make([]queryTerm, 0, len(items))
+
+	for _, item := range items {
+		negated := false
+		token := item
+		if strings.HasPrefix(token, "!") {
+			negated = true
+			token = strings.TrimSpace(token[1:])
+		}
+		if token == "" {
+			continue
+		}
+
+		wildcard := strings.Contains(token, "*") || strings.Contains(token, "?")
+		var re *regexp.Regexp
+		if wildcard {
+			re = globToRegexp(token)
+		}
+
+		terms = append(terms, queryTerm{
+			negated:  negated,
+			wildcard: wildcard,
+			re:       re,
+			lower:    strings.ToLower(token),
+		})
+	}
+
+	return queryMatcher{terms: terms}
+}
+
+func (m queryMatcher) test(value string) bool {
+	if len(m.terms) == 0 {
+		return true
+	}
+
+	lower := strings.ToLower(value)
+	hasPositive := false
+
+	for _, term := range m.terms {
+		if term.negated {
+			if term.wildcard {
+				if term.re != nil && term.re.MatchString(value) {
+					return false
+				}
+			} else if strings.Contains(lower, term.lower) {
+				return false
+			}
+			continue
+		}
+
+		hasPositive = true
+		if term.wildcard {
+			if term.re == nil || !term.re.MatchString(value) {
+				return false
+			}
+			continue
+		}
+		if !strings.Contains(lower, term.lower) {
+			return false
+		}
+	}
+
+	return hasPositive || len(m.terms) > 0
+}
+
+func globToRegexp(pattern string) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("(?i)")
+	for _, ch := range pattern {
+		switch ch {
+		case '*':
+			b.WriteString(".*")
+		case '?':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(ch)))
+		}
+	}
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		return regexp.MustCompile("^$")
+	}
+	return re
+}
+
+func rowSearchText(row Row) string {
+	parts := []string{row.Type, row.Name, row.Key, row.Status, row.Text, row.Plain, row.PlainText}
+	for k, v := range row.Metadata {
+		parts = append(parts, k, fmt.Sprint(v))
+	}
+	return strings.Join(parts, " ")
 }
 
 func (m Model) keysForOutput() []string {

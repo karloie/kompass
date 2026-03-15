@@ -108,7 +108,7 @@ func TestResolveExecutionMode(t *testing.T) {
 		{name: "cli", tui: false, service: false, want: modeCLI},
 		{name: "service", tui: false, service: true, want: modeService},
 		{name: "tui selector", tui: true, service: false, want: modeTUISelector},
-		{name: "service and tui compatible", tui: true, service: true, want: modeTUIDashboard},
+		{name: "service and tui", tui: true, service: true, want: modeService},
 	}
 
 	for _, tc := range tests {

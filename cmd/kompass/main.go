@@ -31,7 +31,6 @@ const (
 	modeCLI executionMode = iota
 	modeService
 	modeTUISelector
-	modeTUIDashboard
 )
 
 func (s *serviceFlag) String() string {
@@ -113,14 +112,7 @@ func main() {
 	}
 	selectors := flag.Args()
 
-	switch resolveExecutionMode(*tuiArg, serviceArg.set) {
-	case modeTUIDashboard:
-		if err := tui.Run(tui.Options{Mode: tui.ModeDashboard, OutputJSON: *jsonArg, Plain: *plainArg}); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	case modeService:
+	if serviceArg.set {
 		addr := serviceArg.addr
 		if addr == "" {
 			addr = "localhost:8080"
@@ -152,7 +144,7 @@ func main() {
 	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Components), "nodes", totalNodes, "edges", totalEdges)
 
-	if resolveExecutionMode(*tuiArg, serviceArg.set) == modeTUISelector {
+	if *tuiArg {
 		selectorResult := tree.BuildResponseTree(result)
 		if err := tui.Run(tui.Options{
 			Mode:       tui.ModeSelector,
@@ -176,9 +168,6 @@ func main() {
 }
 
 func resolveExecutionMode(tuiEnabled, serviceEnabled bool) executionMode {
-	if tuiEnabled && serviceEnabled {
-		return modeTUIDashboard
-	}
 	if serviceEnabled {
 		return modeService
 	}

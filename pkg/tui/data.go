@@ -9,11 +9,17 @@ import (
 	"github.com/karloie/kompass/pkg/tree"
 )
 
-func flattenTrees(trees *kube.Trees) []Row {
+func flattenTrees(trees *kube.Response) []Row {
+	if trees == nil {
+		return nil
+	}
+
+	nodeMap := trees.NodeMap()
 	rows := make([]Row, 0, 128)
-	for _, root := range trees.Trees {
-		coloredRendered := strings.TrimRight(tree.RenderTree(root, trees.Nodes, false), "\n")
-		plainRendered := strings.TrimRight(tree.RenderTree(root, trees.Nodes, true), "\n")
+	for i := range trees.Trees {
+		root := &trees.Trees[i]
+		coloredRendered := strings.TrimRight(tree.RenderTree(root, nodeMap, false), "\n")
+		plainRendered := strings.TrimRight(tree.RenderTree(root, nodeMap, true), "\n")
 		coloredRows := []string{}
 		plainRows := []string{}
 		if coloredRendered != "" {
@@ -24,8 +30,78 @@ func flattenTrees(trees *kube.Trees) []Row {
 		}
 		rowIndex := 0
 		flattenNode(&rows, root, 0, coloredRows, plainRows, &rowIndex)
+		if i < len(trees.Trees)-1 {
+			rows = append(rows, Row{Separator: true})
+		}
 	}
 	return rows
+}
+
+func filterResponseTrees(source *kube.Response, matcher queryMatcher) *kube.Response {
+	if source == nil {
+		return nil
+	}
+
+	filtered := &kube.Response{
+		APIVersion: source.APIVersion,
+		Request:    source.Request,
+		Nodes:      source.Nodes,
+		Edges:      source.Edges,
+		Components: source.Components,
+		Metadata:   source.Metadata,
+		Trees:      make([]kube.Tree, 0, len(source.Trees)),
+	}
+
+	for i := range source.Trees {
+		node := &source.Trees[i]
+		if next := filterTreeNode(node, matcher); next != nil {
+			filtered.Trees = append(filtered.Trees, *next)
+		}
+	}
+
+	return filtered
+}
+
+func filterTreeNode(node *kube.Tree, matcher queryMatcher) *kube.Tree {
+	if node == nil {
+		return nil
+	}
+
+	children := make([]*kube.Tree, 0, len(node.Children))
+	for _, child := range node.Children {
+		if next := filterTreeNode(child, matcher); next != nil {
+			children = append(children, next)
+		}
+	}
+
+	matchesSelf := matcher.test(treeNodeSearchText(node))
+	if !matchesSelf && len(children) == 0 {
+		return nil
+	}
+
+	meta := make(map[string]any, len(node.Meta))
+	for k, v := range node.Meta {
+		meta[k] = v
+	}
+
+	return &kube.Tree{
+		Key:      node.Key,
+		Type:     node.Type,
+		Icon:     node.Icon,
+		Meta:     meta,
+		Children: children,
+	}
+}
+
+func treeNodeSearchText(node *kube.Tree) string {
+	if node == nil {
+		return ""
+	}
+	parts := []string{node.Type, node.Key}
+	for k, v := range node.Meta {
+		parts = append(parts, k, fmt.Sprint(v))
+	}
+	return strings.Join(parts, " ")
 }
 
 func flattenNode(rows *[]Row, n *kube.Tree, depth int, coloredRows, plainRows []string, rowIndex *int) {

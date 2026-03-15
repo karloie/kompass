@@ -21,9 +21,14 @@ func (m Model) View() string {
 	header := m.Header()
 	footer := m.Footer()
 	rowsHeight := maxInt(1, m.height-1-m.footerHeight)
+	parts := []string{header}
+	if m.mode == ModeSelector {
+		parts = append(parts, m.filterBar())
+		rowsHeight = maxInt(1, rowsHeight-1)
+	}
 	rows := m.ViewRows(rowsHeight)
-
-	return strings.Join([]string{header, rows, footer}, "\n")
+	parts = append(parts, rows, footer)
+	return strings.Join(parts, "\n")
 }
 
 func (m Model) toString() string {
@@ -47,8 +52,19 @@ func (m Model) Header() string {
 		paneName = "Single"
 	}
 	selectedCount := len(m.selected[m.activePane])
-	text := fmt.Sprintf("%s | selected:%d | Tab pane | Up/Down rows | Space select | Enter inspect | ? help | Esc quit", paneName, selectedCount)
+	text := fmt.Sprintf("%s | selected:%d | Tab/Shift+Tab roots | Up/Down rows | Space select | Enter inspect | f filter | ? help | Esc quit", paneName, selectedCount)
 	return renderFullWidthBar(headerStyle, text, m.width)
+}
+
+func (m Model) filterBar() string {
+	prompt := "Filter: " + m.filterQuery
+	if m.filterMode {
+		prompt += "_"
+	}
+	if strings.TrimSpace(m.filterQuery) == "" {
+		prompt = "Filter: (press f to type, Enter apply, Esc close, Ctrl+U clear)"
+	}
+	return renderFullWidthBar(footerStyle, prompt, m.width)
 }
 
 func renderFullWidthBar(style lipgloss.Style, text string, width int) string {
@@ -173,6 +189,9 @@ func (m Model) renderRows(rowsHeight int) []string {
 }
 
 func (m Model) renderRow(r Row, fileed bool) string {
+	if r.Separator {
+		return ""
+	}
 	state := rowState{Focused: fileed, Selected: m.selected[m.activePane][r.Key]}
 	rowContent := rowContent(r, state)
 	content := withSelectionMarkerOnRow(rowContent, rowSelectionMarker(state))
@@ -220,7 +239,7 @@ func withSelectionMarkerOnRow(rowContent, marker string) string {
 			tail := rowContent[insertPos:]
 			if marker == "[ ]" {
 				if emoji, rest, ok := consumeLeadingEmoji(tail); ok {
-					return rowContent[:insertPos] + "[" + emoji + "] " + rest
+					return rowContent[:insertPos] + emoji + " " + rest
 				}
 			}
 			return rowContent[:insertPos] + marker + " " + tail
@@ -228,7 +247,7 @@ func withSelectionMarkerOnRow(rowContent, marker string) string {
 	}
 	if marker == "[ ]" {
 		if emoji, rest, ok := consumeLeadingEmoji(rowContent); ok {
-			return "[" + emoji + "] " + rest
+			return emoji + " " + rest
 		}
 	}
 	return marker + " " + rowContent

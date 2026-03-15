@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
@@ -18,6 +16,8 @@ type Model struct {
 	activePane   int
 	activeColumn int
 
+	sourceTrees  *kube.Response
+	allRowsByPane [2][]Row
 	rowsByPane   [2][]Row
 	cursorByPane [2]int
 	selected     [2]map[string]bool
@@ -26,10 +26,8 @@ type Model struct {
 	footerHeight  int
 	view          *View
 	emitSelection bool
-	lastNavDir    int
-	navRepeat     int
-	navLastAt     time.Time
-	now           func() time.Time
+	filterMode    bool
+	filterQuery   string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -42,27 +40,30 @@ func newRun(opts Options) Model {
 		context:      opts.Context,
 		namespace:    opts.Namespace,
 		footerHeight: 1,
-		now:          time.Now,
 	}
 	m.selected[0] = map[string]bool{}
 	m.selected[1] = map[string]bool{}
 	m.resources = map[string]*kube.Resource{}
 
 	if opts.Mode == ModeSelector && opts.Trees != nil {
+		m.sourceTrees = opts.Trees
 		allRows := flattenTrees(opts.Trees)
+		m.allRowsByPane[0] = allRows
+		m.allRowsByPane[1] = singleRows(allRows)
 		m.rowsByPane[0] = allRows
-		m.rowsByPane[1] = singleRows(allRows)
-		for k, v := range opts.Trees.Nodes {
+		m.rowsByPane[1] = m.allRowsByPane[1]
+		for k, v := range opts.Trees.NodeMap() {
 			m.resources[k] = v
 		}
 	}
 
 	if opts.Mode == ModeDashboard {
-		m.rowsByPane[0] = []Row{
+		m.allRowsByPane[0] = []Row{
 			{Key: "todo/1", Type: "todo", Name: "Review recent requests", Status: "new", Metadata: map[string]any{"owner": "you"}},
 			{Key: "todo/2", Type: "todo", Name: "Investigate cache misses", Status: "in-progress", Metadata: map[string]any{"area": "cache"}},
 			{Key: "todo/3", Type: "todo", Name: "Verify release artifacts", Status: "new", Metadata: map[string]any{"priority": "high"}},
 		}
+		m.rowsByPane[0] = m.allRowsByPane[0]
 	}
 
 	return m

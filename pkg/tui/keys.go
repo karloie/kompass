@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"time"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -90,7 +90,57 @@ func (m Model) currentRow() *Row {
 		return nil
 	}
 	idx := clamp(m.cursorByPane[m.activePane], 0, len(rows)-1)
+	if rows[idx].Separator {
+		return nil
+	}
 	return &rows[idx]
+}
+
+func (m *Model) moveCursor(direction, step int) {
+	rows := m.rowsByPane[m.activePane]
+	if len(rows) == 0 {
+		m.cursorByPane[m.activePane] = 0
+		return
+	}
+
+	if step <= 0 {
+		step = 1
+	}
+	if direction == 0 {
+		direction = 1
+	}
+
+	current := clamp(m.cursorByPane[m.activePane], 0, len(rows)-1)
+	target := clamp(current+direction*step, 0, len(rows)-1)
+
+	if direction > 0 {
+		for i := target; i < len(rows); i++ {
+			if !rows[i].Separator {
+				m.cursorByPane[m.activePane] = i
+				return
+			}
+		}
+		for i := target; i > current; i-- {
+			if !rows[i].Separator {
+				m.cursorByPane[m.activePane] = i
+				return
+			}
+		}
+		return
+	}
+
+	for i := target; i >= 0; i-- {
+		if !rows[i].Separator {
+			m.cursorByPane[m.activePane] = i
+			return
+		}
+	}
+	for i := target; i < current; i++ {
+		if !rows[i].Separator {
+			m.cursorByPane[m.activePane] = i
+			return
+		}
+	}
 }
 
 func (m *Model) clearActiveSelection() bool {
@@ -133,11 +183,8 @@ func (m Model) paneNext(direction int) int {
 }
 
 func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
-	if key != "up" && key != "k" && key != "down" && key != "j" {
-		m.lastNavDir = 0
-		m.navRepeat = 0
-		m.navLastAt = time.Time{}
+	if m.filterMode {
+		return m.handleFilterInput(msg)
 	}
 
 	switch msg.String() {
@@ -149,13 +196,9 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return *m, tea.Quit
 	case "tab":
-		if m.mode == ModeSelector {
-			m.activePane = m.paneNext(1)
-		}
+		m.jumpRoot(1)
 	case "shift+tab":
-		if m.mode == ModeSelector {
-			m.activePane = m.paneNext(-1)
-		}
+		m.jumpRoot(-1)
 	case "1":
 		if m.paneAvailable(0) {
 			m.activePane = 0
@@ -171,51 +214,13 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "up", "k":
-		now := time.Now()
-		if m.now != nil {
-			now = m.now()
-		}
-		step := 1
-		if m.lastNavDir == -1 && m.navRepeat == 1 {
-			delta := now.Sub(m.navLastAt)
-			if delta >= doubleTapMin && delta <= doubleTapMax {
-				step = m.navJumpStep()
-				m.navRepeat = 0
-			} else {
-				m.navRepeat = 1
-			}
-		} else {
-			m.navRepeat = 1
-		}
-		m.lastNavDir = -1
-		m.navLastAt = now
-		m.cursorByPane[m.activePane] = maxInt(0, m.cursorByPane[m.activePane]-step)
+		m.moveCursor(-1, 1)
 	case "down", "j":
-		now := time.Now()
-		if m.now != nil {
-			now = m.now()
-		}
-		step := 1
-		if m.lastNavDir == 1 && m.navRepeat == 1 {
-			delta := now.Sub(m.navLastAt)
-			if delta >= doubleTapMin && delta <= doubleTapMax {
-				step = m.navJumpStep()
-				m.navRepeat = 0
-			} else {
-				m.navRepeat = 1
-			}
-		} else {
-			m.navRepeat = 1
-		}
-		m.lastNavDir = 1
-		m.navLastAt = now
-		maxCursor := maxInt(0, len(m.rowsByPane[m.activePane])-1)
-		m.cursorByPane[m.activePane] = minInt(maxCursor, m.cursorByPane[m.activePane]+step)
+		m.moveCursor(1, 1)
 	case "pgup":
-		m.cursorByPane[m.activePane] = maxInt(0, m.cursorByPane[m.activePane]-m.navPageStep())
+		m.moveCursor(-1, m.navPageStep())
 	case "pgdown":
-		maxCursor := maxInt(0, len(m.rowsByPane[m.activePane])-1)
-		m.cursorByPane[m.activePane] = minInt(maxCursor, m.cursorByPane[m.activePane]+m.navPageStep())
+		m.moveCursor(1, m.navPageStep())
 	case " ":
 		if r := m.currentRow(); r != nil {
 			if m.selected[m.activePane][r.Key] {
@@ -226,6 +231,9 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "ctrl+a":
 		for _, r := range m.rowsByPane[m.activePane] {
+			if r.Separator {
+				continue
+			}
 			m.selected[m.activePane][r.Key] = true
 		}
 	case "+", "=":
@@ -242,8 +250,168 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return *m, tea.Quit
 	case "?":
 		m.view = viewHelp()
+	case "f":
+		m.filterMode = true
 	}
 	return *m, nil
+}
+
+func (m *Model) jumpRoot(direction int) {
+	rows := m.rowsByPane[m.activePane]
+	if len(rows) == 0 {
+		return
+	}
+	if direction == 0 {
+		direction = 1
+	}
+
+	current := clamp(m.cursorByPane[m.activePane], 0, len(rows)-1)
+	if direction > 0 {
+		for i := current + 1; i < len(rows); i++ {
+			if rows[i].Separator {
+				continue
+			}
+			if rows[i].Depth == 0 {
+				m.cursorByPane[m.activePane] = i
+				return
+			}
+		}
+		return
+	}
+
+	for i := current - 1; i >= 0; i-- {
+		if rows[i].Separator {
+			continue
+		}
+		if rows[i].Depth == 0 {
+			m.cursorByPane[m.activePane] = i
+			return
+		}
+	}
+}
+
+func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return *m, tea.Quit
+	case tea.KeyEsc:
+		m.filterMode = false
+		return *m, nil
+	case tea.KeyEnter:
+		m.filterMode = false
+		m.applyMainFilter()
+		return *m, nil
+	case tea.KeyCtrlU:
+		m.filterQuery = ""
+		m.applyMainFilter()
+		return *m, nil
+	case tea.KeyBackspace:
+		if len(m.filterQuery) > 0 {
+			r := []rune(m.filterQuery)
+			m.filterQuery = string(r[:len(r)-1])
+			m.applyMainFilter()
+		}
+		return *m, nil
+	default:
+		if len(msg.Runes) > 0 {
+			m.filterQuery += string(msg.Runes)
+			m.applyMainFilter()
+		}
+		return *m, nil
+	}
+}
+
+func (m *Model) applyMainFilter() {
+	if m.mode == ModeSelector && m.sourceTrees != nil {
+		if strings.TrimSpace(m.filterQuery) == "" {
+			m.rowsByPane[0] = m.allRowsByPane[0]
+			m.rowsByPane[1] = m.allRowsByPane[1]
+		} else {
+			matcher := buildQueryMatcher(m.filterQuery)
+			filteredTrees := filterResponseTrees(m.sourceTrees, matcher)
+			rows := flattenTrees(filteredTrees)
+			m.rowsByPane[0] = rows
+			m.rowsByPane[1] = singleRows(rows)
+		}
+
+		m.normalizeCursor(0)
+		m.normalizeCursor(1)
+		for pane := range m.selected {
+			for key := range m.selected[pane] {
+				if !m.rowKeyVisible(pane, key) {
+					delete(m.selected[pane], key)
+				}
+			}
+		}
+		return
+	}
+
+	for pane := range m.rowsByPane {
+		source := m.allRowsByPane[pane]
+		if strings.TrimSpace(m.filterQuery) == "" {
+			m.rowsByPane[pane] = source
+			m.normalizeCursor(pane)
+			continue
+		}
+
+		matcher := buildQueryMatcher(m.filterQuery)
+		filtered := make([]Row, 0, len(source))
+		for _, row := range source {
+			if row.Separator {
+				continue
+			}
+			if matcher.test(rowSearchText(row)) {
+				filtered = append(filtered, row)
+			}
+		}
+		m.rowsByPane[pane] = filtered
+		m.normalizeCursor(pane)
+	}
+
+	for pane := range m.selected {
+		for key := range m.selected[pane] {
+			if !m.rowKeyVisible(pane, key) {
+				delete(m.selected[pane], key)
+			}
+		}
+	}
+}
+
+func (m *Model) normalizeCursor(pane int) {
+	rows := m.rowsByPane[pane]
+	if len(rows) == 0 {
+		m.cursorByPane[pane] = 0
+		return
+	}
+
+	idx := clamp(m.cursorByPane[pane], 0, len(rows)-1)
+	if !rows[idx].Separator {
+		m.cursorByPane[pane] = idx
+		return
+	}
+
+	for i := idx + 1; i < len(rows); i++ {
+		if !rows[i].Separator {
+			m.cursorByPane[pane] = i
+			return
+		}
+	}
+	for i := idx - 1; i >= 0; i-- {
+		if !rows[i].Separator {
+			m.cursorByPane[pane] = i
+			return
+		}
+	}
+	m.cursorByPane[pane] = 0
+}
+
+func (m Model) rowKeyVisible(pane int, key string) bool {
+	for _, row := range m.rowsByPane[pane] {
+		if row.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (m Model) rowsHeight() int {
@@ -252,8 +420,4 @@ func (m Model) rowsHeight() int {
 
 func (m Model) navPageStep() int {
 	return maxInt(1, m.rowsHeight()-1)
-}
-
-func (m Model) navJumpStep() int {
-	return maxInt(1, m.rowsHeight()/2)
 }
