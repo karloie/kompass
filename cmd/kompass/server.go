@@ -261,6 +261,7 @@ func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) 
 		return provider, err
 	}
 	if s.client != nil {
+		s.client.SetNamespace(namespace)
 		return s.client, nil
 	}
 	provider, _, _, err := initProvider(false, s.contextArg, namespace)

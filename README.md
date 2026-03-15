@@ -222,7 +222,13 @@ kompass --debug '*/petshop/*'
 - **JSON Graph** - Graph-oriented JSON (`/api/graph`)
 - **JSON Tree** - Tree-oriented JSON (`/api/tree`, `Accept: application/json`)
 - **Text Tree** - ASCII tree rendering (`/api/tree`, `Accept: text/plain`)
-- **HTML Tree** - embeddable HTML tree (`/api/tree`, `Accept: text/html`)
+- **HTML Tree** - interactive HTML tree (`/api/tree`, `Accept: text/html`)
+
+HTML tree UI features:
+
+- Namespace dropdown that reloads the tree for the selected namespace
+- Client-side filter with wildcard (`*`, `?`) and negate (`!`) support
+- URL-synced filter query via `q=`
 
 ### REST API
 
@@ -230,9 +236,10 @@ Endpoints accept query parameters:
 
 | Parameter | Description |
 |-----------|-------------|
-| `selector` | Resource selector (comma-separated) |
+| `selector` | Resource selector (comma-separated, optional) |
 | `namespace` | Target namespace |
 | `mock` | Use mock data when set to `mock` |
+| `q` | HTML tree filter query (`Accept: text/html`) |
 
 ### API Examples
 
@@ -250,7 +257,10 @@ curl -H "Accept: application/json" "http://localhost:8080/api/tree?namespace=pro
 curl -H "Accept: text/plain" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
 
 # HTML tree
-curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production"
+
+# HTML tree with prefilled filter query
+curl -H "Accept: text/html" "http://localhost:8080/api/tree?namespace=production&q=kafka*"
 
 # Cache metadata
 curl "http://localhost:8080/api/stats"
@@ -285,6 +295,11 @@ Runtime behavior:
 
 - `kompass --service` serves API endpoints on `localhost:8080` by default.
 - Use `kompass --service 0.0.0.0:8080` to publish on all interfaces.
+
+Snapshot behavior:
+
+- `make snapshot` writes deterministic mock fixtures (`testdata/fixtures/mock.json`, `testdata/fixtures/mock.txt`).
+- `make snapshot-real` writes real-cluster fixtures (`testdata/fixtures/real.json`, `testdata/fixtures/real.txt`).
 
 ### Running Tests
 

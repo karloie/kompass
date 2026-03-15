@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"sort"
 	"strings"
 
 	"github.com/karloie/kompass/pkg/graph"
@@ -21,11 +22,12 @@ var treeHTMLScriptSource string
 var treeHTMLTemplate = template.Must(template.New("tree-html").Parse(treeHTMLTemplateSource))
 
 type treeHTMLView struct {
-	Context   string
-	Namespace string
-	Header    string
-	TreeHTML  template.HTML
-	Script    template.JS
+	Context    string
+	Namespace  string
+	Namespaces []string
+	Header     string
+	TreeHTML   template.HTML
+	Script     template.JS
 }
 
 // RenderHTML renders all trees as a self-contained HTML document.
@@ -42,19 +44,42 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 	treeHTML.WriteString(`</ul>`)
 
 	header := fmt.Sprintf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace, selectors, configPath)
+	namespaces := collectTreeNamespaces(result, namespace)
 	var out bytes.Buffer
 	view := treeHTMLView{
-		Context:   context_,
-		Namespace: namespace,
-		Header:    header,
-		TreeHTML:  template.HTML(treeHTML.String()),
-		Script:    template.JS(treeHTMLScriptSource),
+		Context:    context_,
+		Namespace:  namespace,
+		Namespaces: namespaces,
+		Header:     header,
+		TreeHTML:   template.HTML(treeHTML.String()),
+		Script:     template.JS(treeHTMLScriptSource),
 	}
 	if err := treeHTMLTemplate.Execute(&out, view); err != nil {
 		return "<html><body><p>failed to render tree html</p></body></html>"
 	}
 
 	return out.String()
+}
+
+func collectTreeNamespaces(result *kube.Response, currentNamespace string) []string {
+	set := map[string]struct{}{}
+	if currentNamespace != "" {
+		set[currentNamespace] = struct{}{}
+	}
+
+	for key := range result.Nodes {
+		ns := ParseResourceKeyRef(key).Namespace
+		if ns != "" {
+			set[ns] = struct{}{}
+		}
+	}
+
+	namespaces := make([]string, 0, len(set))
+	for ns := range set {
+		namespaces = append(namespaces, ns)
+	}
+	sort.Strings(namespaces)
+	return namespaces
 }
 
 func renderTreeHTMLNode(sb *strings.Builder, treeNode *kube.Tree, nodeMap map[string]*kube.Resource, parentMeta map[string]any) {

@@ -77,7 +77,7 @@ func TestGetProviderFromClientFactoryError(t *testing.T) {
 	}
 }
 
-func TestGetProviderUsesExistingClientWithoutMutatingNamespace(t *testing.T) {
+func TestGetProviderUsesExistingClientAndUpdatesNamespace(t *testing.T) {
 	c := kube.NewMockClient(mock.GenerateMock())
 	c.SetNamespace("default")
 	s := &server{client: c}
@@ -90,8 +90,8 @@ func TestGetProviderUsesExistingClientWithoutMutatingNamespace(t *testing.T) {
 		t.Fatalf("expected provider")
 	}
 	ns, _ := c.GetNamespace()
-	if ns != "default" {
-		t.Fatalf("expected namespace to remain default, got %q", ns)
+	if ns != "petshop" {
+		t.Fatalf("expected namespace to update to petshop, got %q", ns)
 	}
 }
 

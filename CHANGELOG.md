@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.10] - 2026-03-15
+
+### Changed
+- Added interactive HTML rendering for `/api/tree` with template-based markup and external JavaScript assets.
+- Added an HTML namespace dropdown that reloads the tree for the selected namespace.
+- Added query-string synchronized HTML filtering (`q`) and preserved filter query on namespace switch.
+- Improved client-side HTML tree filter responsiveness by reducing repeated DOM traversal and debouncing input updates.
+- Updated `make service` to run through `gow` for a faster local service dev loop.
+- Updated snapshot workflow so `make snapshot` writes deterministic mock fixtures by default; real-cluster fixtures moved to `make snapshot-real`.
+
+### Fixed
+- `/api/tree?namespace=...` now correctly applies request namespace even when reusing the server's shared client.
+
 ## [0.0.9] - 2026-03-13
 
 ### Changed
@@ -85,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-v` flag for version information
 - `--help` / `-h` flag for usage information
 
-[Unreleased]: https://github.com/karloie/kompass/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/karloie/kompass/compare/v0.0.10...HEAD
+[0.0.10]: https://github.com/karloie/kompass/releases/tag/v0.0.10
 [0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
 [0.0.7]: https://github.com/karloie/kompass/releases/tag/v0.0.7

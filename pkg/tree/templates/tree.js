@@ -1,11 +1,20 @@
 (function () {
 	const input = document.getElementById("tree-filter");
+	const namespaceSelect = document.getElementById("namespace-select");
 	const root = document.getElementById("tree-root");
 	const empty = document.getElementById("tree-empty");
 	if (!input || !root || !empty) return;
 
 	const nodes = Array.from(root.querySelectorAll("li"));
+	const topNodes = Array.from(root.children).filter(function (el) { return el.tagName === "LI"; });
 	const nodeLabels = Array.from(root.querySelectorAll(".node"));
+	const nodeChildren = new Map();
+	for (const node of nodes) {
+		const branch = node.querySelector(":scope > ul");
+		nodeChildren.set(node, branch ? Array.from(branch.children).filter(function (el) { return el.tagName === "LI"; }) : []);
+	}
+
+	let lastSyncedQuery = new URLSearchParams(window.location.search).get("q") || "";
 
 	function escapeHTML(s) {
 		return s.replace(/[&<>"']/g, function (ch) {
@@ -118,7 +127,7 @@
 
 	function matchNode(node, matcher, queryActive) {
 		const label = node.getAttribute("data-label") || "";
-		const children = Array.from(node.querySelectorAll(":scope > ul > li"));
+		const children = nodeChildren.get(node) || [];
 		let childMatched = false;
 		for (const child of children) {
 			if (matchNode(child, matcher, queryActive)) childMatched = true;
@@ -133,6 +142,7 @@
 	}
 
 	function syncURL(value) {
+		if (value === lastSyncedQuery) return;
 		const url = new URL(window.location.href);
 		if (value) {
 			url.searchParams.set("q", value);
@@ -140,6 +150,7 @@
 			url.searchParams.delete("q");
 		}
 		history.replaceState(null, "", url.toString());
+		lastSyncedQuery = value;
 	}
 
 	function renderFiltered() {
@@ -152,7 +163,9 @@
 			if (!queryActive) {
 				setCollapsed(node, node.getAttribute("data-user-collapsed") === "true");
 			}
-			if (node.parentElement === root && matchNode(node, matcher, queryActive)) {
+		}
+		for (const node of topNodes) {
+			if (matchNode(node, matcher, queryActive)) {
 				visibleTop++;
 			}
 		}
@@ -175,6 +188,33 @@
 		input.value = initialQ;
 	}
 
-	input.addEventListener("input", renderFiltered);
+	if (namespaceSelect) {
+		namespaceSelect.addEventListener("change", function () {
+			const url = new URL(window.location.href);
+			const nextNamespace = namespaceSelect.value;
+			url.searchParams.delete("selector");
+			if (nextNamespace) {
+				url.searchParams.set("namespace", nextNamespace);
+			} else {
+				url.searchParams.delete("namespace");
+			}
+
+			const currentQuery = input.value.trim();
+			if (currentQuery) {
+				url.searchParams.set("q", currentQuery);
+			} else {
+				url.searchParams.delete("q");
+			}
+
+			window.location.assign(url.toString());
+		});
+	}
+
+	let renderDebounceTimer = 0;
+	input.addEventListener("input", function () {
+		window.clearTimeout(renderDebounceTimer);
+		renderDebounceTimer = window.setTimeout(renderFiltered, 60);
+	});
+
 	renderFiltered();
 })();

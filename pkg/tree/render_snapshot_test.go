@@ -24,6 +24,11 @@ func loadMockSnapshotGraphs(t *testing.T) *kube.Response {
 		t.Fatalf("read mock snapshot fixture: %v", err)
 	}
 
+	var direct kube.Response
+	if err := json.Unmarshal(data, &direct); err == nil && (len(direct.Graphs) > 0 || len(direct.Nodes) > 0) {
+		return &direct
+	}
+
 	var env snapshotEnvelope
 	if err := json.Unmarshal(data, &env); err != nil {
 		t.Fatalf("unmarshal mock snapshot fixture: %v", err)

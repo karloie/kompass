@@ -1,4 +1,4 @@
-.PHONY: test build build-release coverage dev snapshot mock real tui service help
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -61,10 +61,12 @@ dev:
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)
 real:    ; @$(GO_RUN) $(ARGS)
-service: ; @$(GO_RUN) --mock --service $(ARGS)
+service: ; @$(GOW) run ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:
 	$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.json
-	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
 	$(GO_RUN)        --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.txt
+
+snapshot-real:
+	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
 	$(GO_RUN)         -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.txt
