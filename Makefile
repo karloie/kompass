@@ -1,38 +1,32 @@
-.PHONY: test build coverage
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
-RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS) -X github.com/karloie/kompass/pkg/tree.BuildMode=release
 LDFLAGS ?=
-ARGS ?=
+ARGS    ?=
 COVERPKG ?= ./...
-GO_RUN = go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass
+GO_RUN   = go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass
+GOW     ?= gow
 
-SNAP_DIR ?= testdata/fixtures
-
-SNAP_MOCK_JSON ?= $(SNAP_DIR)/mock.json
-SNAP_MOCK_TREE ?= $(SNAP_DIR)/mock.txt
+SNAP_DIR            ?= testdata/fixtures
 SNAP_MOCK_NAMESPACE ?= petshop
-
-SNAP_REAL_CONTEXT ?= tool-test-01
+SNAP_REAL_CONTEXT   ?= tool-test-01
 SNAP_REAL_NAMESPACE ?= applikasjonsplattform
-SNAP_REAL_JSON ?= $(SNAP_DIR)/real.json
-SNAP_REAL_TREE ?= $(SNAP_DIR)/real.txt
 
 build: test
-	@echo
-	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass cmd/kompass/*.go
-	@OUT_SIZE=$$(du -hs kompass | cut -f1); \
-	OUT_PATH=$$(realpath kompass); \
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
+	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
 build-release: LDFLAGS := $(RELEASE_LDFLAGS)
-build-release: build
-	@echo
+build-release: test
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
+	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
+	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
 test:
-	@echo
 	go test -count=1 ./...
 
 coverage: build
@@ -61,27 +55,18 @@ coverage-func: build
 	@go tool cover -func=coverage.out | grep -v 'total:' | awk '{printf "│ %-66s │ %7s  │\n", substr($$1":"$$2, 1, 66), $$3}'
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
-help:
-	@$(GO_RUN) --help
+dev:
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
-mock:
-	@$(GO_RUN) --mock $(ARGS)
-
-real:
-	@$(GO_RUN) $(ARGS)
-
-tui:
-	@$(GO_RUN) --tui $(ARGS)
-
-service:
-	@$(GO_RUN) --mock --service $(ARGS)
+help:    ; @$(GO_RUN) --help
+mock:    ; @$(GO_RUN) --mock $(ARGS)
+real:    ; @$(GO_RUN) $(ARGS)
+service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:
-	@$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_MOCK_JSON)
-	@echo "Wrote $(SNAP_MOCK_JSON)"
-	@$(GO_RUN) --json -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_REAL_JSON)
-	@echo "Wrote $(SNAP_REAL_JSON)"
-	@$(GO_RUN) --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_MOCK_TREE)
-	@echo "Wrote $(SNAP_MOCK_TREE)"
-	@$(GO_RUN) -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_REAL_TREE)
-	@echo "Wrote $(SNAP_REAL_TREE)"
+	$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.json
+	$(GO_RUN)        --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.txt
+
+snapshot-real:
+	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
+	$(GO_RUN)         -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.txt

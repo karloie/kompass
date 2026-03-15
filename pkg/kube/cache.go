@@ -78,7 +78,7 @@ func (c *Client) ClearCache() {
 	}
 }
 
-func (c *Client) GetStats() map[string]interface{} {
+func (c *Client) GetResponseMeta() *Metadata {
 	c.lastSyncMutex.RLock()
 	lastSyncTime := c.lastSyncTime
 	c.lastSyncMutex.RUnlock()
@@ -92,16 +92,16 @@ func (c *Client) GetStats() map[string]interface{} {
 		hitRate = float64(hits) / float64(calls) * 100
 	}
 
-	return map[string]interface{}{
-		"enabled":      c.cacheEnabled,
-		"size":         c.cache.size(),
-		"lastSync":     lastSyncTime,
-		"syncInterval": c.syncInterval,
-		"ttl":          c.cacheTTL,
-		"calls":        calls,
-		"hits":         hits,
-		"misses":       misses,
-		"hitRate":      hitRate,
+	return &Metadata{
+		CacheEnabled:      c.cacheEnabled,
+		CacheSize:         c.cache.size(),
+		CacheLastSync:     lastSyncTime,
+		CacheSyncInterval: c.syncInterval,
+		CacheTTL:          c.cacheTTL,
+		CacheCalls:        calls,
+		CacheHits:         hits,
+		CacheMisses:       misses,
+		CacheHitRate:      hitRate,
 	}
 }
 
@@ -120,13 +120,26 @@ func (c *Client) syncLoop() {
 }
 
 func (c *Client) performSync() {
-	if len(c.syncNamespaces) == 0 {
-		return
-	}
 	ctx, opts := context.Background(), metav1.ListOptions{}
 	var wg sync.WaitGroup
 
-	for _, ns := range c.syncNamespaces {
+	namespaces := c.syncNamespaces
+	if len(namespaces) == 0 {
+		nsList, err := c.GetNamespaces(ctx, opts)
+		if err == nil {
+			namespaces = make([]string, 0, len(nsList.Items))
+			for _, ns := range nsList.Items {
+				if ns.Name != "" {
+					namespaces = append(namespaces, ns.Name)
+				}
+			}
+		}
+	}
+	if len(namespaces) == 0 {
+		return
+	}
+
+	for _, ns := range namespaces {
 		wg.Add(1)
 		go func(n string) {
 			defer wg.Done()

@@ -19,40 +19,6 @@ var (
 	date    = "unknown"
 )
 
-const jsonAPIVersion = "v1"
-
-type CacheStats struct {
-	Calls   int64
-	Hits    int64
-	Misses  int64
-	HitRate float64
-}
-
-type JSONOutput struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Graphs    `json:"response"`
-}
-
-type JSONOutputGraph struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Graphs    `json:"response"`
-}
-
-type JSONOutputTree struct {
-	APIVersion string          `json:"apiVersion"`
-	Request    RequestMetadata `json:"request"`
-	Response   *kube.Trees     `json:"response"`
-}
-
-type RequestMetadata struct {
-	Context    string   `json:"context"`
-	Namespace  string   `json:"namespace"`
-	ConfigPath string   `json:"configPath,omitempty"`
-	Selectors  []string `json:"selectors"`
-}
-
 type serviceFlag struct {
 	set  bool
 	addr string
@@ -69,7 +35,7 @@ func (s *serviceFlag) Set(v string) error {
 	s.set = true
 	s.addr = v
 	if v == "" || v == "true" {
-		s.addr = ":8080"
+		s.addr = "localhost:8080"
 	}
 	if v == "false" {
 		s.set = false
@@ -109,7 +75,7 @@ func main() {
 	jsonArg := flag.Bool("json", false, "JSON output")
 	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
 	serviceArg := &serviceFlag{}
-	flag.Var(serviceArg, "service", "Start web server (format: :port or host:port, default :8080)")
+	flag.Var(serviceArg, "service", "Start web server (format: host:port, default localhost:8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
 	versionArg := flag.Bool("version", false, "Show version information")
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
@@ -138,10 +104,10 @@ func main() {
 	if serviceArg.set {
 		addr := serviceArg.addr
 		if addr == "" {
-			addr = ":8080"
+			addr = "localhost:8080"
 		}
 		if !strings.Contains(addr, ":") {
-			fmt.Fprintf(os.Stderr, "Error: --service address must be in format ':port' or 'host:port' (e.g., :8080 or 0.0.0.0:8080)\n")
+			fmt.Fprintf(os.Stderr, "Error: --service address must be in format 'host:port' (e.g., localhost:8080 or 0.0.0.0:8080)\n")
 			os.Exit(1)
 		}
 		startServer(addr, *contextArg, *namespaceArg, *mockArg)
@@ -164,16 +130,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	totalNodes, totalEdges := len(result.Nodes), 0
-	for _, g := range result.Graphs {
-		totalEdges += len(g.Edges)
-	}
-	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Graphs), "nodes", totalNodes, "edges", totalEdges)
+	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
+	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Components), "nodes", totalNodes, "edges", totalEdges)
 
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
 	} else {
-		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg, extractStats(provider))
+		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg)
 	}
 }
 
@@ -206,28 +169,4 @@ func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, str
 		contextArg, _ = client.GetContext()
 	}
 	return client, contextArg, namespaceArg, nil
-}
-
-func extractStats(provider kube.Kube) map[string]interface{} {
-	if client, ok := provider.(*kube.Client); ok {
-		return client.GetStats()
-	}
-	return nil
-}
-
-func getStats(stats map[string]interface{}) *CacheStats {
-	if stats == nil {
-		return nil
-	}
-	if enabled, _ := stats["enabled"].(bool); !enabled {
-		return nil
-	}
-	calls, _ := stats["calls"].(int64)
-	if calls == 0 {
-		return nil
-	}
-	hits, _ := stats["hits"].(int64)
-	misses, _ := stats["misses"].(int64)
-	hitRate, _ := stats["hitRate"].(float64)
-	return &CacheStats{Calls: calls, Hits: hits, Misses: misses, HitRate: hitRate}
 }

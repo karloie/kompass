@@ -1,44 +1,24 @@
 # Test Fixtures
 
-This directory contains baseline outputs for snapshot testing.
+This directory contains snapshot fixtures used by tests and manual regression checks.
 
-## Deterministic Snapshot Targets
+## Snapshot Commands
 
-Use the Make targets below to generate the same snapshots every time,
-independent of your current `kubectl` context.
-
-Default snapshot sources:
-
-- Mock cluster (`--mock`) in namespace `petshop`
+Use the Make targets below:
 
 ```bash
-# JSON snapshots
-make snapshot-json
-
-# Tree snapshots
-make snapshot-tree
-
-# Both JSON + tree snapshots
+# Deterministic mock fixtures (default)
 make snapshot
+
+# Real-cluster fixtures (requires valid context)
+make snapshot-real
 ```
 
-Default output files:
+## Fixture Files
 
-- `testdata/fixtures/mock.json`
-- `testdata/fixtures/mock.txt`
+- `mock.json`: mock graph response snapshot (`--json --mock`)
+- `mock.txt`: mock tree text snapshot (`--mock`)
+- `real.json`: real-cluster graph response snapshot (`--json`)
+- `real.txt`: real-cluster tree text snapshot
 
-## Fixtures
-
-### mock_output_baseline.txt
-Baseline output from `make mock` command, showing the complete tree visualization of the mock Kubernetes cluster. This snapshot is used to detect regressions in tree rendering over time.
-
-To update the baseline after intentional changes:
-```bash
-make mock > testdata/fixtures/mock_output_baseline.txt
-```
-
-To compare current output with baseline:
-```bash
-make mock > /tmp/current.txt
-diff testdata/fixtures/mock_output_baseline.txt /tmp/current.txt
-```
+The snapshot tests currently load `mock.json` as the stable input fixture.
