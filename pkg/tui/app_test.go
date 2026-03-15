@@ -20,6 +20,15 @@ func stubRunViewCommand(t *testing.T, fn func(name string, args ...string) (stri
 	})
 }
 
+func stubRunScopeListCommand(t *testing.T, fn func(args ...string) (string, error)) {
+	t.Helper()
+	prev := runScopeListCommand
+	runScopeListCommand = fn
+	t.Cleanup(func() {
+		runScopeListCommand = prev
+	})
+}
+
 func TestTabAndShiftTabJumpBetweenRoots(t *testing.T) {
 	m := newRun(Options{Mode: ModeSelector})
 	m.rowsByPane[0] = []Row{
@@ -362,6 +371,163 @@ func TestEnterDoesNotDescribeUnsupportedRow(t *testing.T) {
 	}
 	if m1.view != nil {
 		t.Fatalf("expected Enter on unsupported row to keep selector view")
+	}
+}
+
+func TestCtrlTCyclesThemeInMainView(t *testing.T) {
+	originalName := currentThemeName
+	t.Cleanup(func() { _ = setThemeByName(originalName) })
+
+	_ = setThemeByName("blue")
+	m := newRun(Options{Mode: ModeSelector})
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	_ = updated.(Model)
+
+	if currentThemeName != "mint" {
+		t.Fatalf("expected Ctrl+T in main view to cycle theme to mint, got %q", currentThemeName)
+	}
+}
+
+func TestCtrlTCyclesThemeInResourceView(t *testing.T) {
+	originalName := currentThemeName
+	t.Cleanup(func() { _ = setThemeByName(originalName) })
+
+	_ = setThemeByName("mint")
+	m := newRun(Options{Mode: ModeSelector})
+	m.view = viewHelp()
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	_ = updated.(Model)
+
+	if currentThemeName != "amber" {
+		t.Fatalf("expected Ctrl+T in resource view to cycle theme to amber, got %q", currentThemeName)
+	}
+}
+
+func TestCOpensContextListAndAppliesValue(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		if len(args) >= 3 && args[0] == "config" && args[1] == "get-contexts" {
+			return "ctx-a\nctx-b", nil
+		}
+		return "", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns-a"})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m1 := updated.(Model)
+	if !m1.contextList.Open {
+		t.Fatalf("expected context list to open")
+	}
+	if len(m1.contextList.Options) != 2 {
+		t.Fatalf("expected two context options, got %d", len(m1.contextList.Options))
+	}
+	if m1.contextList.Index != 0 {
+		t.Fatalf("expected current context selected, got %d", m1.contextList.Index)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m2 := updated.(Model)
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := updated.(Model)
+	if m3.contextList.Open {
+		t.Fatalf("expected list modal closed on Enter")
+	}
+	if m3.context != "ctx-b" {
+		t.Fatalf("expected context updated to ctx-b, got %q", m3.context)
+	}
+}
+
+func TestNOpensNamespaceListAndEscCancels(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		if len(args) >= 4 && args[0] == "get" && args[1] == "namespaces" {
+			return "ns-a\nns-b", nil
+		}
+		return "", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns-a"})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m1 := updated.(Model)
+	if !m1.namespaceList.Open {
+		t.Fatalf("expected namespace list to open")
+	}
+	if len(m1.namespaceList.Options) != 2 {
+		t.Fatalf("expected two namespace options, got %d", len(m1.namespaceList.Options))
+	}
+	if m1.namespaceList.Index != 0 {
+		t.Fatalf("expected current namespace selected, got %d", m1.namespaceList.Index)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m2 := updated.(Model)
+	if m2.namespaceList.Index != 1 {
+		t.Fatalf("expected down arrow to select second namespace option, got %d", m2.namespaceList.Index)
+	}
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m3 := updated.(Model)
+	if m3.namespaceList.Open {
+		t.Fatalf("expected namespace list modal to close on Esc")
+	}
+	if m3.namespace != "ns-a" {
+		t.Fatalf("expected namespace unchanged after cancel, got %q", m3.namespace)
+	}
+}
+
+func TestScopeListAppliesClientLocalKubectlFlagsOnly(t *testing.T) {
+	stubRunScopeListCommand(t, func(args ...string) (string, error) {
+		if len(args) >= 3 && args[0] == "config" && args[1] == "get-contexts" {
+			return "ctx-a\nctx-b", nil
+		}
+		if len(args) >= 4 && args[0] == "get" && args[1] == "namespaces" {
+			return "ns-a\nns-b", nil
+		}
+		return "", nil
+	})
+
+	calledName := ""
+	calledArgs := []string{}
+	stubRunViewCommand(t, func(name string, args ...string) (string, error) {
+		calledName = name
+		calledArgs = append([]string{}, args...)
+		return "ok", nil
+	})
+
+	m := newRun(Options{Mode: ModeSelector, Context: "ctx-a", Namespace: "ns-a"})
+	m.rowsByPane[0] = []Row{{Key: "pod/foo", Type: "pod", Name: "foo", Status: "Running"}}
+	m.resources["pod/foo"] = &kube.Resource{Key: "pod/foo", Type: "pod"}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m1 := updated.(Model)
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m2 := updated.(Model)
+	updated, _ = m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := updated.(Model)
+
+	updated, _ = m3.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m4 := updated.(Model)
+	updated, _ = m4.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m5 := updated.(Model)
+	updated, _ = m5.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m6 := updated.(Model)
+
+	updated, _ = m6.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m7 := updated.(Model)
+	if m7.view == nil {
+		t.Fatalf("expected resource view to open")
+	}
+	if calledName != "kubectl" {
+		t.Fatalf("expected kubectl command execution, got %q", calledName)
+	}
+	joined := strings.Join(calledArgs, " ")
+	if strings.Contains(joined, "config") || strings.Contains(joined, "use-context") || strings.Contains(joined, "set-context") {
+		t.Fatalf("expected no kubeconfig mutation command, got args %q", joined)
+	}
+	if !strings.Contains(joined, "-n ns-b") {
+		t.Fatalf("expected command to include local namespace override, got %q", joined)
+	}
+	if !strings.Contains(joined, "--context ctx-b") {
+		t.Fatalf("expected command to include local context override, got %q", joined)
 	}
 }
 

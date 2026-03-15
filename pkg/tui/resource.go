@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 )
 
 func (m Model) View() string {
@@ -28,6 +29,12 @@ func (m Model) View() string {
 	out := strings.Join(parts, "\n")
 	if m.confirmQuit {
 		return renderQuitConfirmOverlay(out, m.width)
+	}
+	if m.contextList.Open {
+		return renderSelectionListOverlay(out, m.width, "Context", m.contextList.Options, m.contextList.Index)
+	}
+	if m.namespaceList.Open {
+		return renderSelectionListOverlay(out, m.width, "Namespace", m.namespaceList.Options, m.namespaceList.Index)
 	}
 	if m.filterMode {
 		return renderFilterOverlay(out, m.width, m.filterQuery)
@@ -50,12 +57,58 @@ func renderFilterOverlay(content string, width int, query string) string {
 	)
 }
 
+func renderSelectionListOverlay(content string, width int, title string, options []string, activeIdx int) string {
+	availableLines := maxInt(1, len(strings.Split(content, "\n")))
+	if availableLines == 1 {
+		return renderModalOverlay(content, width, modalLine{text: title, style: modalTitleStyle})
+	}
+	if len(options) == 0 {
+		lines := []modalLine{
+			{text: title, style: modalTitleStyle},
+			{text: "(no options)", style: modalBodyStyle},
+		}
+		if availableLines >= 3 {
+			lines = append(lines, modalLine{text: "Esc cancel", style: modalHintStyle})
+		}
+		return renderModalOverlay(content, width,
+			lines...,
+		)
+	}
+
+	activeIdx = clamp(activeIdx, 0, len(options)-1)
+	lines := []modalLine{{text: title, style: modalTitleStyle}}
+	optionRows := maxInt(1, availableLines-2)
+	includeHint := true
+	if availableLines == 2 {
+		optionRows = 1
+		includeHint = false
+	}
+	start := rowWindowStart(len(options), optionRows, activeIdx)
+	end := minInt(len(options), start+optionRows)
+	for i := start; i < end; i++ {
+		option := options[i]
+		lineStyle := modalOptionDefaultStyle
+		label := "  " + option
+		if i == activeIdx {
+			lineStyle = modalOptionActiveStyle
+			label = "> " + option
+		}
+		lines = append(lines, modalLine{text: label, style: lineStyle})
+	}
+	if includeHint {
+		lines = append(lines, modalLine{text: "Up/Down select | Enter apply | Esc cancel", style: modalHintStyle})
+	}
+	return renderModalOverlay(content, width, lines...)
+}
+
 type modalLine struct {
 	text  string
 	style lipgloss.Style
 }
 
 var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+const modalHorizontalPadding = 1
 
 func renderModalOverlay(content string, width int, modalLines ...modalLine) string {
 	lines := strings.Split(content, "\n")
@@ -81,38 +134,45 @@ func renderModalOverlay(content string, width int, modalLines ...modalLine) stri
 			continue
 		}
 
-		boxWidth := minInt(width, innerWidth+2)
+		boxWidth := minInt(width, innerWidth+modalHorizontalPadding*2)
 		xStart := maxInt(0, (width-boxWidth)/2)
-		modalInner := maxInt(0, boxWidth-2)
-		modalSegment := modalLine.style.Render(" " + pad(truncate(modalLine.text, modalInner), modalInner) + " ")
-		overlayModalSegment(lines, idx, width, xStart, boxWidth, modalSegment)
+		modalInner := maxInt(0, boxWidth-modalHorizontalPadding*2)
+		modalSegment := renderModalLine(modalLine.style, modalLine.text, modalInner)
+		overlayModalSegment(lines, idx, width, xStart, lipgloss.Width(modalSegment), modalSegment)
 	}
 
 	return strings.Join(lines, "\n")
 }
 
 func renderCenteredModalLine(style lipgloss.Style, text string, innerWidth, width int) string {
-	content := style.Render(" " + pad(truncate(text, innerWidth), innerWidth) + " ")
+	content := renderModalLine(style, text, innerWidth)
 	if width <= 0 {
 		return content
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
 
-func sanitizeOverlayBase(line string, width int) string {
-	plain := ansiEscapePattern.ReplaceAllString(line, "")
-	return pad(truncate(plain, width), width)
+func renderModalLine(style lipgloss.Style, text string, innerWidth int) string {
+	return style.Render(strings.Repeat(" ", modalHorizontalPadding) + pad(truncate(text, innerWidth), innerWidth) + strings.Repeat(" ", modalHorizontalPadding))
 }
 
 func overlayModalSegment(lines []string, idx, width, xStart, boxWidth int, segment string) {
 	if idx < 0 || idx >= len(lines) {
 		return
 	}
-	base := sanitizeOverlayBase(lines[idx], width)
-	baseRunes := []rune(base)
-	left := string(baseRunes[:xStart])
-	right := string(baseRunes[minInt(len(baseRunes), xStart+boxWidth):])
+	base := lines[idx]
+	left := padStyledSegment(xansi.Cut(base, 0, xStart), xStart)
+	rightWidth := maxInt(0, width-(xStart+boxWidth))
+	right := padStyledSegment(xansi.Cut(base, xStart+boxWidth, width), rightWidth)
 	lines[idx] = left + segment + right
+}
+
+func padStyledSegment(segment string, width int) string {
+	currentWidth := lipgloss.Width(segment)
+	if currentWidth >= width {
+		return segment
+	}
+	return segment + strings.Repeat(" ", width-currentWidth)
 }
 
 func (m Model) toString() string {

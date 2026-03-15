@@ -222,6 +222,8 @@ var (
 	modalTitleStyle          lipgloss.Style
 	modalBodyStyle           lipgloss.Style
 	modalHintStyle           lipgloss.Style
+	modalOptionActiveStyle   lipgloss.Style
+	modalOptionDefaultStyle  lipgloss.Style
 	focusedCellStyle         lipgloss.Style
 	disabledFocusedRowStyle  lipgloss.Style
 	selectedRowStyle         lipgloss.Style
@@ -243,9 +245,11 @@ func applyUITheme(theme uiTheme) {
 	commandBarStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.CommandBarForeground)).Background(lipgloss.Color(theme.CommandBarBackground)).Padding(0, 1)
 	activeHeaderTabStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.ActiveTabForeground)).Background(lipgloss.Color(theme.ActiveTabBackground))
 	refreshStatusStyle = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color(theme.RefreshForeground)).Background(lipgloss.Color(theme.RefreshBackground))
-	modalTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.ModalTitleForeground)).Background(lipgloss.Color(theme.ModalTitleBackground)).Padding(0, 1)
-	modalBodyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.ModalBodyForeground)).Background(lipgloss.Color(theme.ModalBodyBackground)).Padding(0, 1)
-	modalHintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.ModalHintForeground)).Background(lipgloss.Color(theme.ModalHintBackground)).Padding(0, 1)
+	modalTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.ModalTitleForeground)).Background(lipgloss.Color(theme.ModalTitleBackground))
+	modalBodyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.ModalBodyForeground)).Background(lipgloss.Color(theme.ModalBodyBackground))
+	modalHintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.ModalHintForeground)).Background(lipgloss.Color(theme.ModalHintBackground))
+	modalOptionDefaultStyle = modalBodyStyle
+	modalOptionActiveStyle = modalBodyStyle.Copy().Reverse(true).Bold(true)
 	focusedCellStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.FocusedRowForeground)).Background(lipgloss.Color(theme.FocusedRowBackground))
 	disabledFocusedRowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DisabledRowForeground)).Background(lipgloss.Color(theme.DisabledRowBackground))
 	selectedRowStyle = lipgloss.NewStyle().Bold(true).Foreground(accentForeground).Background(accentBackground)

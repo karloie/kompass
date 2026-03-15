@@ -20,6 +20,42 @@ var runViewCommand = func(name string, args ...string) (string, error) {
 	return body, err
 }
 
+var runScopeListCommand = func(args ...string) (string, error) {
+	out, err := exec.Command("kubectl", args...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+func listScopeOptions(mode, context string) ([]string, error) {
+	args := []string{}
+	switch mode {
+	case "context":
+		args = []string{"config", "get-contexts", "-o", "name"}
+	case "namespace":
+		args = []string{"get", "namespaces", "-o", "custom-columns=NAME:.metadata.name", "--no-headers"}
+		if strings.TrimSpace(context) != "" {
+			args = append(args, "--context", strings.TrimSpace(context))
+		}
+	default:
+		return nil, nil
+	}
+
+	body, err := runScopeListCommand(args...)
+	if err != nil && strings.TrimSpace(body) == "" {
+		return nil, err
+	}
+
+	lines := strings.Split(body, "\n")
+	options := make([]string, 0, len(lines))
+	for _, line := range lines {
+		item := strings.TrimSpace(line)
+		if item == "" {
+			continue
+		}
+		options = append(options, item)
+	}
+	return options, err
+}
+
 type resourceTarget struct {
 	ResourceType string
 	Name         string
@@ -259,12 +295,15 @@ func viewHelp() *View {
 		"  Up/Down or j/k      move row",
 		"  Left/Right or h/l   pan long lines",
 		"  f or /              open live filter modal",
+		"  c or n              open context/namespace list",
+		"  Up/Down             move list selection",
 		"  Tab/Shift+Tab       cycle context (roots)",
 		"  1/2                 switch main context (tree/single)",
 		"",
 		"Actions",
 		"  Space               toggle row selection",
 		"  Enter               open resource view",
+		"  Ctrl+T              cycle theme (blue/mint/amber)",
 		"  r                   refresh main view data from cluster",
 		"  o                   output selected/current keys and quit",
 		"  + / -               increase/decrease footer panel height",

@@ -26,3 +26,27 @@ func TestApplyTUIThemeUpdatesUIAndHighlightTheme(t *testing.T) {
 		t.Fatalf("expected YAML style to remain configured after theme apply")
 	}
 }
+
+func TestSetThemeByNameAndCycleTheme(t *testing.T) {
+	originalName := currentThemeName
+	t.Cleanup(func() { _ = setThemeByName(originalName) })
+
+	if !setThemeByName("mint") {
+		t.Fatalf("expected mint theme to be selectable")
+	}
+	if currentThemeName != "mint" {
+		t.Fatalf("expected current theme mint, got %q", currentThemeName)
+	}
+
+	next := cycleTheme()
+	if next != "amber" {
+		t.Fatalf("expected cycle after mint to select amber, got %q", next)
+	}
+	if currentThemeName != "amber" {
+		t.Fatalf("expected active theme amber after cycle, got %q", currentThemeName)
+	}
+
+	if setThemeByName("nope") {
+		t.Fatalf("expected unknown theme name to be rejected")
+	}
+}

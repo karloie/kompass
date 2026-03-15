@@ -53,3 +53,19 @@ func TestHighlightYAMLLine_SimpleModeStylesKey(t *testing.T) {
 		t.Fatalf("expected highlightYAMLLine to follow simple mode path\nwant: %q\ngot:  %q", want, out)
 	}
 }
+
+func TestHighlightYAMLLine_KeyOverrideModePath(t *testing.T) {
+	original := currentHighlightTheme
+	t.Cleanup(func() { applyHighlightTheme(original) })
+
+	custom := original
+	custom.YAMLSimpleMode = false
+	applyHighlightTheme(custom)
+
+	line := "name: app"
+	out := highlightYAMLLine(line)
+	want := highlightYAMLLineWithKeyOverride(line)
+	if out != want {
+		t.Fatalf("expected highlightYAMLLine to follow key override mode path\nwant: %q\ngot:  %q", want, out)
+	}
+}

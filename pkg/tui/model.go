@@ -35,10 +35,18 @@ type Model struct {
 	filterMode     bool
 	filterQuery    string
 	filterSaved    string
+	contextList    listPickerState
+	namespaceList  listPickerState
 	refreshing     bool
 	lastRefresh    time.Time
 	refreshError   string
 	selectedAction string
+}
+
+type listPickerState struct {
+	Open    bool
+	Options []string
+	Index   int
 }
 
 func (m Model) Init() tea.Cmd {

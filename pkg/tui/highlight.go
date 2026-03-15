@@ -42,7 +42,7 @@ var (
 	defaultHighlightTheme = highlightTheme{
 		// A single global theme keeps YAML and non-YAML views visually aligned.
 		YAMLStyleCandidates: []string{"nord", "github-dark", "native"},
-		YAMLSimpleMode:      true,
+		YAMLSimpleMode:      false,
 		YAMLKeyColor:        "81",
 		YAMLCommentColor:    "244",
 		DescribeKeyColor:    "81",
@@ -155,7 +155,25 @@ func highlightYAMLLine(line string) string {
 	if currentHighlightTheme.YAMLSimpleMode {
 		return highlightSimpleYAMLLine(line)
 	}
-	return highlightWithLexer(line, yamlLexer, yamlChromaStyle)
+	return highlightYAMLLineWithKeyOverride(line)
+}
+
+func highlightYAMLLineWithKeyOverride(line string) string {
+	match := yamlKeyPattern.FindStringSubmatch(line)
+	if len(match) != 5 {
+		return highlightWithLexer(line, yamlLexer, yamlChromaStyle)
+	}
+
+	indentOrDash := match[1]
+	key := strings.TrimRight(match[2], " ")
+	spacing := match[3]
+	rest := match[4]
+
+	if strings.TrimSpace(rest) == "" {
+		return indentOrDash + yamlKeyStyle.Render(key+":")
+	}
+
+	return indentOrDash + yamlKeyStyle.Render(key+":") + spacing + highlightWithLexer(rest, yamlLexer, yamlChromaStyle)
 }
 
 func highlightSimpleYAMLLine(line string) string {

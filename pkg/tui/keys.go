@@ -10,6 +10,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return *m, tea.Quit
+	case "ctrl+t":
+		cycleTheme()
 	case "esc", "q":
 		m.closeView()
 	case "tab":
@@ -223,6 +225,18 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if m.contextList.Open {
+		return m.handleListPickerInput(&m.contextList, func(selected string) {
+			m.context = selected
+		}, msg)
+	}
+
+	if m.namespaceList.Open {
+		return m.handleListPickerInput(&m.namespaceList, func(selected string) {
+			m.namespace = selected
+		}, msg)
+	}
+
 	if m.filterMode {
 		return m.handleFilterInput(msg)
 	}
@@ -233,6 +247,14 @@ func (m *Model) handleMainKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return *m, nil
 		}
 		m.confirmQuit = true
+		return *m, nil
+	case "ctrl+t":
+		cycleTheme()
+	case "c":
+		m.openContextList()
+		return *m, nil
+	case "n":
+		m.openNamespaceList()
 		return *m, nil
 	case "tab":
 		m.jumpRoot(1)
@@ -423,6 +445,82 @@ func (m *Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) openFilterModal() {
 	m.filterSaved = m.filterQuery
 	m.filterMode = true
+}
+
+func (m *Model) openContextList() {
+	options, _ := listScopeOptions("context", m.context)
+	m.openListPicker(&m.contextList, &m.namespaceList, options, m.context)
+}
+
+func (m *Model) openNamespaceList() {
+	options, _ := listScopeOptions("namespace", m.context)
+	m.openListPicker(&m.namespaceList, &m.contextList, options, m.namespace)
+}
+
+func (m *Model) openListPicker(target, other *listPickerState, options []string, currentValue string) {
+	current := strings.TrimSpace(currentValue)
+	if len(options) == 0 && current != "" {
+		options = []string{current}
+	}
+	other.Open = false
+	target.Open = true
+	target.Options = options
+	target.Index = 0
+	for i, option := range options {
+		if option == current {
+			target.Index = i
+			break
+		}
+	}
+}
+
+func (m *Model) handleListPickerInput(state *listPickerState, apply func(string), msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return *m, tea.Quit
+	case tea.KeyEsc:
+		state.Open = false
+		return *m, nil
+	case tea.KeyUp:
+		if len(state.Options) > 0 {
+			if state.Index > 0 {
+				state.Index--
+			} else {
+				state.Index = len(state.Options) - 1
+			}
+		}
+		return *m, nil
+	case tea.KeyDown:
+		if len(state.Options) > 0 {
+			state.Index = (state.Index + 1) % len(state.Options)
+		}
+		return *m, nil
+	case tea.KeyEnter:
+		if len(state.Options) > 0 {
+			apply(strings.TrimSpace(state.Options[state.Index]))
+		}
+		state.Open = false
+		return *m, nil
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		if len(state.Options) > 0 {
+			if state.Index > 0 {
+				state.Index--
+			} else {
+				state.Index = len(state.Options) - 1
+			}
+		}
+		return *m, nil
+	case "down", "j":
+		if len(state.Options) > 0 {
+			state.Index = (state.Index + 1) % len(state.Options)
+		}
+		return *m, nil
+	default:
+		return *m, nil
+	}
 }
 
 func (m *Model) panMain(delta int) {
