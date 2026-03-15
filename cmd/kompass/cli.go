@@ -15,7 +15,7 @@ func printHelp() {
 Options:
   -c, --context <name>     K8s context
   -n, --namespace <name>   K8s namespace
-	--service [addr]         Start web server (or TUI dashboard with --tui)
+  --service [addr]         Start web server (format: host:port, default localhost:8080)
   --tui                    Start interactive terminal UI
   --json                   JSON output
   --mock <name>            Mock provider (mock)
@@ -43,42 +43,33 @@ Examples:
   kompass deployment/kube-system/coredns       # Specific deployment
   kompass --mock                               # Mock mode: all pods
   kompass --mock '*/petshop/*'                 # Mock: all in namespace
-  kompass --service                            # Start web server on :8080
-  kompass --service :9090                      # Start web server on :9090
+  kompass --service                            # Start web server on localhost:8080
+  kompass --service 0.0.0.0:8080               # Start web server, published on all interfaces
 
 Note: All selectors automatically include inferred/connected resources.
 	Output ordering follows dependency-aware resource relationships.
 `)
 }
 
-func printGraphs(result *kube.Graphs, context, namespace, configPath string, selectors []string) {
-	output := JSONOutput{
-		APIVersion: jsonAPIVersion,
-		Request:    RequestMetadata{context, namespace, configPath, selectors},
-		Response:   result,
+func printGraphs(result *kube.Response, context, namespace, configPath string, selectors []string) {
+	if result == nil {
+		result = &kube.Response{}
+	}
+	result.APIVersion = "v1"
+	result.Request = kube.Request{
+		Context:    context,
+		Namespace:  namespace,
+		ConfigPath: configPath,
+		Selectors:  selectors,
 	}
 	encoder := json.NewEncoder(os.Stdout)
-	if err := encoder.Encode(output); err != nil {
+	if err := encoder.Encode(result); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func printTrees(result *kube.Trees, context, namespace, configPath string, selectors []string, plain bool, stats map[string]interface{}) {
-	statsStr := ""
-	if cs := getStats(stats); cs != nil {
-		statsStr = fmt.Sprintf(", Cache: %d calls | %d hits | %d misses | %.1f%% hit rate", cs.Calls, cs.Hits, cs.Misses, cs.HitRate)
-	}
-	fmt.Printf("🌍 Context: %s, Namespace: %s, Selectors: %v, Config: %s%s\n\n", context, namespace, selectors, configPath, statsStr)
-
-	for treeIdx := range result.Trees {
-		treeNode := result.Trees[treeIdx]
-		if treeNode == nil {
-			continue
-		}
-		fmt.Print(tree.RenderTree(treeNode, result.Nodes, plain))
-		if treeIdx < len(result.Trees)-1 && !plain {
-			fmt.Println()
-		}
-	}
+func printTrees(result *kube.Response, context, namespace, configPath string, selectors []string, plain bool) {
+	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context, namespace, selectors, configPath)
+	fmt.Print(tree.RenderText(result, header, plain))
 }

@@ -8,8 +8,114 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
+func serviceNameForEndpointSlice(endpointSlice kube.Resource) string {
+	meta, ok := endpointSlice.AsMap()["metadata"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	labels, ok := meta["labels"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	serviceName, _ := labels["kubernetes.io/service-name"].(string)
+	return serviceName
+}
+
+func podNameFromTargetRef(targetRef map[string]any) string {
+	kind, _ := targetRef["kind"].(string)
+	if kind != "Pod" {
+		return ""
+	}
+	name, _ := targetRef["name"].(string)
+	return name
+}
+
+func podNameByHostname(namespace, hostname string, nodeMap map[string]kube.Resource) string {
+	if hostname == "" {
+		return ""
+	}
+	podKey := BuildResourceKeyRef("pod", namespace, hostname)
+	if _, ok := nodeMap[podKey]; ok {
+		return hostname
+	}
+	return ""
+}
+
+func podNameByIP(namespace string, ips []string, nodeMap map[string]kube.Resource) string {
+	if len(ips) == 0 {
+		return ""
+	}
+	ipSet := make(map[string]bool, len(ips))
+	for _, ip := range ips {
+		if ip != "" {
+			ipSet[ip] = true
+		}
+	}
+	if len(ipSet) == 0 {
+		return ""
+	}
+	for _, res := range nodeMap {
+		if res.Type != "pod" {
+			continue
+		}
+		ref := ParseResourceKeyRef(res.Key)
+		if ref.Namespace != namespace {
+			continue
+		}
+		status, ok := res.AsMap()["status"].(map[string]any)
+		if !ok {
+			continue
+		}
+		podIP, _ := status["podIP"].(string)
+		if podIP != "" && ipSet[podIP] {
+			return ref.Name
+		}
+	}
+	return ""
+}
+
+func shouldRenderPodReference(namespace, podName string, nodeMap map[string]kube.Resource) bool {
+	if podName == "" {
+		return false
+	}
+
+	podKey := BuildResourceKeyRef("pod", namespace, podName)
+	pod, ok := nodeMap[podKey]
+	if !ok {
+		return true
+	}
+
+	return pod.Discovered
+}
+
+func addPodReference(node *kube.Tree, nodeKey, namespace, serviceName, podName, hostname string, nodeMap map[string]kube.Resource) {
+	if node == nil || podName == "" {
+		return
+	}
+	if !shouldRenderPodReference(namespace, podName, nodeMap) {
+		return
+	}
+	meta := map[string]any{
+		"podName": podName,
+	}
+	fqdnHostname := hostname
+	if fqdnHostname == "" {
+		fqdnHostname = podName
+	}
+	if serviceName != "" && namespace != "" && fqdnHostname != "" {
+		meta["name"] = fmt.Sprintf("%s.%s.%s.svc.cluster.local", fqdnHostname, serviceName, namespace)
+		meta["service"] = serviceName
+	} else {
+		meta["name"] = podName
+	}
+	podRefKey := fmt.Sprintf("%s/pod-ref/%s", nodeKey, podName)
+	node.Children = append(node.Children, NewTree(podRefKey, "pod-ref", meta))
+}
+
 func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	children := []*kube.Tree{}
+	namespace := ParseResourceKeyRef(endpointSliceKey).Namespace
+	serviceName := serviceNameForEndpointSlice(endpointSlice)
 
 	endpoints, ok := endpointSlice.AsMap()["endpoints"].([]any)
 	if !ok || len(endpoints) == 0 {
@@ -22,11 +128,13 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 
 			metadata := map[string]any{}
 
+			addressValues := make([]string, 0)
 			if addresses, ok := epMap["addresses"].([]any); ok && len(addresses) > 0 {
 				addrStrs := []string{}
 				for _, addr := range addresses {
 					if addrStr, ok := addr.(string); ok {
 						addrStrs = append(addrStrs, addrStr)
+						addressValues = append(addressValues, addrStr)
 					}
 				}
 				if len(addrStrs) > 0 {
@@ -54,6 +162,12 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 				metadata["nodeName"] = nodeName
 			}
 
+			hostname, _ := epMap["hostname"].(string)
+			if hostname != "" {
+				metadata["hostname"] = hostname
+			}
+
+			podName := ""
 			if targetRef, ok := epMap["targetRef"].(map[string]any); ok {
 				if kind, ok := targetRef["kind"].(string); ok {
 					metadata["targetKind"] = kind
@@ -61,9 +175,17 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 				if name, ok := targetRef["name"].(string); ok {
 					metadata["targetName"] = name
 				}
+				podName = podNameFromTargetRef(targetRef)
+			}
+			if podName == "" {
+				podName = podNameByHostname(namespace, hostname, nodeMap)
+			}
+			if podName == "" {
+				podName = podNameByIP(namespace, addressValues, nodeMap)
 			}
 
 			epNode := NewTree(epKey, "endpoint", metadata)
+			addPodReference(epNode, epKey, namespace, serviceName, podName, hostname, nodeMap)
 			children = append(children, epNode)
 		}
 	}
@@ -141,6 +263,9 @@ func buildServiceAccountChildren(serviceAccountKey string, serviceAccount kube.R
 
 func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	children := []*kube.Tree{}
+	ref := ParseResourceKeyRef(endpointsKey)
+	namespace := ref.Namespace
+	serviceName := ref.Name
 
 	subsets, ok := endpoints.AsMap()["subsets"].([]any)
 	if !ok || len(subsets) == 0 {
@@ -197,17 +322,22 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 						addrMetadata := map[string]any{
 							"ready": true,
 						}
+						addressValues := make([]string, 0, 1)
 
 						if ip, ok := addrMap["ip"].(string); ok && ip != "" {
 							addrMetadata["ip"] = ip
+							addressValues = append(addressValues, ip)
 						}
 						if nodeName, ok := addrMap["nodeName"].(string); ok && nodeName != "" {
 							addrMetadata["nodeName"] = nodeName
 						}
-						if hostname, ok := addrMap["hostname"].(string); ok && hostname != "" {
-							addrMetadata["hostname"] = hostname
+						hostname := ""
+						if host, ok := addrMap["hostname"].(string); ok && host != "" {
+							hostname = host
+							addrMetadata["hostname"] = host
 						}
 
+						podName := ""
 						if targetRef, ok := addrMap["targetRef"].(map[string]any); ok {
 							if kind, ok := targetRef["kind"].(string); ok {
 								addrMetadata["targetKind"] = kind
@@ -215,9 +345,17 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							if name, ok := targetRef["name"].(string); ok {
 								addrMetadata["targetName"] = name
 							}
+							podName = podNameFromTargetRef(targetRef)
+						}
+						if podName == "" {
+							podName = podNameByHostname(namespace, hostname, nodeMap)
+						}
+						if podName == "" {
+							podName = podNameByIP(namespace, addressValues, nodeMap)
 						}
 
 						addrNode := NewTree(addrKey, "address", addrMetadata)
+						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname, nodeMap)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}
@@ -231,17 +369,22 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 						addrMetadata := map[string]any{
 							"ready": false,
 						}
+						addressValues := make([]string, 0, 1)
 
 						if ip, ok := addrMap["ip"].(string); ok && ip != "" {
 							addrMetadata["ip"] = ip
+							addressValues = append(addressValues, ip)
 						}
 						if nodeName, ok := addrMap["nodeName"].(string); ok && nodeName != "" {
 							addrMetadata["nodeName"] = nodeName
 						}
-						if hostname, ok := addrMap["hostname"].(string); ok && hostname != "" {
+						hostname := ""
+						if host, ok := addrMap["hostname"].(string); ok && host != "" {
+							hostname = host
 							addrMetadata["hostname"] = hostname
 						}
 
+						podName := ""
 						if targetRef, ok := addrMap["targetRef"].(map[string]any); ok {
 							if kind, ok := targetRef["kind"].(string); ok {
 								addrMetadata["targetKind"] = kind
@@ -249,9 +392,17 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							if name, ok := targetRef["name"].(string); ok {
 								addrMetadata["targetName"] = name
 							}
+							podName = podNameFromTargetRef(targetRef)
 						}
 
 						addrNode := NewTree(addrKey, "address", addrMetadata)
+						if podName == "" {
+							podName = podNameByHostname(namespace, hostname, nodeMap)
+						}
+						if podName == "" {
+							podName = podNameByIP(namespace, addressValues, nodeMap)
+						}
+						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname, nodeMap)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
 				}

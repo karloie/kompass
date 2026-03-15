@@ -176,3 +176,187 @@ func TestBuildServiceAccountChildren_HidesInTreePodReferences(t *testing.T) {
 		t.Fatalf("expected out-of-tree pod child to be included")
 	}
 }
+
+func TestBuildEndpointsChildren_AddsPodRefWithFQDN(t *testing.T) {
+	endpointsKey := "endpoints/shop/api"
+	podKey := "pod/shop/api-0"
+
+	endpoints := kube.Resource{
+		Key:  endpointsKey,
+		Type: "endpoints",
+		Resource: map[string]any{
+			"subsets": []any{
+				map[string]any{
+					"addresses": []any{
+						map[string]any{
+							"ip":       "10.2.0.5",
+							"hostname": "api-0",
+							"targetRef": map[string]any{
+								"kind": "Pod",
+								"name": "api-0",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		endpointsKey: endpoints,
+		podKey: {
+			Key:        podKey,
+			Type:       "pod",
+			Discovered: true,
+			Resource:   map[string]any{"status": map[string]any{"podIP": "10.2.0.5"}},
+		},
+	}
+
+	children := buildEndpointsChildren(endpointsKey, endpoints, map[string][]string{}, newTreeBuildState(), nodeMap)
+	if len(children) != 1 {
+		t.Fatalf("expected one subset child, got %d", len(children))
+	}
+	if len(children[0].Children) != 1 {
+		t.Fatalf("expected one address child, got %d", len(children[0].Children))
+	}
+	addressNode := children[0].Children[0]
+	if len(addressNode.Children) != 1 {
+		t.Fatalf("expected one pod-ref child, got %d", len(addressNode.Children))
+	}
+	podRef := addressNode.Children[0]
+	if podRef.Type != "pod-ref" {
+		t.Fatalf("expected pod-ref child type, got %q", podRef.Type)
+	}
+	if got, _ := podRef.Meta["name"].(string); got != "api-0.api.shop.svc.cluster.local" {
+		t.Fatalf("expected fqdn name, got %q", got)
+	}
+}
+
+func TestBuildEndpointsChildren_HidesPodRefForInTreePod(t *testing.T) {
+	endpointsKey := "endpoints/shop/api"
+	podKey := "pod/shop/api-0"
+
+	endpoints := kube.Resource{
+		Key:  endpointsKey,
+		Type: "endpoints",
+		Resource: map[string]any{
+			"subsets": []any{
+				map[string]any{
+					"addresses": []any{
+						map[string]any{
+							"ip": "10.2.0.5",
+							"targetRef": map[string]any{
+								"kind": "Pod",
+								"name": "api-0",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		endpointsKey: endpoints,
+		podKey: {
+			Key:      podKey,
+			Type:     "pod",
+			Resource: map[string]any{"status": map[string]any{"podIP": "10.2.0.5"}},
+		},
+	}
+
+	children := buildEndpointsChildren(endpointsKey, endpoints, map[string][]string{}, newTreeBuildState(), nodeMap)
+	if len(children) != 1 {
+		t.Fatalf("expected one subset child, got %d", len(children))
+	}
+	if len(children[0].Children) != 1 {
+		t.Fatalf("expected one address child, got %d", len(children[0].Children))
+	}
+	if len(children[0].Children[0].Children) != 0 {
+		t.Fatalf("expected no pod-ref child for in-tree pod, got %d", len(children[0].Children[0].Children))
+	}
+}
+
+func TestBuildEndpointSliceChildren_GuessesPodRefByHostname(t *testing.T) {
+	endpointSliceKey := "endpointslice/shop/api-slice"
+	podKey := "pod/shop/api-1"
+
+	endpointSlice := kube.Resource{
+		Key:  endpointSliceKey,
+		Type: "endpointslice",
+		Resource: map[string]any{
+			"metadata": map[string]any{
+				"namespace": "shop",
+				"labels": map[string]any{
+					"kubernetes.io/service-name": "api",
+				},
+			},
+			"endpoints": []any{
+				map[string]any{
+					"hostname":  "api-1",
+					"addresses": []any{"10.2.0.6"},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		endpointSliceKey: endpointSlice,
+		podKey:           {Key: podKey, Type: "pod", Discovered: true, Resource: map[string]any{}},
+	}
+
+	children := buildEndpointSliceChildren(endpointSliceKey, endpointSlice, map[string][]string{}, newTreeBuildState(), nodeMap)
+	if len(children) != 1 {
+		t.Fatalf("expected one endpoint child, got %d", len(children))
+	}
+	if len(children[0].Children) != 1 {
+		t.Fatalf("expected one pod-ref child, got %d", len(children[0].Children))
+	}
+	podRef := children[0].Children[0]
+	if podRef.Type != "pod-ref" {
+		t.Fatalf("expected pod-ref child type, got %q", podRef.Type)
+	}
+	if got, _ := podRef.Meta["name"].(string); got != "api-1.api.shop.svc.cluster.local" {
+		t.Fatalf("expected fqdn name, got %q", got)
+	}
+}
+
+func TestBuildEndpointSliceChildren_HidesPodRefForInTreePod(t *testing.T) {
+	endpointSliceKey := "endpointslice/shop/api-slice"
+	podKey := "pod/shop/api-1"
+
+	endpointSlice := kube.Resource{
+		Key:  endpointSliceKey,
+		Type: "endpointslice",
+		Resource: map[string]any{
+			"metadata": map[string]any{
+				"namespace": "shop",
+				"labels": map[string]any{
+					"kubernetes.io/service-name": "api",
+				},
+			},
+			"endpoints": []any{
+				map[string]any{
+					"addresses": []any{"10.2.0.6"},
+					"targetRef": map[string]any{
+						"kind": "Pod",
+						"name": "api-1",
+					},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		endpointSliceKey: endpointSlice,
+		podKey:           {Key: podKey, Type: "pod", Resource: map[string]any{}},
+	}
+
+	children := buildEndpointSliceChildren(endpointSliceKey, endpointSlice, map[string][]string{}, newTreeBuildState(), nodeMap)
+	if len(children) != 1 {
+		t.Fatalf("expected one endpoint child, got %d", len(children))
+	}
+	if len(children[0].Children) != 0 {
+		t.Fatalf("expected no pod-ref child for in-tree pod, got %d", len(children[0].Children))
+	}
+}

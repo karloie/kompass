@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -11,10 +12,10 @@ import (
 )
 
 type snapshotEnvelope struct {
-	Response kube.Graphs `json:"response"`
+	Response kube.Response `json:"response"`
 }
 
-func loadMockSnapshotGraphs(t *testing.T) *kube.Graphs {
+func loadMockSnapshotGraphs(t *testing.T) *kube.Response {
 	t.Helper()
 
 	path := filepath.Join("..", "..", "testdata", "fixtures", "mock.json")
@@ -23,26 +24,29 @@ func loadMockSnapshotGraphs(t *testing.T) *kube.Graphs {
 		t.Fatalf("read mock snapshot fixture: %v", err)
 	}
 
-	var env snapshotEnvelope
-	if err := json.Unmarshal(data, &env); err != nil {
-		t.Fatalf("unmarshal mock snapshot fixture: %v", err)
-	}
-	if len(env.Response.Graphs) == 0 || len(env.Response.Nodes) == 0 {
-		t.Fatalf("fixture response is empty")
+	var direct kube.Response
+	if err := json.Unmarshal(data, &direct); err == nil && (len(direct.Components) > 0 || len(direct.Nodes) > 0) {
+		return &direct
 	}
 
-	return &env.Response
+	var env snapshotEnvelope
+	if err := json.Unmarshal(data, &env); err == nil {
+		if len(env.Response.Components) > 0 || len(env.Response.Nodes) > 0 {
+			return &env.Response
+		}
+	}
+
+	t.Fatalf("fixture response is empty or not in current DTO shape")
+	return nil
 }
 
-func renderAllTrees(t *testing.T, trees *kube.Trees, plain bool) string {
+func renderAllTrees(t *testing.T, trees *kube.Response, plain bool) string {
 	t.Helper()
 
 	var rendered []string
-	for _, tr := range trees.Trees {
-		if tr == nil {
-			continue
-		}
-		rendered = append(rendered, RenderTree(tr, trees.Nodes, plain))
+	nodeMap := trees.NodeMap()
+	for i := range trees.Trees {
+		rendered = append(rendered, RenderTree(&trees.Trees[i], nodeMap, plain))
 	}
 	return strings.Join(rendered, "\n")
 }
@@ -61,7 +65,6 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 		"deployment petshop-kafka",
 		"petshop-kafka-6b7c8d9e0f-v58bh",
 		"CrashLoopBackOff",
-		"EXPIRED 5D AGO",
 		"gateway internal-gateway",
 		"poddisruptionbudget petshop-tennant-pdb",
 		"petshop-lowe",
@@ -78,6 +81,9 @@ func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) 
 	}
 	if !strings.Contains(plain, "HEALTHY") {
 		t.Fatalf("expected pdb healthy status in plain render")
+	}
+	if !regexp.MustCompile(`EXPIRED\s+\d+D\s+AGO`).MatchString(plain) {
+		t.Fatalf("expected expired certificate status in plain render")
 	}
 
 	if !strings.Contains(colored, "\x1b[") {

@@ -10,46 +10,36 @@ func TestFilterOwnedJobRoots_RemovesJobWhenCronJobRootExists(t *testing.T) {
 	cronJobID := "cronjob/applikasjonsplattform/appwatch"
 	jobID := "job/applikasjonsplattform/appwatch-29552340"
 
-	resp := &kube.Graphs{
-		Nodes: map[string]*kube.Resource{
-			cronJobID: newRootNode(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil),
-			jobID:     newRootNode(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{{"kind": "CronJob", "name": "appwatch"}}),
-		},
-		Graphs: []kube.Graph{
-			{ID: cronJobID},
-			{ID: jobID},
-		},
+	resp := &kube.Response{
+		Nodes:      []kube.Resource{*newRootNode(cronJobID, "cronjob", "appwatch", "applikasjonsplattform", nil), *newRootNode(jobID, "job", "appwatch-29552340", "applikasjonsplattform", []map[string]any{{"kind": "CronJob", "name": "appwatch"}})},
+		Components: []kube.Component{{ID: cronJobID, Root: cronJobID}, {ID: jobID, Root: jobID}},
 	}
 
 	FilterOwnedJobRoots(resp)
 
-	if len(resp.Graphs) != 1 {
-		t.Fatalf("expected 1 graph after filtering, got %d", len(resp.Graphs))
+	if len(resp.Components) != 1 {
+		t.Fatalf("expected 1 component after filtering, got %d", len(resp.Components))
 	}
-	if resp.Graphs[0].ID != cronJobID {
-		t.Fatalf("expected remaining root %q, got %q", cronJobID, resp.Graphs[0].ID)
+	if resp.Components[0].Root != cronJobID {
+		t.Fatalf("expected remaining root %q, got %q", cronJobID, resp.Components[0].Root)
 	}
 }
 
 func TestFilterOwnedJobRoots_KeepsDetachedJobRoot(t *testing.T) {
 	jobID := "job/applikasjonsplattform/manual-job"
 
-	resp := &kube.Graphs{
-		Nodes: map[string]*kube.Resource{
-			jobID: newRootNode(jobID, "job", "manual-job", "applikasjonsplattform", nil),
-		},
-		Graphs: []kube.Graph{
-			{ID: jobID},
-		},
+	resp := &kube.Response{
+		Nodes:      []kube.Resource{*newRootNode(jobID, "job", "manual-job", "applikasjonsplattform", nil)},
+		Components: []kube.Component{{ID: jobID, Root: jobID}},
 	}
 
 	FilterOwnedJobRoots(resp)
 
-	if len(resp.Graphs) != 1 {
-		t.Fatalf("expected detached job root to remain, got %d graphs", len(resp.Graphs))
+	if len(resp.Components) != 1 {
+		t.Fatalf("expected detached job root to remain, got %d components", len(resp.Components))
 	}
-	if resp.Graphs[0].ID != jobID {
-		t.Fatalf("expected remaining root %q, got %q", jobID, resp.Graphs[0].ID)
+	if resp.Components[0].Root != jobID {
+		t.Fatalf("expected remaining root %q, got %q", jobID, resp.Components[0].Root)
 	}
 }
 
@@ -57,44 +47,36 @@ func TestFilterOwnedSecretRoots_RemovesSecretWhenOwnerRootExists(t *testing.T) {
 	replicaSetID := "replicaset/applikasjonsplattform/fiskeoye-ccfc7549"
 	secretID := "secret/applikasjonsplattform/fiskeoye-secrets"
 
-	resp := &kube.Graphs{
-		Nodes: map[string]*kube.Resource{
-			replicaSetID: newRootNode(replicaSetID, "replicaset", "fiskeoye-ccfc7549", "applikasjonsplattform", nil),
-			secretID:     newRootNode(secretID, "secret", "fiskeoye-secrets", "applikasjonsplattform", []map[string]any{{"kind": "ReplicaSet", "name": "fiskeoye-ccfc7549"}}),
-		},
-		Graphs: []kube.Graph{
-			{ID: replicaSetID},
-			{ID: secretID},
-		},
+	resp := &kube.Response{
+		Nodes:      []kube.Resource{*newRootNode(replicaSetID, "replicaset", "fiskeoye-ccfc7549", "applikasjonsplattform", nil), *newRootNode(secretID, "secret", "fiskeoye-secrets", "applikasjonsplattform", []map[string]any{{"kind": "ReplicaSet", "name": "fiskeoye-ccfc7549"}})},
+		Components: []kube.Component{{ID: replicaSetID, Root: replicaSetID}, {ID: secretID, Root: secretID}},
 	}
 
 	FilterOwnedSecretRoots(resp)
 
-	if len(resp.Graphs) != 1 {
-		t.Fatalf("expected 1 graph after filtering, got %d", len(resp.Graphs))
+	if len(resp.Components) != 1 {
+		t.Fatalf("expected 1 component after filtering, got %d", len(resp.Components))
 	}
-	if resp.Graphs[0].ID != replicaSetID {
-		t.Fatalf("expected remaining root %q, got %q", replicaSetID, resp.Graphs[0].ID)
+	if resp.Components[0].Root != replicaSetID {
+		t.Fatalf("expected remaining root %q, got %q", replicaSetID, resp.Components[0].Root)
 	}
 }
 
 func TestFilterOwnedSecretRoots_KeepsDetachedSecretRoot(t *testing.T) {
 	secretID := "secret/applikasjonsplattform/ad-explore-db-secret"
 
-	resp := &kube.Graphs{
-		Nodes: map[string]*kube.Resource{
-			secretID: newRootNode(secretID, "secret", "ad-explore-db-secret", "applikasjonsplattform", nil),
-		},
-		Graphs: []kube.Graph{{ID: secretID}},
+	resp := &kube.Response{
+		Nodes:      []kube.Resource{*newRootNode(secretID, "secret", "ad-explore-db-secret", "applikasjonsplattform", nil)},
+		Components: []kube.Component{{ID: secretID, Root: secretID}},
 	}
 
 	FilterOwnedSecretRoots(resp)
 
-	if len(resp.Graphs) != 1 {
-		t.Fatalf("expected detached secret root to remain, got %d graphs", len(resp.Graphs))
+	if len(resp.Components) != 1 {
+		t.Fatalf("expected detached secret root to remain, got %d components", len(resp.Components))
 	}
-	if resp.Graphs[0].ID != secretID {
-		t.Fatalf("expected remaining root %q, got %q", secretID, resp.Graphs[0].ID)
+	if resp.Components[0].Root != secretID {
+		t.Fatalf("expected remaining root %q, got %q", secretID, resp.Components[0].Root)
 	}
 }
 

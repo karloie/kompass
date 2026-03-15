@@ -81,22 +81,18 @@ func TestFindWorkloadRootFallbackCases(t *testing.T) {
 	}
 }
 
-func TestBuildGraphSortsNodesAndEdges(t *testing.T) {
+func TestBuildComponentSortsNodeKeys(t *testing.T) {
 	visited := map[string]bool{
 		"service/petshop/api": true,
 		"pod/petshop/api-0":   true,
 	}
-	edges := []kube.ResourceEdge{
-		{Source: "service/petshop/api", Target: "pod/petshop/api-0", Label: "routes-to"},
-		{Source: "pod/petshop/api-0", Target: "service/petshop/api", Label: "served-by"},
-	}
 
-	graph := buildGraph("pod/petshop/api-0", visited, nil, nil, edges)
-	if len(graph.Edges) != 2 {
-		t.Fatalf("expected two edges, got %#v", graph.Edges)
+	component := buildComponent("pod/petshop/api-0", visited)
+	if len(component.NodeKeys) != 2 {
+		t.Fatalf("expected two node keys, got %#v", component.NodeKeys)
 	}
-	if graph.Edges[0].Source != "pod/petshop/api-0" {
-		t.Fatalf("expected edges sorted by source, got %#v", graph.Edges)
+	if component.NodeKeys[0] != "pod/petshop/api-0" {
+		t.Fatalf("expected node keys sorted, got %#v", component.NodeKeys)
 	}
 }
 
@@ -137,17 +133,17 @@ func TestBuildGraphsWorkloadAndInferredOrdering(t *testing.T) {
 	}
 
 	resp := buildGraphs([]string{"pod/petshop/api-0", "service/petshop/api"}, edges, nodeMap)
-	if len(resp.Graphs) != 2 {
-		t.Fatalf("expected workload and inferred graph, got %#v", resp.Graphs)
+	if len(resp.Components) != 2 {
+		t.Fatalf("expected workload and inferred component, got %#v", resp.Components)
 	}
-	if resp.Graphs[0].ID != "pod/petshop/api-0" || resp.Graphs[1].ID != "gateway/petshop/gw" {
-		t.Fatalf("unexpected graph order: %#v", []string{resp.Graphs[0].ID, resp.Graphs[1].ID})
+	if resp.Components[0].Root != "pod/petshop/api-0" || resp.Components[1].Root != "gateway/petshop/gw" {
+		t.Fatalf("unexpected component order: %#v", []string{resp.Components[0].Root, resp.Components[1].Root})
 	}
 
-	if resp.Nodes["pod/petshop/api-0"].Discovered {
+	if resp.Node("pod/petshop/api-0").Discovered {
 		t.Fatalf("matched pod should not be marked discovered")
 	}
-	if !resp.Nodes["gateway/petshop/gw"].Discovered || !resp.Nodes["certificate/petshop/gw-cert"].Discovered {
+	if !resp.Node("gateway/petshop/gw").Discovered || !resp.Node("certificate/petshop/gw-cert").Discovered {
 		t.Fatalf("inferred nodes should be marked discovered")
 	}
 }
@@ -221,7 +217,7 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 	}
 
 	provider := kube.NewMockClient(mock.GenerateMock())
-	resp, err := InferGraphs(provider, kube.Request{KeySelector: "pod/petshop/*"})
+	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"pod/petshop/*"}})
 	if err != nil {
 		t.Fatalf("InferGraphs error: %v", err)
 	}
@@ -244,20 +240,20 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 		t.Fatalf("expected issuer loader to include extra-ns, loaded=%#v", loadedIssuerNS)
 	}
 
-	if _, ok := resp.Nodes["certificate/extra-ns/web-cert"]; !ok {
+	if resp.Node("certificate/extra-ns/web-cert") == nil {
 		t.Fatalf("expected inferred certificate node in response")
 	}
-	if _, ok := resp.Nodes["issuer/extra-ns/shared-issuer"]; !ok {
+	if resp.Node("issuer/extra-ns/shared-issuer") == nil {
 		t.Fatalf("expected inferred issuer node in response")
 	}
 	foundPodGraph := false
-	for _, g := range resp.Graphs {
-		if g.ID == "pod/petshop/api-0" {
+	for _, component := range resp.Components {
+		if component.Root == "pod/petshop/api-0" {
 			foundPodGraph = true
 			break
 		}
 	}
 	if !foundPodGraph {
-		t.Fatalf("expected workload graph rooted at selected pod, got %#v", resp.Graphs)
+		t.Fatalf("expected workload component rooted at selected pod, got %#v", resp.Components)
 	}
 }

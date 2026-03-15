@@ -20,49 +20,23 @@ func TestPrintHelpIncludesDebugFlag(t *testing.T) {
 }
 
 func TestPrintGraphsOutputsValidJSON(t *testing.T) {
-	result := &kube.Graphs{}
+	result := &kube.Response{}
 	out := captureStdout(t, func() {
 		printGraphs(result, "ctx-a", "ns-a", "mock", []string{"*/ns-a/*"})
 	})
 
-	var parsed JSONOutput
+	var parsed kube.Response
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("expected valid JSON output, got err: %v\noutput:\n%s", err, out)
 	}
-	if parsed.APIVersion != jsonAPIVersion {
-		t.Fatalf("expected apiVersion %q, got %q", jsonAPIVersion, parsed.APIVersion)
+	if parsed.APIVersion != "v1" {
+		t.Fatalf("expected apiVersion %q, got %q", "v1", parsed.APIVersion)
 	}
-	if parsed.Request.Context != "ctx-a" || parsed.Request.Namespace != "ns-a" || parsed.Request.ConfigPath != "mock" {
+	if len(parsed.Request.Selectors) != 1 || parsed.Request.Selectors[0] != "*/ns-a/*" {
 		t.Fatalf("unexpected request metadata in output: %+v", parsed.Request)
 	}
-}
-
-func TestGetCacheStatsDisabledOrEmpty(t *testing.T) {
-	if cs := getStats(nil); cs != nil {
-		t.Fatalf("expected nil cache stats for nil input")
-	}
-	if cs := getStats(map[string]interface{}{"enabled": false}); cs != nil {
-		t.Fatalf("expected nil cache stats when disabled")
-	}
-	if cs := getStats(map[string]interface{}{"enabled": true, "calls": int64(0)}); cs != nil {
-		t.Fatalf("expected nil cache stats when calls is zero")
-	}
-}
-
-func TestGetCacheStatsValid(t *testing.T) {
-	stats := map[string]interface{}{
-		"enabled": true,
-		"calls":   int64(10),
-		"hits":    int64(7),
-		"misses":  int64(3),
-		"hitRate": 70.0,
-	}
-	cs := getStats(stats)
-	if cs == nil {
-		t.Fatal("expected non-nil cache stats")
-	}
-	if cs.Calls != 10 || cs.Hits != 7 || cs.Misses != 3 || cs.HitRate != 70.0 {
-		t.Fatalf("unexpected cache stats: %+v", cs)
+	if parsed.Request.Context != "ctx-a" || parsed.Request.Namespace != "ns-a" || parsed.Request.ConfigPath != "mock" {
+		t.Fatalf("unexpected normalized request metadata in output: %+v", parsed.Request)
 	}
 }
 

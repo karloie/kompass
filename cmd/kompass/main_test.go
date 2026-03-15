@@ -27,8 +27,8 @@ func TestServiceFlagDefaultsWithBareFlag(t *testing.T) {
 	if !svc.set {
 		t.Fatalf("expected service flag to be set")
 	}
-	if svc.addr != ":8080" {
-		t.Fatalf("expected default addr :8080, got %q", svc.addr)
+	if svc.addr != "localhost:8080" {
+		t.Fatalf("expected default addr localhost:8080, got %q", svc.addr)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestMainServiceStartsServer(t *testing.T) {
 	res, cmd, cancel := runHelperBackground(t, "--mock", "--debug", "--service", fmt.Sprintf(":%d", port))
 	defer cancel()
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/healthz", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/healthz", port)
 	var (
 		httpRes *http.Response
 		err     error

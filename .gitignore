@@ -35,5 +35,7 @@ go.work.sum
 /kompass
 *.tgz
 *.log
+node_modules/
 dist/
+cmd/kompass/dist/
 testdata/fixtures/real.*

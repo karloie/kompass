@@ -34,28 +34,28 @@ func TestHandleHealthReadyWithMockClient(t *testing.T) {
 	}
 }
 
-func TestHandleStatsNoClient(t *testing.T) {
+func TestHandleMetadataNoClient(t *testing.T) {
 	s := &server{}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metadata", nil)
 
-	s.handleStats(rr, req)
+	s.handleMetadata(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status 503, got %d", rr.Code)
 	}
 }
 
-func TestHandleStatsWithClient(t *testing.T) {
+func TestHandleMetadataWithClient(t *testing.T) {
 	s := &server{client: kube.NewMockClient(mock.GenerateMock())}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/metadata", nil)
 
-	s.handleStats(rr, req)
+	s.handleMetadata(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "enabled") {
-		t.Fatalf("expected stats JSON body, got %q", rr.Body.String())
+	if !strings.Contains(rr.Body.String(), "cacheEnabled") {
+		t.Fatalf("expected metadata JSON body, got %q", rr.Body.String())
 	}
 }
 
@@ -77,7 +77,7 @@ func TestGetProviderFromClientFactoryError(t *testing.T) {
 	}
 }
 
-func TestGetProviderUsesExistingClientWithoutMutatingNamespace(t *testing.T) {
+func TestGetProviderUsesExistingClientAndUpdatesNamespace(t *testing.T) {
 	c := kube.NewMockClient(mock.GenerateMock())
 	c.SetNamespace("default")
 	s := &server{client: c}
@@ -90,8 +90,8 @@ func TestGetProviderUsesExistingClientWithoutMutatingNamespace(t *testing.T) {
 		t.Fatalf("expected provider")
 	}
 	ns, _ := c.GetNamespace()
-	if ns != "default" {
-		t.Fatalf("expected namespace to remain default, got %q", ns)
+	if ns != "petshop" {
+		t.Fatalf("expected namespace to update to petshop, got %q", ns)
 	}
 }
 
@@ -108,18 +108,21 @@ func TestHandleGraphSuccess(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
-	var out JSONOutputGraph
+	var out kube.Response
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("expected JSON output, got err: %v body=%q", err, rr.Body.String())
 	}
-	if out.Response == nil {
-		t.Fatalf("expected non-nil response")
+	if len(out.Components) == 0 {
+		t.Fatalf("expected non-empty graph response")
 	}
-	if out.APIVersion != jsonAPIVersion {
-		t.Fatalf("expected apiVersion %q, got %q", jsonAPIVersion, out.APIVersion)
+	if out.APIVersion != "v1" {
+		t.Fatalf("expected apiVersion %q, got %q", "v1", out.APIVersion)
 	}
-	if out.Request.ConfigPath != "" {
-		t.Fatalf("expected configPath to be omitted from server /graph response, got %q", out.Request.ConfigPath)
+	if len(out.Request.Selectors) != 1 || out.Request.Selectors[0] != "*/petshop/*" {
+		t.Fatalf("expected request selectors to round-trip, got %+v", out.Request)
+	}
+	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+		t.Fatalf("expected normalized request metadata, got %+v", out.Request)
 	}
 }
 
@@ -152,17 +155,31 @@ func TestHandleTreeSuccess(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
 		t.Fatalf("expected application/json content-type, got %q", ct)
 	}
-	var out JSONOutputTree
+	var out kube.Response
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("expected JSON output from /tree, got err: %v body=%q", err, rr.Body.String())
 	}
-	if out.Response == nil || len(out.Response.Trees) == 0 {
+	if len(out.Trees) == 0 {
 		t.Fatalf("expected non-empty tree response")
 	}
-	for _, g := range out.Response.Trees {
-		if g == nil {
-			t.Fatalf("expected tree in /tree response graph")
-		}
+	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+		t.Fatalf("expected normalized request metadata in tree response, got %+v", out.Request)
+	}
+	for i := range out.Trees {
+		assertTreeIcons(t, &out.Trees[i])
+	}
+}
+
+func assertTreeIcons(t *testing.T, node *kube.Tree) {
+	t.Helper()
+	if node == nil {
+		return
+	}
+	if node.Icon == "" {
+		t.Fatalf("expected icon for node %q (%s)", node.Key, node.Type)
+	}
+	for _, child := range node.Children {
+		assertTreeIcons(t, child)
 	}
 }
 
@@ -173,9 +190,10 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
@@ -197,14 +215,58 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree/text?selector=*/petshop/*&plain=false", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=false", nil)
+	req.Header.Set("Accept", "text/plain")
 
-	s.handleTreeText(rr, req)
+	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
 	if !strings.Contains(rr.Body.String(), "🫛") {
 		t.Fatalf("expected rich /tree/text output to keep emojis, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop", nil)
+	req.Header.Set("Accept", "text/html")
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "id=\"namespace-select\"") {
+		t.Fatalf("expected default HTML tree to include namespace selector")
+	}
+}
+
+func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop&static=1", nil)
+	req.Header.Set("Accept", "text/html")
+
+	s.handleTree(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if strings.Contains(body, "id=\"namespace-select\"") {
+		t.Fatalf("expected static HTML tree to hide namespace selector")
+	}
+	if !strings.Contains(body, "id=\"tree-filter\"") {
+		t.Fatalf("expected static HTML tree to keep filter input")
 	}
 }
 
