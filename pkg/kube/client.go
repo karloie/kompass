@@ -3,6 +3,10 @@ package kube
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -23,6 +27,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func (c *Client) SetClientset(clientset kubernetes.Interface, dynamicClient dynamic.Interface, config *rest.Config) {
@@ -60,7 +65,48 @@ func (c *Client) GetContext() (string, error) { return c.context, nil }
 func (c *Client) GetConfigPath() (string, error) {
 	return map[bool]string{true: "mock", false: c.kubeconfig}[c.mockMode], nil
 }
-func (c *Client) GetContexts() (any, error)     { return nil, nil }
+func (c *Client) GetContexts() (any, error) {
+	values := make(map[string]struct{})
+
+	if ctx := strings.TrimSpace(c.context); ctx != "" {
+		values[ctx] = struct{}{}
+	}
+
+	kubeconfig := strings.TrimSpace(os.Getenv("KUBECONFIG"))
+	if kubeconfig == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			kubeconfig = filepath.Join(home, ".kube", "config")
+		}
+	}
+
+	if kubeconfig != "" {
+		loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig}
+		if raw, err := loadingRules.Load(); err == nil && raw != nil {
+			for name := range raw.Contexts {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					values[name] = struct{}{}
+				}
+			}
+		}
+	}
+
+	if c.mockMode {
+		values["mock-cluster"] = struct{}{}
+	}
+
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	contexts := make([]string, 0, len(values))
+	for item := range values {
+		contexts = append(contexts, item)
+	}
+	sort.Strings(contexts)
+
+	return contexts, nil
+}
 func (c *Client) SetContext(context string)     { c.context = context }
 func (c *Client) GetNamespace() (string, error) { return c.namespace, nil }
 func (c *Client) SetNamespace(namespace string) { c.namespace = namespace }

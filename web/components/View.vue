@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { availableViewsForNode, nodeRequestParams, viewLabel } from '../resourceViews'
+import MenuHeader from './MenuHeader.vue'
 
 import { highlightContent } from '../highlighter'
 
@@ -25,9 +26,37 @@ const props = defineProps({
     type: String,
     default: 'mock-cluster',
   },
+  contexts: {
+    type: Array,
+    default: () => [],
+  },
+  namespaces: {
+    type: Array,
+    default: () => [],
+  },
+  namespace: {
+    type: String,
+    default: '',
+  },
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+  refreshDisabled: {
+    type: Boolean,
+    default: false,
+  },
+  themeIcon: {
+    type: String,
+    default: '🌙',
+  },
+  themeLabel: {
+    type: String,
+    default: 'Toggle theme',
+  },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'refresh', 'update:namespace', 'update:context', 'toggle-theme'])
 
 const activeView = ref('')
 const loading = ref(false)
@@ -250,9 +279,24 @@ function shellQuote(value) {
 <template>
   <section class="view" @click.self="closeView">
     <article class="view__panel">
+      <MenuHeader
+        class="view__menu-header"
+        :context-name="contextName"
+        :contexts="contexts"
+        :namespace="namespace"
+        :namespaces="namespaces"
+        :loading="loading"
+        :refresh-disabled="refreshDisabled"
+        :theme-icon="themeIcon"
+        :theme-label="themeLabel"
+        @refresh="emit('refresh')"
+        @toggle-theme="emit('toggle-theme')"
+        @update:namespace="emit('update:namespace', $event)"
+        @update:context="emit('update:context', $event)"
+      />
+
       <header class="view__header">
         <div>
-          <p class="view__eyebrow">{{ chromeTitle }}</p>
           <h2 class="view__title">{{ title }}</h2>
         </div>
 
@@ -315,7 +359,7 @@ function shellQuote(value) {
   min-height: min(18rem, calc(100dvh - 2.4rem));
   max-height: calc(100dvh - 2.4rem);
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   gap: 0.9rem;
   padding: 1.1rem;
   margin: 0 auto;
@@ -330,6 +374,28 @@ function shellQuote(value) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.view__menu-header {
+  grid-row: 1;
+}
+
+.view__header {
+  grid-row: 2;
+}
+
+.view__command-row {
+  grid-row: 3;
+}
+
+.view__tabs {
+  grid-row: 4;
+}
+
+.view__hint,
+.view__error,
+.view__content {
+  grid-row: 5;
 }
 
 .view__eyebrow {

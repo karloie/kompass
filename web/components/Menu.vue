@@ -1,8 +1,14 @@
 <script setup>
+import MenuHeader from './MenuHeader.vue'
+
 const props = defineProps({
-  title: {
+  contextName: {
     type: String,
-    default: 'Context',
+    default: 'mock-cluster',
+  },
+  contexts: {
+    type: Array,
+    default: () => [],
   },
   themeIcon: {
     type: String,
@@ -36,16 +42,24 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  filtering: {
+    type: Boolean,
+    default: false,
+  },
   disabled: {
     type: Boolean,
     default: false,
   },
 })
 
-const emit = defineEmits(['refresh', 'update:namespace', 'update:query'])
+const emit = defineEmits(['refresh', 'update:namespace', 'update:context', 'update:query'])
 
-function onNamespaceChange(event) {
-  emit('update:namespace', event.target.value)
+function onNamespaceChange(value) {
+  emit('update:namespace', String(value || ''))
+}
+
+function onContextChange(value) {
+  emit('update:context', String(value || ''))
 }
 
 function onQueryInput(event) {
@@ -65,36 +79,28 @@ function toggleTheme() {
 
 <template>
   <section class="menu">
-    <div class="menu__top">
-      <h2 class="menu__title">{{ title }}</h2>
-
-      <div class="menu__actions">
-        <button class="menu__refresh" type="button" :disabled="loading || disabled || refreshDisabled" @click="emit('refresh')">
-          {{ loading ? 'Loading...' : 'Refresh' }}
-        </button>
-        <button
-          class="menu__theme"
-          type="button"
-          :aria-label="themeLabel"
-          :title="themeLabel"
-          :disabled="disabled"
-          @click="toggleTheme"
-        >
-          {{ themeIcon }}
-        </button>
-      </div>
-    </div>
+    <MenuHeader
+      :context-name="contextName"
+      :contexts="contexts"
+      :namespace="namespace"
+      :namespaces="namespaces"
+      :loading="loading"
+      :refresh-disabled="refreshDisabled"
+      :theme-icon="themeIcon"
+      :theme-label="themeLabel"
+      :disabled="disabled"
+      @refresh="emit('refresh')"
+      @toggle-theme="toggleTheme"
+      @update:namespace="onNamespaceChange"
+      @update:context="onContextChange"
+    />
 
     <div class="menu__filters">
-      <label class="menu__field">
-        <span class="menu__label">Namespace</span>
-        <select class="menu__select" :value="namespace" :disabled="disabled" @change="onNamespaceChange">
-          <option v-for="item in namespaces" :key="item" :value="item">{{ item }}</option>
-        </select>
-      </label>
-
       <label class="menu__field menu__field--grow">
-        <span class="menu__label">Filter</span>
+        <span class="menu__label-wrap">
+          <span class="menu__label">Filter</span>
+          <span v-if="filtering" class="menu__filtering">Filtering...</span>
+        </span>
         <input
           class="menu__input"
           type="text"
@@ -119,24 +125,6 @@ function toggleTheme() {
   gap: 0.65rem;
 }
 
-.menu__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.menu__title {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.menu__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .menu__filters {
   display: flex;
   align-items: flex-end;
@@ -151,12 +139,24 @@ function toggleTheme() {
 
 .menu__field--grow {
   flex: 1;
-  min-width: 220px;
+  min-width: 320px;
 }
 
 .menu__label {
   font-size: 0.75rem;
   color: var(--text-muted);
+  font-weight: 600;
+}
+
+.menu__label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.menu__filtering {
+  font-size: 0.72rem;
+  color: var(--accent-color);
   font-weight: 600;
 }
 
@@ -170,8 +170,6 @@ function toggleTheme() {
   color: var(--text-main);
 }
 
-.menu__refresh,
-.menu__theme,
 .menu__clear {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
@@ -181,15 +179,6 @@ function toggleTheme() {
   cursor: pointer;
 }
 
-.menu__theme {
-  min-width: 2.2rem;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0.35rem;
-}
-
-.menu__refresh:disabled,
-.menu__theme:disabled,
 .menu__clear:disabled,
 .menu__select:disabled,
 .menu__input:disabled {

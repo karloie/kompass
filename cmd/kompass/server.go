@@ -148,8 +148,23 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
 	}
+	contextsAny, _ := s.client.GetContexts()
+	contexts := make([]string, 0)
+	if items, ok := contextsAny.([]string); ok {
+		contexts = append(contexts, items...)
+	}
+	meta := s.client.GetResponseMeta()
+	response := struct {
+		*kube.Metadata
+		Contexts       []string `json:"contexts,omitempty"`
+		CurrentContext string   `json:"currentContext,omitempty"`
+	}{
+		Metadata:       meta,
+		Contexts:       contexts,
+		CurrentContext: s.contextArg,
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.client.GetResponseMeta())
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {

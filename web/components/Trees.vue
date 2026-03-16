@@ -52,6 +52,8 @@ const appViewsEnabled = computed(() => {
   const mode = String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase()
   return mode !== 'static'
 })
+const matcher = computed(() => buildMatcher(props.query.trim()))
+const searchIndex = ref(new Map())
 
 const namespaces = computed(() => {
   const values = new Set()
@@ -77,18 +79,18 @@ const namespaces = computed(() => {
 })
 
 const filteredRoots = computed(() => {
-  const matcher = buildMatcher(props.query.trim())
+  const activeMatcher = matcher.value
   const namespace = props.namespace
 
   return roots.value
-    .map((node) => filterTree(node, { matcher, namespace }))
+    .map((node) => filterTree(node, { matcher: activeMatcher, namespace }))
     .filter(Boolean)
 })
 
 // ── Expand/collapse state ──────────────────────────────────────────────────────
 // Map<key, boolean>: explicit user overrides (true=open, false=closed)
 const expandOverride = reactive(new Map())
-const queryFilterActive = computed(() => buildMatcher(props.query.trim()).hasTerms)
+const queryFilterActive = computed(() => matcher.value.hasTerms)
 
 function defaultOpenByDepth(depth, _nodeType) {
   if (depth === 0) return false   // top-level nodes collapsed by default
@@ -233,8 +235,11 @@ watch(loading, (value) => {
   emit('update:loading', value)
 }, { immediate: true })
 
-// Reset user overrides whenever fresh tree data arrives
-watch(payload, () => { expandOverride.clear() })
+// Reset user overrides and rebuild search index whenever tree data changes.
+watch(payload, (nextPayload) => {
+  expandOverride.clear()
+  searchIndex.value = buildSearchIndex(nextPayload?.trees || [])
+})
 
 function treeURL() {
   const base = apiBase.value
@@ -300,6 +305,31 @@ function nodeText(node) {
   const label = nodeLabel(node)
   const searchText = buildNodeSearchText(node?.type || '', label, node?.metadata || {})
   return searchText.toLowerCase()
+}
+
+function nodeSearchText(node) {
+  const key = String(node?.key || '')
+  if (key && searchIndex.value.has(key)) {
+    return searchIndex.value.get(key)
+  }
+  return nodeText(node)
+}
+
+function buildSearchIndex(nodes) {
+  const index = new Map()
+
+  function walk(list) {
+    for (const node of list || []) {
+      const key = String(node?.key || '')
+      if (key) {
+        index.set(key, nodeText(node))
+      }
+      walk(node?.children || [])
+    }
+  }
+
+  walk(nodes)
+  return index
 }
 
 function nodeLabel(node) {
@@ -468,7 +498,7 @@ function filterTree(node, filters) {
     .filter(Boolean)
 
   const namespaceMatches = filters.namespace === '' || nodeNamespace(node) === filters.namespace
-  const queryMatches = !filters.matcher.hasTerms || filters.matcher.test(nodeText(node))
+  const queryMatches = !filters.matcher.hasTerms || filters.matcher.test(nodeSearchText(node))
   const matchesSelf = namespaceMatches && queryMatches
 
   if (matchesSelf || filteredChildren.length > 0) {

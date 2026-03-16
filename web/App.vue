@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Menu from './components/Menu.vue'
 import Trees from './components/Trees.vue'
 import View from './components/View.vue'
@@ -17,12 +17,15 @@ const props = defineProps({
 
 const theme = ref('light')
 const contextTitle = ref('Context')
+const contexts = ref([])
 const namespaces = ref([])
 const selectedNamespace = ref(resolveInitialNamespace())
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
 const loading = ref(false)
 const refreshKey = ref(0)
 const activeResourceView = ref(null)
+let queryDebounceTimer = null
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
@@ -31,12 +34,43 @@ const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
 const brandedContextTitle = computed(() => formatKompassTitle(contextTitle.value))
 const viewContextName = computed(() => String(contextTitle.value || '').trim() || 'mock-cluster')
+const contextOptions = computed(() => {
+  const values = new Set(contexts.value.map((item) => String(item || '').trim()).filter(Boolean))
+  const current = String(viewContextName.value || '').trim()
+  if (current) {
+    values.add(current)
+  }
+  return [...values]
+})
+const filtering = computed(() => searchQuery.value !== debouncedSearchQuery.value)
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
   const preferredDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   applyTheme(storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : preferredDark ? 'dark' : 'light')
+  fetchMetadataContexts()
 })
+
+onBeforeUnmount(() => {
+  if (queryDebounceTimer) {
+    clearTimeout(queryDebounceTimer)
+    queryDebounceTimer = null
+  }
+})
+
+watch(searchQuery, (value) => {
+  if (queryDebounceTimer) {
+    clearTimeout(queryDebounceTimer)
+  }
+  if (!value) {
+    debouncedSearchQuery.value = ''
+    return
+  }
+  queryDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = value
+    queryDebounceTimer = null
+  }, 140)
+}, { immediate: true })
 
 function applyTheme(nextTheme) {
   theme.value = nextTheme
@@ -52,9 +86,35 @@ function refreshTree() {
   refreshKey.value += 1
 }
 
+function updateSearchQuery(value) {
+  searchQuery.value = String(value || '')
+}
+
 function applySuggestedNamespace(namespace) {
   if (!selectedNamespace.value && namespace) {
     selectedNamespace.value = namespace
+  }
+}
+
+function updateContext(_next) {
+  // Context dropdown is currently single-source from backend request context.
+}
+
+async function fetchMetadataContexts() {
+  try {
+    const response = await fetch('/api/metadata', {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+    if (!response.ok) {
+      return
+    }
+    const payload = await response.json()
+    const values = Array.isArray(payload?.contexts) ? payload.contexts : []
+    contexts.value = values.map((item) => String(item || '').trim()).filter(Boolean)
+  } catch {
+    // Metadata endpoint may be unavailable in static mode; keep fallback context only.
   }
 }
 
@@ -88,7 +148,8 @@ function formatKompassTitle(raw) {
 <template>
   <main class="app">
     <Menu
-      :title="brandedContextTitle"
+      :context-name="viewContextName"
+      :contexts="contextOptions"
       :theme-icon="themeIcon"
       :theme-label="themeLabel"
       :on-toggle-theme="toggleTheme"
@@ -97,15 +158,17 @@ function formatKompassTitle(raw) {
       :namespaces="namespaces"
       :namespace="selectedNamespace"
       :query="searchQuery"
+      :filtering="filtering"
       :disabled="false"
       @refresh="refreshTree"
       @update:namespace="selectedNamespace = $event"
-      @update:query="searchQuery = $event"
+      @update:context="updateContext"
+      @update:query="updateSearchQuery"
     />
 
     <Trees
       :namespace="selectedNamespace"
-      :query="searchQuery"
+      :query="debouncedSearchQuery"
       :refresh-key="refreshKey"
       :bootstrap-config="bootstrapConfig"
       :bootstrap-data="bootstrapData"
@@ -123,7 +186,18 @@ function formatKompassTitle(raw) {
       :api-base="appApiBase"
       :chrome-title="brandedContextTitle"
       :context-name="viewContextName"
+      :contexts="contextOptions"
+      :namespaces="namespaces"
+      :namespace="selectedNamespace"
+      :loading="loading"
+      :refresh-disabled="isStaticMode"
+      :theme-icon="themeIcon"
+      :theme-label="themeLabel"
       @close="closeResourceView"
+      @refresh="refreshTree"
+      @update:namespace="selectedNamespace = $event"
+      @update:context="updateContext"
+      @toggle-theme="toggleTheme"
     />
   </main>
 </template>

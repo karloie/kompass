@@ -37,8 +37,21 @@ func TestClientAccessorsAndSetters(t *testing.T) {
 
 	if contexts, err := mockClient.GetContexts(); err != nil {
 		t.Fatalf("GetContexts() error: %v", err)
-	} else if contexts != nil {
-		t.Fatalf("expected nil contexts in mock mode, got %v", contexts)
+	} else {
+		items, ok := contexts.([]string)
+		if !ok {
+			t.Fatalf("expected []string contexts, got %T", contexts)
+		}
+		foundMock := false
+		for _, item := range items {
+			if item == "mock-cluster" {
+				foundMock = true
+				break
+			}
+		}
+		if !foundMock {
+			t.Fatalf("expected mock-cluster in contexts, got %v", items)
+		}
 	}
 
 	mockClient.SetContext("ctx-a")
