@@ -264,7 +264,8 @@ func (c *Client) GetPodLogs(namespace, name string) (string, error) {
 		slog.Debug("provider call succeeded", "provider", "mock", "resource", "podlogs", "namespace", namespace, "name", name, "bytes", 0)
 		return "", nil
 	}
-	req := c.clientset.CoreV1().Pods(namespace).GetLogs(name, &corev1.PodLogOptions{})
+	tailLines := int64(100)
+	req := c.clientset.CoreV1().Pods(namespace).GetLogs(name, &corev1.PodLogOptions{TailLines: &tailLines})
 	logs, err := req.DoRaw(context.Background())
 	if err != nil {
 		slog.Debug("provider call failed", "provider", "cluster", "resource", "podlogs", "namespace", namespace, "name", name, "error", err)

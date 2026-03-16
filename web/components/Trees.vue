@@ -40,7 +40,7 @@ let fetchSeq = 0
 let debounceTimer = null
 
 const roots = computed(() => payload.value?.trees || [])
-const contextTitle = computed(() => String(payload.value?.request?.context || 'Context').trim() || 'Context')
+const contextTitle = computed(() => String(payload.value?.request?.context || '').trim())
 const apiBase = computed(() => String(props.bootstrapConfig?.apiBase || '/api/tree').trim() || '/api/tree')
 const dynamicEnabled = computed(() => {
   const mode = String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase()
@@ -97,12 +97,11 @@ const expandOverride = reactive(new Map())
 const queryFilterActive = computed(() => matcher.value.hasTerms)
 
 function defaultOpenByDepth(depth, _nodeType) {
-  if (depth === 0) return false   // top-level nodes collapsed by default
-  return true                     // all deeper nodes start expanded
+  if (depth === 0) return false
+  return false
 }
 
 function isNodeOpen(key, depth, nodeType) {
-  if (queryFilterActive.value) return true              // filter: auto-expand all paths
   if (expandOverride.has(key)) return expandOverride.get(key)
   return defaultOpenByDepth(depth, nodeType)
 }
@@ -113,25 +112,18 @@ function toggleNode(key, node, depth, nodeType) {
     expandOverride.set(key, false)
   } else {
     expandOverride.set(key, true)
-    // Expanding a top-level node should reveal the whole subtree.
-    if (!queryFilterActive.value && depth === 0) {
-      expandAllDescendants(node.children || [])
-    }
-  }
-}
-
-function expandAllDescendants(children) {
-  for (const child of children || []) {
-    if (child?.key) {
-      expandOverride.set(child.key, true)
-    }
-    expandAllDescendants(child?.children || [])
   }
 }
 
 provide('treeExpand', { isNodeOpen, toggleNode, queryFilterActive })
 
 async function fetchTree() {
+  if (!props.context.trim() || !props.namespace.trim()) {
+    error.value = ''
+    loading.value = false
+    return
+  }
+
 	if (debounceTimer) {
 		clearTimeout(debounceTimer)
 		debounceTimer = null
@@ -163,13 +155,6 @@ async function fetchTree() {
     const nextPayload = await response.json()
     payload.value = nextPayload
 
-    if (!props.namespace) {
-      const responseNamespace = String(nextPayload?.request?.namespace || '').trim()
-      const suggested = responseNamespace || firstNamespace(nextPayload?.trees || [])
-      if (suggested) {
-        emit('suggest-namespace', suggested)
-      }
-    }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       return
@@ -186,13 +171,6 @@ async function fetchTree() {
 onMounted(() => {
   if (props.bootstrapData && typeof props.bootstrapData === 'object') {
     payload.value = props.bootstrapData
-    if (!props.namespace) {
-      const responseNamespace = String(props.bootstrapData?.request?.namespace || '').trim()
-      const suggested = responseNamespace || firstNamespace(props.bootstrapData?.trees || [])
-      if (suggested) {
-        emit('suggest-namespace', suggested)
-      }
-    }
   }
   if (dynamicEnabled.value) {
     fetchTree()
@@ -250,7 +228,65 @@ watch(loading, (value) => {
 watch(payload, (nextPayload) => {
   expandOverride.clear()
   searchIndex.value = buildSearchIndex(nextPayload?.trees || [])
+  openPodPaths(nextPayload?.trees || [])
 })
+
+function openPodPaths(nodes) {
+  markPodPathsOpen(nodes, 0)
+}
+
+function markPodPathsOpen(nodes, depth) {
+  let hasPodInBranch = false
+
+  for (const node of nodes || []) {
+    const type = String(node?.type || '').trim().toLowerCase()
+    const childHasPod = markPodPathsOpen(workloadPathChildren(node), depth + 1)
+    const includesPod = type === 'pod' || childHasPod
+
+    if (includesPod) {
+      hasPodInBranch = true
+      const key = String(node?.key || '').trim()
+      if (type === 'pod') {
+        // Pod nodes stay collapsed by default — use the existing override map to pin them closed.
+        if (key) {
+          expandOverride.set(key, false)
+        }
+      } else if (depth >= 1 && key && Array.isArray(node?.children) && node.children.length > 0) {
+        // Keep rendered roots collapsed; allow one-level-below roots (e.g. ReplicaSets) to auto-open.
+        expandOverride.set(key, true)
+      }
+    }
+  }
+
+  return hasPodInBranch
+}
+
+function workloadPathChildren(node) {
+  const children = Array.isArray(node?.children) ? node.children : []
+  if (children.length === 0) {
+    return []
+  }
+
+  const parentType = String(node?.type || '').trim().toLowerCase()
+  const allowed = workloadPathTransitions[parentType]
+  if (!allowed) {
+    return []
+  }
+
+  return children.filter((child) => {
+    const childType = String(child?.type || '').trim().toLowerCase()
+    return allowed.has(childType)
+  })
+}
+
+const workloadPathTransitions = {
+  deployment: new Set(['replicaset']),
+  replicaset: new Set(['pod']),
+  cronjob: new Set(['job']),
+  job: new Set(['pod']),
+  statefulset: new Set(['pod']),
+  daemonset: new Set(['pod']),
+}
 
 function treeURL() {
   const base = apiBase.value
@@ -260,14 +296,8 @@ function treeURL() {
   const params = new URLSearchParams()
   const namespace = props.namespace.trim()
   const context = props.context.trim()
-
-  if (context) {
-    params.set('context', context)
-  }
-
-  if (namespace) {
-    params.set('namespace', namespace)
-  }
+  params.set('context', context)
+  params.set('namespace', namespace)
 
   const query = params.toString()
   return query ? `${base}?${query}` : base
@@ -557,12 +587,11 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
 <template>
   <section class="tree">
     <p v-if="error" class="tree__error">Failed: {{ error }}</p>
-    <p v-else-if="loading && !roots.length" class="tree__hint">Loading tree data...</p>
-    <p v-else-if="!roots.length" class="tree__hint">No tree data returned.</p>
-    <p v-else-if="!filteredRoots.length" class="tree__hint">No matches for current filters.</p>
-    <p v-else-if="loading" class="tree__hint">Refreshing...</p>
+    <p v-else-if="!roots.length && !loading" class="tree__hint">No tree data returned.</p>
+    <p v-else-if="!filteredRoots.length && !loading" class="tree__hint">No matches for current filters.</p>
 
-    <ul v-else class="tree__list">
+    <ul v-if="!error && (roots.length || loading)" class="tree__list">
+      <li v-if="loading" class="tree__loading-row">Loading tree rows...</li>
       <TreeNode
         v-for="(node, index) in filteredRoots"
         :key="node?.key || `root-${index}`"
@@ -581,9 +610,9 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 0.4rem 0.5rem;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--panel-bg);
   color: var(--text-main);
 }
@@ -601,9 +630,20 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
 }
 
 .tree__list {
-  margin: 0.75rem 0 0;
+  margin: 0;
   padding: 0;
   min-height: 0;
   overflow: auto;
+}
+
+.tree__loading-row {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px dashed var(--button-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  background: color-mix(in srgb, var(--button-bg) 55%, transparent);
 }
 </style>

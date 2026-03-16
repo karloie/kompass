@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { availableViewsForNode, nodeRequestParams, viewLabel } from '../resourceViews'
 import MenuHeader from './MenuHeader.vue'
 
@@ -20,7 +20,7 @@ const props = defineProps({
   },
   chromeTitle: {
     type: String,
-    default: '🧭 Kompass - mock-01',
+    default: '🧭 Kompass mock-01',
   },
   contextName: {
     type: String,
@@ -63,6 +63,10 @@ const loading = ref(false)
 const error = ref('')
 const cache = ref({})
 const copiedCommand = ref(false)
+const contentFilter = ref('')
+const contentEl = ref(null)
+
+const scrollToBottomViews = new Set(['logs', 'events'])
 
 let currentController = null
 let copiedCommandTimer = null
@@ -80,6 +84,29 @@ const currentPayload = computed(() => cache.value[activeView.value] || null)
 const title = computed(() => String(props.node?.key || '').trim() || currentPayload.value?.title || '(unknown resource)')
 const content = computed(() => currentPayload.value?.content || '')
 const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
+const supportsContentFilter = computed(() => {
+  const view = String(activeView.value || '').toLowerCase()
+  return view === 'logs' || view === 'events' || view === 'hubble'
+})
+const normalizedContentFilter = computed(() => String(contentFilter.value || '').trim().toLowerCase())
+const filteredContent = computed(() => {
+  const source = String(content.value || '')
+  if (!supportsContentFilter.value || !normalizedContentFilter.value) {
+    return source
+  }
+  return source
+    .split('\n')
+    .filter((line) => line.toLowerCase().includes(normalizedContentFilter.value))
+    .join('\n')
+})
+const contentFilterStats = computed(() => {
+  if (!supportsContentFilter.value || !normalizedContentFilter.value) {
+    return ''
+  }
+  const total = String(content.value || '').split('\n').filter((line) => line.length > 0).length
+  const matched = String(filteredContent.value || '').split('\n').filter((line) => line.length > 0).length
+  return `${matched}/${total}`
+})
 const highlightedContent = computed(() => {
   const view = (activeView.value || '').toLowerCase()
   let mode = 'default'
@@ -90,7 +117,7 @@ const highlightedContent = computed(() => {
   } else if (view === 'hubble') {
     mode = 'cilium'
   }
-  return highlightContent(content.value, mode)
+  return highlightContent(filteredContent.value, mode)
 })
 
 watch(
@@ -98,10 +125,24 @@ watch(
   () => {
     cache.value = {}
     error.value = ''
+    contentFilter.value = ''
     activeView.value = pickInitialView()
   },
   { immediate: true },
 )
+
+watch(activeView, () => {
+  contentFilter.value = ''
+})
+
+watch(highlightedContent, async () => {
+  const view = String(activeView.value || '').toLowerCase()
+  if (!scrollToBottomViews.has(view)) return
+  await nextTick()
+  if (contentEl.value) {
+    contentEl.value.scrollTop = contentEl.value.scrollHeight
+  }
+})
 
 watch(
   activeView,
@@ -229,9 +270,9 @@ function buildFallbackCommand(view, node, contextName) {
       if (target.type !== 'pod') {
         return `${kubectl} describe ${kind} ${name}${nsFlag}`
       }
-      return `${kubectl} logs ${name}${nsFlag} --tail=200`
+      return `${kubectl} logs ${name}${nsFlag} --tail=100`
     case 'events':
-      return `${kubectl} get events${nsFlag} --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp`
+      return `${kubectl} get events${nsFlag} --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp | tail -n 100`
     case 'yaml':
       return `${kubectl} get ${kind} ${name}${nsFlag} -o yaml`
     case 'hubble': {
@@ -268,6 +309,10 @@ function parseNodeTarget(node) {
   return { type, namespace, name }
 }
 
+function clearContentFilter() {
+  contentFilter.value = ''
+}
+
 function shellQuote(value) {
   const text = String(value || '')
   if (!text) {
@@ -281,47 +326,52 @@ function shellQuote(value) {
 </script>
 
 <template>
-  <section class="view" @click.self="closeView">
-    <article class="view__panel">
-      <MenuHeader
-        class="view__menu-header"
-        :context-name="contextName"
-        :contexts="contexts"
-        :namespace="namespace"
-        :namespaces="namespaces"
-        :loading="loading"
-        :refresh-disabled="refreshDisabled"
-        :theme-icon="themeIcon"
-        :theme-label="themeLabel"
-        @refresh="emit('refresh')"
-        @toggle-theme="emit('toggle-theme')"
-        @update:namespace="emit('update:namespace', $event)"
-        @update:context="emit('update:context', $event)"
-      />
+  <section class="view">
+    <MenuHeader
+      class="view__menu-header"
+      :context-name="contextName"
+      :contexts="contexts"
+      :namespace="namespace"
+      :namespaces="namespaces"
+      :loading="loading"
+      :refresh-disabled="refreshDisabled"
+      :theme-icon="themeIcon"
+      :theme-label="themeLabel"
+      @refresh="emit('refresh')"
+      @toggle-theme="emit('toggle-theme')"
+      @update:namespace="emit('update:namespace', $event)"
+      @update:context="emit('update:context', $event)"
+    />
 
-      <header class="view__header">
-        <div>
-          <h2 class="view__title">{{ title }}</h2>
-        </div>
-
-        <button class="view__close" type="button" @click="closeView">Close</button>
-      </header>
-
-      <div v-if="fallbackCommand" class="view__command-row">
-        <div class="view__command-wrap">
-          <input
-            id="view-fallback-command"
-            class="view__command-input"
-            type="text"
-            :value="fallbackCommand"
-            readonly
-            @focus="$event.target.select()"
-          />
-          <button class="view__command-copy" type="button" @click="copyFallbackCommand">
-            {{ copiedCommand ? 'Copied' : 'Copy' }}
-          </button>
-        </div>
+    <div v-if="fallbackCommand" class="view__command-row">
+      <div class="view__command-wrap">
+        <input
+          id="view-fallback-command"
+          class="view__command-input"
+          type="text"
+          :value="fallbackCommand"
+          readonly
+          @focus="$event.target.select()"
+        />
+        <button
+          class="view__command-copy"
+          type="button"
+          :aria-label="copiedCommand ? 'Copied command' : 'Copy command'"
+          :title="copiedCommand ? 'Copied command' : 'Copy command'"
+          @click="copyFallbackCommand"
+        >
+          {{ copiedCommand ? '✅' : '📋' }}
+        </button>
       </div>
+    </div>
+
+    <header class="view__header">
+      <div>
+        <h2 class="view__title">{{ title }}</h2>
+      </div>
+    </header>
+
+    <article class="view__panel">
 
       <nav v-if="views.length" class="view__tabs" aria-label="Resource views">
         <button
@@ -334,43 +384,74 @@ function shellQuote(value) {
         >
           {{ viewLabel(view) }}
         </button>
+
+        <div class="view__tabs-actions">
+          <div v-if="supportsContentFilter" class="view__filter-inline">
+            <input
+              v-model="contentFilter"
+              class="view__filter-input"
+              type="text"
+              placeholder="Filter lines"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <span v-if="contentFilterStats" class="view__filter-stats">{{ contentFilterStats }}</span>
+            <button
+              class="view__filter-clear"
+              type="button"
+              :disabled="!contentFilter"
+              title="Clear filter"
+              aria-label="Clear filter"
+              @click="clearContentFilter"
+            >
+              🧹
+            </button>
+          </div>
+
+          <button
+            class="view__close view__close--tabs"
+            type="button"
+            aria-label="Close view"
+            title="Close view"
+            @click="closeView"
+          >
+            ❌
+          </button>
+        </div>
       </nav>
 
       <p v-if="error" class="view__error">{{ error }}</p>
       <p v-else-if="loading && !content" class="view__hint">Loading view...</p>
       <p v-else-if="!views.length" class="view__hint">No backend views available for this resource.</p>
-      <pre v-else class="view__content" v-html="highlightedContent"></pre>
+      <p v-else-if="supportsContentFilter && normalizedContentFilter && !filteredContent" class="view__hint">No lines match the filter.</p>
+      <pre v-else ref="contentEl" class="view__content" v-html="highlightedContent"></pre>
     </article>
   </section>
 </template>
 
 <style scoped>
 .view {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  overflow-y: auto;
-  padding: 0.9rem 1.5rem 1.5rem;
-  background: color-mix(in srgb, var(--page-bg) 40%, transparent);
-  backdrop-filter: blur(8px);
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow: hidden;
 }
 
 .view__panel {
-  width: min(1100px, 100%);
-  min-height: min(18rem, calc(100dvh - 2.4rem));
-  max-height: calc(100dvh - 2.4rem);
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  max-height: none;
   display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
-  gap: 0.9rem;
-  padding: 1.1rem;
-  margin: 0 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.35rem;
+  padding: 0.8rem;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 6px;
   background: var(--panel-bg);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
 }
 
 .view__header {
@@ -380,26 +461,14 @@ function shellQuote(value) {
   gap: 1rem;
 }
 
-.view__menu-header {
-  grid-row: 1;
-}
-
-.view__header {
-  grid-row: 2;
-}
-
-.view__command-row {
-  grid-row: 3;
-}
-
 .view__tabs {
-  grid-row: 4;
+  grid-row: 1;
 }
 
 .view__hint,
 .view__error,
 .view__content {
-  grid-row: 5;
+  grid-row: 2;
 }
 
 .view__eyebrow {
@@ -428,14 +497,18 @@ function shellQuote(value) {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
 .view__close {
   padding: 0.42rem 0.78rem;
-  font-size: 0.92rem;
+  font-size: 0.8rem;
   line-height: 1.2;
+}
+
+.view__close--tabs {
+  margin-left: 0;
 }
 
 .view__tabs {
@@ -443,23 +516,41 @@ function shellQuote(value) {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0 0.35rem;
+  position: relative;
+  z-index: 1;
 }
 
 .view__tab {
   padding: 0.38rem 0.7rem;
   font-size: 0.92rem;
   line-height: 1.2;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -1px;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  border-color: var(--border-color);
 }
 
 .view__tab--active {
-  background: var(--accent-color);
-  color: var(--panel-bg);
-  border-color: var(--accent-color);
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: var(--button-border);
+  border-bottom-color: var(--panel-bg);
+}
+
+.view__tabs-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .view__command-row {
-  display: grid;
-  gap: 0.35rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
 }
 
 .view__command-label {
@@ -469,9 +560,10 @@ function shellQuote(value) {
 }
 
 .view__command-wrap {
+  flex: 1;
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .view__command-input {
@@ -480,18 +572,63 @@ function shellQuote(value) {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--text-main);
-  border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  font: 0.82rem/1.4 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.2;
 }
 
 .view__command-copy {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);
-  border-radius: 8px;
-  padding: 0.45rem 0.7rem;
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.9rem;
+  line-height: 1;
   cursor: pointer;
+}
+
+.view__filter-inline {
+  display: inline-grid;
+  grid-template-columns: minmax(9rem, 14rem) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.view__filter-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 0.38rem 0.5rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.view__filter-stats {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.view__filter-clear {
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.view__filter-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .view__hint,
@@ -510,7 +647,7 @@ function shellQuote(value) {
   min-height: 0;
   overflow: auto;
   padding: 1rem;
-  border-radius: 10px;
+  border-radius: 0 6px 6px 6px;
   border: 1px solid var(--border-color);
   background: color-mix(in srgb, var(--button-bg) 65%, var(--panel-bg));
   color: var(--text-main);
@@ -544,7 +681,7 @@ function shellQuote(value) {
 }
 
 .view__content :deep(.view__token--number) {
-  color: #9a4d00;
+  color: #b26cff;
 }
 
 .view__content :deep(.view__token--level-debug) {
@@ -563,7 +700,7 @@ function shellQuote(value) {
   color: #b23a7a;
 }
 .view__content :deep(.view__token--bool) {
-  color: #1a7a1a;
+  color: var(--accent-cyan);
 }
 .view__content :deep(.view__token--null) {
   color: #888;

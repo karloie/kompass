@@ -153,7 +153,7 @@ func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, str
 		resolvedNamespace, _ := provider.GetNamespace()
 		configPath, _ := provider.GetConfigPath()
 		slog.Debug("provider initialized", "provider", "mock", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
-		return provider, "mock", namespaceArg, nil
+		return provider, resolvedContext, resolvedNamespace, nil
 	}
 
 	client, err := kube.NewClient(contextArg, namespaceArg)
@@ -165,8 +165,5 @@ func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, str
 	resolvedNamespace, _ := client.GetNamespace()
 	configPath, _ := client.GetConfigPath()
 	slog.Debug("provider initialized", "provider", "cluster", "context", resolvedContext, "namespace", resolvedNamespace, "configPath", configPath)
-	if contextArg == "" {
-		contextArg, _ = client.GetContext()
-	}
-	return client, contextArg, namespaceArg, nil
+	return client, resolvedContext, resolvedNamespace, nil
 }

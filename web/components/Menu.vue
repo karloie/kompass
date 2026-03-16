@@ -52,7 +52,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['refresh', 'update:namespace', 'update:context', 'update:query'])
+const emit = defineEmits(['refresh', 'update:namespace', 'update:context', 'update:query', 'apply-query'])
 
 function onNamespaceChange(value) {
   emit('update:namespace', String(value || ''))
@@ -66,8 +66,13 @@ function onQueryInput(event) {
   emit('update:query', event.target.value)
 }
 
+function applyQuery() {
+  emit('apply-query')
+}
+
 function clearQuery() {
   emit('update:query', '')
+  emit('apply-query')
 }
 
 function toggleTheme() {
@@ -98,21 +103,39 @@ function toggleTheme() {
     <div class="menu__filters">
       <label class="menu__field menu__field--grow">
         <span class="menu__label-wrap">
-          <span class="menu__label">Filter</span>
           <span v-if="filtering" class="menu__filtering">Filtering...</span>
         </span>
         <input
           class="menu__input"
           type="text"
-          placeholder="Examples: kafka* pod/?/api !crash"
+          placeholder="Filter: kafka* pod/?/api !crash"
           :value="query"
           :disabled="disabled"
           @input="onQueryInput"
+          @keydown.enter.prevent="applyQuery"
         />
       </label>
 
-      <button class="menu__clear" type="button" :disabled="disabled || !query" @click="clearQuery">
-        Clear
+      <button
+        class="menu__apply"
+        type="button"
+        :aria-label="'Apply filter'"
+        :title="'Apply filter (same as Enter)'"
+        :disabled="disabled"
+        @click="applyQuery"
+      >
+        🔎
+      </button>
+
+      <button
+        class="menu__clear"
+        type="button"
+        :aria-label="'Clear filter'"
+        :title="'Clear filter'"
+        :disabled="disabled || !query"
+        @click="clearQuery"
+      >
+        🧹
       </button>
     </div>
   </section>
@@ -179,7 +202,17 @@ function toggleTheme() {
   cursor: pointer;
 }
 
+.menu__apply {
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--button-text);
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 .menu__clear:disabled,
+.menu__apply:disabled,
 .menu__select:disabled,
 .menu__input:disabled {
   opacity: 0.6;

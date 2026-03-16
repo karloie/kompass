@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Menu from './components/Menu.vue'
 import Trees from './components/Trees.vue'
-import View from './components/View.vue'
+import Views from './components/Views.vue'
 
 const props = defineProps({
   bootstrapConfig: {
@@ -16,17 +16,17 @@ const props = defineProps({
 })
 
 const theme = ref('light')
-const contextTitle = ref('Context')
+const contextTitle = ref('')
 const contexts = ref([])
 const selectedContext = ref(resolveInitialContext())
 const namespaces = ref([])
 const selectedNamespace = ref(resolveInitialNamespace())
-const searchQuery = ref('')
-const debouncedSearchQuery = ref('')
+const searchDraftQuery = ref('')
+const appliedSearchQuery = ref('')
 const loading = ref(false)
 const refreshKey = ref(0)
 const activeResourceView = ref(null)
-let queryDebounceTimer = null
+const scopeCache = new Map()
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
@@ -34,7 +34,7 @@ const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').tri
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
 const brandedContextTitle = computed(() => formatKompassTitle(viewContextName.value))
-const viewContextName = computed(() => String(selectedContext.value || contextTitle.value || '').trim() || 'mock-01')
+const viewContextName = computed(() => String(selectedContext.value || contextTitle.value || '').trim())
 const contextOptions = computed(() => {
   const values = new Set(contexts.value.map((item) => String(item || '').trim()).filter(Boolean))
   const current = String(viewContextName.value || '').trim()
@@ -43,35 +43,22 @@ const contextOptions = computed(() => {
   }
   return [...values]
 })
-const filtering = computed(() => searchQuery.value !== debouncedSearchQuery.value)
+const filtering = computed(() => searchDraftQuery.value !== appliedSearchQuery.value)
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
   const preferredDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   applyTheme(storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : preferredDark ? 'dark' : 'light')
-  fetchMetadataContexts()
+  initializeScope()
 })
 
-onBeforeUnmount(() => {
-  if (queryDebounceTimer) {
-    clearTimeout(queryDebounceTimer)
-    queryDebounceTimer = null
-  }
-})
-
-watch(searchQuery, (value) => {
-  if (queryDebounceTimer) {
-    clearTimeout(queryDebounceTimer)
-  }
-  if (!value) {
-    debouncedSearchQuery.value = ''
-    return
-  }
-  queryDebounceTimer = setTimeout(() => {
-    debouncedSearchQuery.value = value
-    queryDebounceTimer = null
-  }, 140)
-}, { immediate: true })
+watch(
+  () => [selectedContext.value, selectedNamespace.value],
+  () => {
+    syncScopeQueryParams()
+  },
+  { immediate: true },
+)
 
 function applyTheme(nextTheme) {
   theme.value = nextTheme
@@ -88,51 +75,151 @@ function refreshTree() {
 }
 
 function updateSearchQuery(value) {
-  searchQuery.value = String(value || '')
+  searchDraftQuery.value = String(value || '')
 }
 
-function applySuggestedNamespace(namespace) {
-  if (!selectedNamespace.value && namespace) {
-    selectedNamespace.value = namespace
-  }
+function applySearchQuery() {
+  appliedSearchQuery.value = String(searchDraftQuery.value || '')
 }
 
-function updateContext(next) {
+async function updateContext(next) {
   const value = String(next || '').trim()
   if (!value || value === selectedContext.value) {
     return
   }
   selectedContext.value = value
+  await syncScopeForContext(value, { resetNamespace: true, preferCurrent: false })
   refreshTree()
 }
 
-async function fetchMetadataContexts() {
+async function initializeScope() {
   try {
-    const response = await fetch('/api/metadata', {
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-    if (!response.ok) {
-      return
-    }
-    const payload = await response.json()
+    const payload = await fetchScopePayload()
     const values = Array.isArray(payload?.contexts) ? payload.contexts : []
     contexts.value = values.map((item) => String(item || '').trim()).filter(Boolean)
     const current = String(payload?.currentContext || '').trim()
     if (!selectedContext.value && current) {
       selectedContext.value = current
     }
+    await syncScopeForContext(selectedContext.value || current, { resetNamespace: !selectedNamespace.value, scopePayload: payload })
   } catch {
-    // Metadata endpoint may be unavailable in static mode; keep fallback context only.
+    // Scope endpoint may be unavailable in static mode; keep bootstrap scope only.
   }
 }
 
+async function fetchScopePayload(context = '') {
+  try {
+    const params = new URLSearchParams()
+    const contextName = String(context || '').trim()
+    if (contextName) {
+      params.set('context', contextName)
+    }
+    const suffix = params.toString()
+    const response = await fetch(suffix ? `/api/scope?${suffix}` : '/api/scope', {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+    if (!response.ok) {
+      throw new Error(`request failed: ${response.status}`)
+    }
+    return await response.json()
+  } catch (err) {
+    throw err instanceof Error ? err : new Error('failed to load scope')
+  }
+}
+
+async function syncScopeForContext(context, options = {}) {
+  const contextName = String(context || '').trim()
+  if (!contextName) {
+    namespaces.value = []
+    selectedNamespace.value = ''
+    return
+  }
+
+  let entry = null
+  if (options.scopePayload && String(options.scopePayload?.currentContext || '').trim() === contextName) {
+    entry = normalizeScopeEntry(options.scopePayload)
+  }
+  if (!entry && scopeCache.has(contextName)) {
+    entry = scopeCache.get(contextName)
+  }
+  if (!entry) {
+    entry = normalizeScopeEntry(await fetchScopePayload(contextName))
+  }
+
+  scopeCache.set(contextName, entry)
+  namespaces.value = entry.namespaces
+
+  const currentSelection = String(selectedNamespace.value || '').trim()
+  if (!options.resetNamespace && currentSelection && entry.namespaces.includes(currentSelection)) {
+    return
+  }
+
+  if (options.preferCurrent !== false && entry.currentNamespace) {
+    selectedNamespace.value = entry.currentNamespace
+    return
+  }
+  selectedNamespace.value = entry.namespaces[0] || ''
+}
+
+function normalizeScopeEntry(payload) {
+  return {
+    currentNamespace: String(payload?.currentNamespace || '').trim(),
+    namespaces: Array.isArray(payload?.namespaces)
+      ? payload.namespaces.map((item) => String(item || '').trim()).filter(Boolean)
+      : [],
+  }
+}
+
+function syncScopeQueryParams() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const url = new URL(window.location.href)
+  const currentContext = String(selectedContext.value || '').trim()
+  const currentNamespace = String(selectedNamespace.value || '').trim()
+
+  if (currentContext) {
+    url.searchParams.set('context', currentContext)
+  } else {
+    url.searchParams.delete('context')
+  }
+
+  if (currentNamespace) {
+    url.searchParams.set('namespace', currentNamespace)
+  } else {
+    url.searchParams.delete('namespace')
+  }
+
+  const nextURL = `${url.pathname}${url.search}${url.hash}`
+  const currentURL = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextURL !== currentURL) {
+    window.history.replaceState(null, '', nextURL)
+  }
+}
+
+function resolveInitialScopeParam(name) {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return String(new URLSearchParams(window.location.search).get(name) || '').trim()
+}
+
 function resolveInitialNamespace() {
+  const fromURL = resolveInitialScopeParam('namespace')
+  if (fromURL) {
+    return fromURL
+  }
   return String(props.bootstrapConfig?.namespace || props.bootstrapData?.request?.namespace || '').trim()
 }
 
 function resolveInitialContext() {
+  const fromURL = resolveInitialScopeParam('context')
+  if (fromURL) {
+    return fromURL
+  }
   return String(props.bootstrapConfig?.context || props.bootstrapData?.request?.context || '').trim()
 }
 
@@ -151,50 +238,51 @@ function closeResourceView() {
 }
 
 function formatKompassTitle(raw) {
-  const context = String(raw || '').trim() || 'mock-01'
-  if (context.startsWith('🧭 Kompass - ')) {
+  const context = String(raw || '').trim() || 'Context'
+  if (context.startsWith('🧭 Kompass ')) {
     return context
   }
-  return `🧭 Kompass - ${context}`
+  return `🧭 Kompass ${context}`
 }
 </script>
 
 <template>
   <main class="app">
-    <Menu
-      :context-name="viewContextName"
-      :contexts="contextOptions"
-      :theme-icon="themeIcon"
-      :theme-label="themeLabel"
-      :on-toggle-theme="toggleTheme"
-      :refresh-disabled="isStaticMode"
-      :loading="loading"
-      :namespaces="namespaces"
-      :namespace="selectedNamespace"
-      :query="searchQuery"
-      :filtering="filtering"
-      :disabled="false"
-      @refresh="refreshTree"
-      @update:namespace="selectedNamespace = $event"
-      @update:context="updateContext"
-      @update:query="updateSearchQuery"
-    />
+    <section v-show="!activeResourceView" class="app__tree-screen">
+      <Menu
+        :context-name="viewContextName"
+        :contexts="contextOptions"
+        :theme-icon="themeIcon"
+        :theme-label="themeLabel"
+        :on-toggle-theme="toggleTheme"
+        :refresh-disabled="isStaticMode"
+        :loading="loading"
+        :namespaces="namespaces"
+        :namespace="selectedNamespace"
+        :query="searchDraftQuery"
+        :filtering="filtering"
+        :disabled="false"
+        @refresh="refreshTree"
+        @update:namespace="selectedNamespace = $event"
+        @update:context="updateContext"
+        @update:query="updateSearchQuery"
+        @apply-query="applySearchQuery"
+      />
 
-    <Trees
-      :context="viewContextName"
-      :namespace="selectedNamespace"
-      :query="debouncedSearchQuery"
-      :refresh-key="refreshKey"
-      :bootstrap-config="bootstrapConfig"
-      :bootstrap-data="bootstrapData"
-      @update:context-title="contextTitle = $event"
-      @update:namespaces="namespaces = $event"
-      @suggest-namespace="applySuggestedNamespace"
-      @update:loading="loading = $event"
-      @open-view="openResourceView"
-    />
+      <Trees
+        :context="viewContextName"
+        :namespace="selectedNamespace"
+        :query="appliedSearchQuery"
+        :refresh-key="refreshKey"
+        :bootstrap-config="bootstrapConfig"
+        :bootstrap-data="bootstrapData"
+        @update:context-title="contextTitle = $event"
+        @update:loading="loading = $event"
+        @open-view="openResourceView"
+      />
+    </section>
 
-    <View
+    <Views
       v-if="activeResourceView"
       :node="activeResourceView.node"
       :initial-view="activeResourceView.view"
@@ -224,6 +312,15 @@ function formatKompassTitle(raw) {
   flex-direction: column;
   gap: 0.75rem;
   padding: 1.5rem;
+  overflow: hidden;
+}
+
+.app__tree-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   overflow: hidden;
 }
 </style>

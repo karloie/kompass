@@ -65,7 +65,7 @@ function onNamespaceChange(event) {
 <template>
   <header class="shared-header">
     <div class="shared-header__left">
-      <span class="shared-header__brand">🧭 Kompass -</span>
+      <span class="shared-header__brand">🧭 Kompass </span>
       <select
         class="shared-header__select"
         :value="contextName"
@@ -81,8 +81,15 @@ function onNamespaceChange(event) {
     </div>
 
     <div class="shared-header__actions">
-      <button class="shared-header__btn" type="button" :disabled="loading || disabled || refreshDisabled" @click="emit('refresh')">
-        {{ loading ? 'Loading...' : 'Refresh' }}
+      <button
+        class="shared-header__btn shared-header__btn--icon"
+        type="button"
+        :aria-label="loading ? 'Loading' : 'Refresh'"
+        :title="loading ? 'Loading' : 'Refresh'"
+        :disabled="loading || disabled || refreshDisabled"
+        @click="emit('refresh')"
+      >
+        {{ loading ? '⏳' : '🔄' }}
       </button>
       <button
         class="shared-header__btn shared-header__btn--theme"
@@ -148,16 +155,19 @@ function onNamespaceChange(event) {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);
-  padding: 0.4rem 0.65rem;
-  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  line-height: 1;
   cursor: pointer;
 }
 
 .shared-header__btn--theme {
   min-width: 2.2rem;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0.35rem;
+}
+
+.shared-header__btn--icon {
+  min-width: 2.2rem;
 }
 
 .shared-header__btn:disabled,

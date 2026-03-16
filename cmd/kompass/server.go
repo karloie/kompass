@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -30,6 +32,13 @@ type server struct {
 	clientFactory func(contextArg, namespace string) (kube.Kube, error)
 	providerMu    sync.Mutex
 	webRoot       fs.FS
+}
+
+type scopeResponse struct {
+	Contexts         []string `json:"contexts,omitempty"`
+	CurrentContext   string   `json:"currentContext,omitempty"`
+	Namespaces       []string `json:"namespaces,omitempty"`
+	CurrentNamespace string   `json:"currentNamespace,omitempty"`
 }
 
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
@@ -78,6 +87,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
 	mux.HandleFunc("/api/metadata", srv.handleMetadata)
+	mux.HandleFunc("/api/scope", srv.handleScope)
 	mux.HandleFunc("/", srv.handleWeb)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
@@ -148,29 +158,79 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No active client", http.StatusServiceUnavailable)
 		return
 	}
-	contextsAny, _ := s.client.GetContexts()
-	contexts := make([]string, 0)
-	if items, ok := contextsAny.([]string); ok {
-		contexts = append(contexts, items...)
-	}
 	meta := s.client.GetResponseMeta()
-	response := struct {
-		*kube.Metadata
-		Contexts       []string `json:"contexts,omitempty"`
-		CurrentContext string   `json:"currentContext,omitempty"`
-	}{
-		Metadata:       meta,
-		Contexts:       contexts,
-		CurrentContext: s.contextArg,
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(meta)
+}
+
+func (s *server) handleScope(w http.ResponseWriter, r *http.Request) {
+	if s.client == nil {
+		http.Error(w, "No active client", http.StatusServiceUnavailable)
+		return
+	}
+	response := scopeResponse{}
+	requestedContext := strings.TrimSpace(r.URL.Query().Get("context"))
+	if requestedContext == "" {
+		contextsAny, _ := s.client.GetContexts()
+		response.CurrentContext = s.contextArg
+		if items, ok := contextsAny.([]string); ok {
+			response.Contexts = append(response.Contexts, items...)
+		}
+		requestedContext = response.CurrentContext
+	} else {
+		response.CurrentContext = requestedContext
+	}
+
+	if requestedContext != "" {
+		namespaces, currentNamespace, err := s.loadScopeContext(requestedContext)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		response.Namespaces = namespaces
+		response.CurrentNamespace = currentNamespace
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
+func (s *server) loadScopeContext(contextArg string) ([]string, string, error) {
+	s.providerMu.Lock()
+	defer s.providerMu.Unlock()
+
+	provider, err := s.scopeProvider(contextArg)
+	if err != nil {
+		return nil, "", err
+	}
+	currentNamespace, _ := provider.GetNamespace()
+	nsList, err := provider.GetNamespaces(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, currentNamespace, err
+	}
+	namespaces := make([]string, 0, len(nsList.Items))
+	for _, item := range nsList.Items {
+		name := strings.TrimSpace(item.Name)
+		if name != "" {
+			namespaces = append(namespaces, name)
+		}
+	}
+	slices.Sort(namespaces)
+	return namespaces, strings.TrimSpace(currentNamespace), nil
+}
+
+func (s *server) scopeProvider(contextArg string) (kube.Kube, error) {
+	if s.client != nil && strings.TrimSpace(contextArg) == strings.TrimSpace(s.contextArg) {
+		return s.client, nil
+	}
+	useMock := strings.TrimSpace(contextArg) == "mock-01"
+	provider, _, _, err := initProvider(useMock, contextArg, "")
+	return provider, err
+}
+
 func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeServerError(w, err)
 		return
 	}
 	if result == nil {
@@ -205,7 +265,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeServerError(w, err)
 		return
 	}
 	treeResult := tree.BuildResponseTree(result)
@@ -241,7 +301,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeServerError(w, err)
 		return
 	}
 
@@ -258,7 +318,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeServerError(w, err)
 		return
 	}
 
@@ -295,13 +355,13 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
 	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
-	contextArg := strings.TrimSpace(r.URL.Query().Get("context"))
-	if contextArg == "" {
-		contextArg = s.contextArg
+	contextArg, err := requireContextArg(r)
+	if err != nil {
+		return nil, "", nil, nil, err
 	}
-	namespace := r.URL.Query().Get("namespace")
-	if namespace == "" {
-		namespace = s.namespaceArg
+	namespace, err := requireNamespaceArg(r)
+	if err != nil {
+		return nil, "", nil, nil, err
 	}
 	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
 	if mockProvider == "" && contextArg == "mock-01" {
@@ -362,4 +422,36 @@ func (s *server) getProvider(mockProvider, contextArg, namespace string) (kube.K
 	}
 	provider, _, _, err := initProvider(false, contextArg, namespace)
 	return provider, err
+}
+
+func requireContextArg(r *http.Request) (string, error) {
+	contextArg := strings.TrimSpace(r.URL.Query().Get("context"))
+	if contextArg == "" {
+		return "", badRequest("missing context")
+	}
+	return contextArg, nil
+}
+
+func requireNamespaceArg(r *http.Request) (string, error) {
+	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
+	if namespace == "" {
+		return "", badRequest("missing namespace")
+	}
+	return namespace, nil
+}
+
+func requireExplicitNamespace(r *http.Request) (string, error) {
+	if !r.URL.Query().Has("namespace") {
+		return "", badRequest("missing namespace")
+	}
+	return strings.TrimSpace(r.URL.Query().Get("namespace")), nil
+}
+
+func writeServerError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	var appErr appHTTPError
+	if errors.As(err, &appErr) {
+		status = appErr.StatusCode
+	}
+	http.Error(w, err.Error(), status)
 }

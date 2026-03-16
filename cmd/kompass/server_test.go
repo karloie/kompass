@@ -57,6 +57,51 @@ func TestHandleMetadataWithClient(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "cacheEnabled") {
 		t.Fatalf("expected metadata JSON body, got %q", rr.Body.String())
 	}
+	if strings.Contains(rr.Body.String(), "currentContext") || strings.Contains(rr.Body.String(), "contexts") {
+		t.Fatalf("expected metadata payload to exclude scope fields, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleScopeNoClient(t *testing.T) {
+	s := &server{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/scope", nil)
+
+	s.handleScope(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status 503, got %d", rr.Code)
+	}
+}
+
+func TestHandleScopeWithClient(t *testing.T) {
+	s := &server{client: kube.NewMockClient(mock.GenerateMock()), contextArg: "mock-01"}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/scope", nil)
+
+	s.handleScope(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "currentContext") || !strings.Contains(rr.Body.String(), "contexts") {
+		t.Fatalf("expected scope JSON body, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "currentNamespace") || !strings.Contains(rr.Body.String(), "namespaces") {
+		t.Fatalf("expected scope JSON body to include namespace data, got %q", rr.Body.String())
+	}
+}
+
+func TestHandleScopeForExplicitContext(t *testing.T) {
+	s := &server{client: kube.NewMockClient(mock.GenerateMock()), contextArg: "mock-01"}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/scope?context=mock-01", nil)
+
+	s.handleScope(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "petshop") {
+		t.Fatalf("expected scope JSON body to include mock namespaces, got %q", rr.Body.String())
+	}
 }
 
 func TestGetProviderUnknownMock(t *testing.T) {
@@ -102,7 +147,7 @@ func TestHandleGraphSuccess(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/graph?selector=*/petshop/*&mock=mock", nil)
+	req := httptest.NewRequest(http.MethodGet, "/graph?selector=*/petshop/*&context=mock-01&namespace=petshop&mock=mock", nil)
 
 	s.handleGraph(rr, req)
 	if rr.Code != http.StatusOK {
@@ -131,11 +176,22 @@ func TestHandleGraphProviderError(t *testing.T) {
 		return nil, errors.New("provider failure")
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/graph", nil)
+	req := httptest.NewRequest(http.MethodGet, "/graph?context=mock-01&namespace=petshop", nil)
 
 	s.handleGraph(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestHandleGraphMissingScope(t *testing.T) {
+	s := &server{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/graph", nil)
+
+	s.handleGraph(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%q", rr.Code, rr.Body.String())
 	}
 }
 
@@ -146,7 +202,7 @@ func TestHandleTreeSuccess(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree?selector=*/petshop/*", nil)
+	req := httptest.NewRequest(http.MethodGet, "/tree?selector=*/petshop/*&context=mock-01&namespace=petshop", nil)
 
 	s.handleTree(rr, req)
 	if rr.Code != http.StatusOK {
@@ -190,7 +246,7 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&context=mock-01&namespace=petshop", nil)
 	req.Header.Set("Accept", "text/plain")
 
 	s.handleTree(rr, req)
@@ -215,7 +271,7 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=false", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&plain=false&context=mock-01&namespace=petshop", nil)
 	req.Header.Set("Accept", "text/plain")
 
 	s.handleTree(rr, req)
@@ -234,7 +290,7 @@ func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?context=mock-01&namespace=petshop", nil)
 	req.Header.Set("Accept", "text/html")
 
 	s.handleTree(rr, req)
@@ -263,7 +319,7 @@ func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/tree?namespace=petshop&static=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?context=mock-01&namespace=petshop&static=1", nil)
 	req.Header.Set("Accept", "text/html")
 
 	s.handleTree(rr, req)
@@ -287,7 +343,7 @@ func TestHandleTreeProviderError(t *testing.T) {
 		return nil, errors.New("provider failure")
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/tree", nil)
+	req := httptest.NewRequest(http.MethodGet, "/tree?context=mock-01&namespace=petshop", nil)
 
 	s.handleTree(rr, req)
 	if rr.Code != http.StatusInternalServerError {

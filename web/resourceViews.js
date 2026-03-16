@@ -56,9 +56,7 @@ export function nodeRequestParams(node) {
   if (type) {
     params.set('type', type)
   }
-  if (namespace) {
-    params.set('namespace', namespace)
-  }
+  params.set('namespace', namespace)
   if (name) {
     params.set('name', name)
   }
