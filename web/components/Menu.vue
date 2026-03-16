@@ -20,6 +20,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  refreshDisabled: {
+    type: Boolean,
+    default: false,
+  },
   namespaces: {
     type: Array,
     default: () => [],
@@ -65,7 +69,7 @@ function toggleTheme() {
       <h2 class="menu__title">{{ title }}</h2>
 
       <div class="menu__actions">
-        <button class="menu__refresh" type="button" :disabled="loading || disabled" @click="emit('refresh')">
+        <button class="menu__refresh" type="button" :disabled="loading || disabled || refreshDisabled" @click="emit('refresh')">
           {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
         <button

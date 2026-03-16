@@ -64,7 +64,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		contextArg:   contextArg,
 		namespaceArg: namespaceArg,
 		client:       client,
-		webRoot:      resolveWebRoot(),
+		webRoot:      tree.ResolveAppWebRoot(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
@@ -92,17 +92,6 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Error("Server forced to shutdown", "error", err)
 	}
 	slog.Info("Server stopped")
-}
-
-func resolveWebRoot() fs.FS {
-	if embeddedWebRoot != nil {
-		return embeddedWebRoot
-	}
-	local := os.DirFS("cmd/kompass/dist")
-	if _, err := fs.Stat(local, "index.html"); err == nil {
-		return local
-	}
-	return nil
 }
 
 func (s *server) handleWeb(w http.ResponseWriter, r *http.Request) {
@@ -257,7 +246,31 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
-	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, staticMode)))
+
+	treeResult := tree.BuildResponseTree(result)
+	if treeResult == nil {
+		treeResult = &kube.Response{}
+	}
+	treeResult.APIVersion = "v1"
+	treeResult.Request = kube.Request{
+		Context:    context_,
+		Namespace:  namespace_,
+		ConfigPath: configPath,
+		Selectors:  selectors,
+	}
+
+	mode := "dynamic"
+	if staticMode {
+		mode = "static"
+	}
+
+	w.Write([]byte(tree.RenderAppHTML(s.webRoot, treeResult, tree.HTMLBootstrapConfig{
+		Mode:      mode,
+		APIBase:   "/api/tree",
+		Static:    staticMode,
+		Context:   context_,
+		Namespace: namespace_,
+	})))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {

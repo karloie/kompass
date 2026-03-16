@@ -3,6 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import Menu from './components/Menu.vue'
 import Tree from './components/Tree.vue'
 
+const props = defineProps({
+  bootstrapConfig: {
+    type: Object,
+    default: null,
+  },
+  bootstrapData: {
+    type: Object,
+    default: null,
+  },
+})
+
 const theme = ref('light')
 const contextTitle = ref('Context')
 const namespaces = ref([])
@@ -13,6 +24,8 @@ const refreshKey = ref(0)
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
+const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
+const isStaticMode = computed(() => mode.value === 'static')
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
@@ -48,6 +61,7 @@ function applySuggestedNamespace(namespace) {
       :theme-icon="themeIcon"
       :theme-label="themeLabel"
       :on-toggle-theme="toggleTheme"
+      :refresh-disabled="isStaticMode"
       :loading="loading"
       :namespaces="namespaces"
       :namespace="selectedNamespace"
@@ -62,6 +76,8 @@ function applySuggestedNamespace(namespace) {
       :namespace="selectedNamespace"
       :query="searchQuery"
       :refresh-key="refreshKey"
+      :bootstrap-config="bootstrapConfig"
+      :bootstrap-data="bootstrapData"
       @update:context-title="contextTitle = $event"
       @update:namespaces="namespaces = $event"
       @suggest-namespace="applySuggestedNamespace"

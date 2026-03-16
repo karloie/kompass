@@ -242,8 +242,17 @@ func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "id=\"namespace-select\"") {
-		t.Fatalf("expected default HTML tree to include namespace selector")
+	if !strings.Contains(body, "id=\"app\"") {
+		t.Fatalf("expected default HTML tree to include Vue mount root")
+	}
+	if !strings.Contains(body, "id=\"kompass-config\"") {
+		t.Fatalf("expected default HTML tree to include kompass-config bootstrap")
+	}
+	if !strings.Contains(body, "\"mode\":\"dynamic\"") {
+		t.Fatalf("expected default HTML tree to be in dynamic mode bootstrap")
+	}
+	if !strings.Contains(body, "id=\"kompass-data\"") {
+		t.Fatalf("expected default HTML tree to include kompass-data bootstrap")
 	}
 }
 
@@ -262,11 +271,14 @@ func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if strings.Contains(body, "id=\"namespace-select\"") {
-		t.Fatalf("expected static HTML tree to hide namespace selector")
+	if !strings.Contains(body, "id=\"kompass-config\"") {
+		t.Fatalf("expected static HTML tree to include kompass-config bootstrap")
 	}
-	if !strings.Contains(body, "id=\"tree-filter\"") {
-		t.Fatalf("expected static HTML tree to keep filter input")
+	if !strings.Contains(body, "\"mode\":\"static\"") {
+		t.Fatalf("expected static HTML tree to be in static mode bootstrap")
+	}
+	if !strings.Contains(body, "id=\"kompass-data\"") {
+		t.Fatalf("expected static HTML tree to include kompass-data bootstrap")
 	}
 }
 

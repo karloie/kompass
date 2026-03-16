@@ -15,6 +15,14 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  bootstrapConfig: {
+    type: Object,
+    default: null,
+  },
+  bootstrapData: {
+    type: Object,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading'])
@@ -29,10 +37,38 @@ let debounceTimer = null
 
 const roots = computed(() => payload.value?.trees || [])
 const contextTitle = computed(() => String(payload.value?.request?.context || 'Context').trim() || 'Context')
+const apiBase = computed(() => String(props.bootstrapConfig?.apiBase || '/api/tree').trim() || '/api/tree')
+const dynamicEnabled = computed(() => {
+  const mode = String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase()
+  if (mode === 'static') {
+    return false
+  }
+  if (mode === 'dynamic') {
+    return true
+  }
+  return apiBase.value !== ''
+})
 
 const namespaces = computed(() => {
   const values = new Set()
+
+  const requestNamespace = String(payload.value?.request?.namespace || '').trim()
+  if (requestNamespace) {
+    values.add(requestNamespace)
+  }
+  if (props.namespace) {
+    values.add(props.namespace)
+  }
+
   collectNamespaces(roots.value, values)
+
+  for (const resource of payload.value?.nodes || []) {
+    const ns = resourceNamespace(resource)
+    if (ns) {
+      values.add(ns)
+    }
+  }
+
   return [...values].sort((a, b) => a.localeCompare(b))
 })
 
@@ -98,7 +134,19 @@ async function fetchTree() {
 }
 
 onMounted(() => {
-  fetchTree()
+  if (props.bootstrapData && typeof props.bootstrapData === 'object') {
+    payload.value = props.bootstrapData
+    if (!props.namespace) {
+      const responseNamespace = String(props.bootstrapData?.request?.namespace || '').trim()
+      const suggested = responseNamespace || firstNamespace(props.bootstrapData?.trees || [])
+      if (suggested) {
+        emit('suggest-namespace', suggested)
+      }
+    }
+  }
+  if (dynamicEnabled.value) {
+    fetchTree()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -111,6 +159,9 @@ onBeforeUnmount(() => {
 })
 
 watch(() => props.namespace, () => {
+  if (!dynamicEnabled.value) {
+    return
+  }
   if (debounceTimer) {
     clearTimeout(debounceTimer)
   }
@@ -120,6 +171,9 @@ watch(() => props.namespace, () => {
 })
 
 watch(() => props.refreshKey, () => {
+  if (!dynamicEnabled.value) {
+    return
+  }
   fetchTree()
 })
 
@@ -136,6 +190,10 @@ watch(loading, (value) => {
 }, { immediate: true })
 
 function treeURL() {
+  const base = apiBase.value
+  if (!base) {
+    return '/api/tree'
+  }
   const params = new URLSearchParams()
   const namespace = props.namespace.trim()
 
@@ -144,7 +202,7 @@ function treeURL() {
   }
 
   const query = params.toString()
-  return query ? `/api/tree?${query}` : '/api/tree'
+  return query ? `${base}?${query}` : base
 }
 
 function collectNamespaces(nodes, out) {
@@ -168,6 +226,26 @@ function nodeNamespace(node) {
   if (parts.length >= 3 && parts[1]) {
     return parts[1]
   }
+  return ''
+}
+
+function resourceNamespace(resource) {
+  const ns = resource?.namespace
+  if (typeof ns === 'string' && ns.trim() !== '') {
+    return ns.trim()
+  }
+
+  const metaNS = resource?.resource?.metadata?.namespace
+  if (typeof metaNS === 'string' && metaNS.trim() !== '') {
+    return metaNS.trim()
+  }
+
+  const key = resource?.key || ''
+  const parts = key.split('/')
+  if (parts.length >= 3 && parts[1]) {
+    return parts[1]
+  }
+
   return ''
 }
 

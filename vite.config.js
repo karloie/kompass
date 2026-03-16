@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { viteSingleFile } from 'vite-plugin-singlefile'
 
 export default defineConfig({
   root: 'web',
-  plugins: [vue()],
+  plugins: [vue(), viteSingleFile()],
+  base: './',
   build: {
-    outDir: '../cmd/kompass/dist',
+    outDir: '../pkg/tree/dist',
     emptyOutDir: true,
   },
   server: {
