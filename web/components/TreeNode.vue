@@ -62,11 +62,11 @@ const icon = computed(() => {
 })
 
 const childNodes = computed(() => props.node?.children || [])
-const isLeaf = computed(() => childNodes.value.length === 0)
+const hasChildren = computed(() => childNodes.value.length > 0)
 const availableViews = computed(() => availableViewsForNode(props.node, { appViewsEnabled: props.viewActionsEnabled }))
 
 const isOpen = computed(() => {
-  if (isLeaf.value || !treeExpand) return false
+  if (!hasChildren.value || !treeExpand) return false
   return treeExpand.isNodeOpen(nodeKey.value, props.depth, nodeType.value)
 })
 
@@ -221,7 +221,7 @@ function statusTone(raw) {
 }
 
 function onToggle() {
-  if (!treeExpand || isLeaf.value) return
+  if (!treeExpand || !hasChildren.value) return
   treeExpand.toggleNode(nodeKey.value, props.node, props.depth, nodeType.value)
 }
 
@@ -328,63 +328,20 @@ const visibleMetadataEntries = computed(() => {
 
 <template>
   <li class="tree-node">
-    <template v-if="!isLeaf">
-      <div class="tree-node__summary tree-node__branch" @click="onToggle">
-        <span class="tree-node__summary-main">
-          <span class="tree-node__expand-icon" aria-hidden="true">{{ isOpen ? '▾' : '▸' }}</span>
-          <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
-          <span class="tree-node__label">{{ title }}</span>
-          <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
-          <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
-          <span
-            v-for="badge in trafficBadges"
-            :key="badge.text"
-            class="tree-node__policy-badge"
-          >
-            {{ badge.text }}
-          </span>
-          <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
-        </span>
-        <span v-if="availableViews.length" class="tree-node__actions">
-          <button
-            v-for="view in availableViews"
-            :key="view"
-            class="tree-node__action"
-            type="button"
-            :title="viewLabel(view)"
-            @click.stop.prevent="openView(view)"
-          >
-            {{ viewShortLabel(view) }}
-          </button>
-        </span>
-      </div>
-      <ul v-show="isOpen" class="tree-node__children">
-        <TreeNode
-          v-for="(child, index) in childNodes"
-          :key="child?.key || `${title}-${index}`"
-          :node="child"
-          :depth="depth + 1"
-          :view-actions-enabled="viewActionsEnabled"
-          @open-view="emit('open-view', $event)"
-        />
-      </ul>
-    </template>
-    <div v-else class="tree-node__summary tree-node__leaf">
-      <span class="tree-node__summary-main">
-        <span class="tree-node__expand-icon" aria-hidden="true"> </span>
-        <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
-        <span class="tree-node__label">{{ title }}</span>
-        <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
-        <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
-        <span
-          v-for="badge in trafficBadges"
-          :key="badge.text"
-          class="tree-node__policy-badge"
-        >
-          {{ badge.text }}
-        </span>
-        <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
+    <div class="tree-node__summary" :class="hasChildren ? 'tree-node__branch' : 'tree-node__leaf'" @click="onToggle">
+      <span class="tree-node__expand-icon" aria-hidden="true">{{ hasChildren ? (isOpen ? '▾' : '▸') : '' }}</span>
+      <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
+      <span class="tree-node__label">{{ title }}</span>
+      <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
+      <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
+      <span
+        v-for="badge in trafficBadges"
+        :key="badge.text"
+        class="tree-node__policy-badge"
+      >
+        {{ badge.text }}
       </span>
+      <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
       <span v-if="availableViews.length" class="tree-node__actions">
         <button
           v-for="view in availableViews"
@@ -398,6 +355,17 @@ const visibleMetadataEntries = computed(() => {
         </button>
       </span>
     </div>
+
+    <ul v-if="hasChildren && isOpen" class="tree-node__children">
+      <TreeNode
+        v-for="(child, index) in childNodes"
+        :key="child?.key || `${title}-${index}`"
+        :node="child"
+        :depth="depth + 1"
+        :view-actions-enabled="viewActionsEnabled"
+        @open-view="emit('open-view', $event)"
+      />
+    </ul>
   </li>
 </template>
 
@@ -411,6 +379,7 @@ const visibleMetadataEntries = computed(() => {
 .tree-node__summary {
   display: flex;
   align-items: center;
+  gap: 0.3rem;
   justify-content: flex-start;
   white-space: nowrap;
   width: max-content;
@@ -436,14 +405,6 @@ const visibleMetadataEntries = computed(() => {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-right: 0.1rem;
-}
-
-.tree-node__summary-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex: 0 0 auto;
-  min-width: max-content;
 }
 
 .tree-node__label {

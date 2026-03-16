@@ -393,10 +393,10 @@ function shellQuote(value) {
     <article class="view__panel">
 
       <header class="view__header">
-        <div class="view__title-wrap">
+        <h2 class="view__title">
           <span v-if="titleKindEmoji" class="view__title-emoji" aria-hidden="true">{{ titleKindEmoji }}</span>
-          <h2 class="view__title">{{ title }}</h2>
-        </div>
+          <span>{{ title }}</span>
+        </h2>
         <button
           class="view__close"
           type="button"
@@ -529,9 +529,6 @@ function shellQuote(value) {
 .view__title {
   margin: 0;
   font-size: 1.05rem;
-}
-
-.view__title-wrap {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
