@@ -266,7 +266,7 @@ func TestHandleTreeTextHeaderMatchesCLIPrintTrees(t *testing.T) {
 	}
 	cliTree := tree.BuildResponseTree(cliGraph)
 	cliOutput := captureStdout(t, func() {
-		printTrees(cliTree, "mock-cluster", "petshop", "mock", []string{"*/petshop/*"}, true)
+		printTreesText(cliTree, "mock-cluster", "petshop", "mock", []string{"*/petshop/*"}, true)
 	})
 	cliHeader := strings.SplitN(cliOutput, "\n", 2)[0]
 

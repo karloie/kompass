@@ -251,8 +251,8 @@ func TestRefreshUpdatesOpenResourceView(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
@@ -588,8 +588,8 @@ func TestScopeListAppliesClientLocalKubectlFlagsOnly(t *testing.T) {
 	updated, _ = m7.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m8 := updated.(Model)
 
-	updated, _ = m8.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m9 := updated.(Model)
+	updated, cmd = m8.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m9 := applyCmdResult(t, updated.(Model), cmd)
 	if m9.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
@@ -757,8 +757,8 @@ func TestInspectPageStatePersistsAcrossTabCycle(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyTab})
 	m2 := updated.(Model)
 	m2.view.Scroll = 3
@@ -789,8 +789,8 @@ func TestResourceViewHidesNonApplicablePagesForKind(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "service/ns/foo", Type: "service", Name: "foo", Status: "Running"}}
 	m.resources["service/ns/foo"] = &kube.Resource{Key: "service/ns/foo", Type: "service"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
@@ -832,8 +832,8 @@ func TestInspectHeaderShowsActivePage(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	header := m1.headerText()
 	if !strings.Contains(header, "foo") || !strings.Contains(header, "describe") || !strings.Contains(header, "logs") || !strings.Contains(header, "events") || !strings.Contains(header, "yaml") {
 		t.Fatalf("expected header to show resource tabs, got %q", header)
@@ -1565,8 +1565,8 @@ func TestPodViewIncludesNetpolAndHubblePages(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected resource view to open")
 	}
@@ -1605,8 +1605,8 @@ func TestNetpolPageShowsAnalysisOutput(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected view to open")
 	}
@@ -1645,8 +1645,8 @@ func TestHubblePageShowsFlows(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod"}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected view to open")
 	}
@@ -1716,8 +1716,8 @@ func TestPodViewUsesInjectedProviders(t *testing.T) {
 	m.rowsByPane[0] = []Row{{Key: "pod/ns/foo", Type: "pod", Name: "foo", Status: "Running"}}
 	m.resources["pod/ns/foo"] = &kube.Resource{Key: "pod/ns/foo", Type: "pod", Resource: map[string]any{"metadata": map[string]any{"name": "foo", "namespace": "ns"}}}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m1 := updated.(Model)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m1 := applyCmdResult(t, updated.(Model), cmd)
 	if m1.view == nil {
 		t.Fatalf("expected view to open")
 	}

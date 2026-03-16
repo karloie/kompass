@@ -155,7 +155,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 		s.handleTreeText(w, r)
 		return
 	case strings.Contains(accept, "text/html"):
-		s.handleTreeHTML(w, r)
+		s.handleTreeHtml(w, r)
 		return
 	}
 
@@ -201,7 +201,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, true)))
 }
 
-func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleTreeHtml(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 
@@ -215,7 +215,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
-	w.Write([]byte(tree.RenderHTML(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, staticMode)))
+	w.Write([]byte(tree.RenderHtml(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, staticMode)))
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {

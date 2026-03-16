@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -54,7 +55,11 @@ func RunWithConfig(opts Options, cfg RunConfig) error {
 	}
 
 	m := cfg.NewModel(opts)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	restoreCommandContext := setProgramCommandContext(ctx)
+	defer restoreCommandContext()
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx))
 	finalModel, err := p.Run()
 	if err != nil {
 		return err

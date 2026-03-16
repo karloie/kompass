@@ -120,14 +120,18 @@ kompass 'deployment/prod/*'      # All deployments in prod namespace
 |------|-------|-------------|
 | `--context <name>` | `-c` | Kubernetes context |
 | `--namespace <name>` | `-n` | Namespace |
-| `--mock` | | Use mock data |
-| `--json` | | JSON output |
-| `--plain` | | Plain output without ANSI colors |
+| `--mock` | `-m` | Use mock data |
+| `--output <mode>` | `-o` | Output mode: `json`, `text`, `plain`, `html` |
 | `--debug` | `-d` | Enable debug logging |
-| `--service [addr]` | | Start API server (`localhost:8080`) |
+| `--service [addr]` | `-s` | Start API server (`localhost:8080`) |
 | `--tui` | `-t` | Start interactive terminal UI |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
+
+Default behavior without `--output`:
+
+- Interactive terminal: launches TUI
+- Non-interactive terminal (pipe/redirect): prints text tree
 
 ## Installation
 

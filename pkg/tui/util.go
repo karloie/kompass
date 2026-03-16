@@ -12,7 +12,9 @@ import (
 )
 
 var runViewCommand = func(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	cmdCtx, cancel := commandTimeoutContext()
+	defer cancel()
+	out, err := exec.CommandContext(cmdCtx, name, args...).CombinedOutput()
 	body := strings.TrimRight(string(out), "\n")
 	if body == "" {
 		body = "(no output)"
@@ -24,7 +26,9 @@ var runViewCommand = func(name string, args ...string) (string, error) {
 }
 
 var runScopeListCommand = func(args ...string) (string, error) {
-	out, err := exec.Command("kubectl", args...).CombinedOutput()
+	cmdCtx, cancel := commandTimeoutContext()
+	defer cancel()
+	out, err := exec.CommandContext(cmdCtx, "kubectl", args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
 
@@ -162,12 +166,8 @@ func openResourceViewAsync(target resourceTarget, context string, resources map[
 	}
 	v.ActivePage = active
 
-	cmds := make([]tea.Cmd, 0, len(pageNames)-1)
-	for i, name := range pageNames {
-		if i == active || name == "netpol" || name == "hubble" {
-			v.Pages[i] = loadViewPageNow(target, context, resources, netpolProvider, hubbleProvider, name)
-			continue
-		}
+	cmds := make([]tea.Cmd, 0, len(pageNames))
+	for _, name := range pageNames {
 		cmds = append(cmds, loadViewPageCmd(target, context, resources, netpolProvider, hubbleProvider, name))
 	}
 	v.syncFromActivePage()

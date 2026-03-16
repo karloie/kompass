@@ -41,8 +41,8 @@ type treeHTMLView struct {
 	Script     template.JS
 }
 
-// RenderHTML renders all trees as a self-contained HTML document.
-func RenderHTML(result *kube.Response, context_, namespace, configPath string, selectors []string, staticMode bool) string {
+// RenderHtml renders all trees as a self-contained HTML document.
+func RenderHtml(result *kube.Response, context_, namespace, configPath string, selectors []string, staticMode bool) string {
 	if result == nil {
 		result = &kube.Response{}
 	}
