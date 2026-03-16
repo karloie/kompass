@@ -18,6 +18,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  selectors: {
+    type: String,
+    default: '',
+  },
   loading: {
     type: Boolean,
     default: false,
@@ -40,7 +44,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['refresh', 'toggle-theme', 'update:namespace', 'update:context'])
+const emit = defineEmits(['refresh', 'toggle-theme', 'update:namespace', 'update:context', 'update:selectors'])
 
 const contextOptions = computed(() => {
   const out = new Set()
@@ -60,12 +64,16 @@ function onContextChange(event) {
 function onNamespaceChange(event) {
   emit('update:namespace', event.target.value)
 }
+
+function onSelectorsInput(event) {
+  emit('update:selectors', event.target.value)
+}
 </script>
 
 <template>
   <header class="shared-header">
     <div class="shared-header__left">
-      <span class="shared-header__brand">🧭 Kompass </span>
+      <span class="shared-header__brand">🧭 Kompasss </span>
       <select
         class="shared-header__select"
         :value="contextName"
@@ -78,6 +86,14 @@ function onNamespaceChange(event) {
       <select class="shared-header__select" :value="namespace" :disabled="disabled" @change="onNamespaceChange">
         <option v-for="item in namespaces" :key="item" :value="item">{{ item }}</option>
       </select>
+      <input
+        class="shared-header__selectors"
+        type="text"
+        placeholder="selectors: */petshop/petshop* */kafka*/*"
+        :value="selectors"
+        :disabled="disabled"
+        @input="onSelectorsInput"
+      />
     </div>
 
     <div class="shared-header__actions">
@@ -145,6 +161,17 @@ function onNamespaceChange(event) {
   max-width: 34ch;
 }
 
+.shared-header__selectors {
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 0.36rem 0.45rem;
+  font-size: 0.95rem;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  min-width: 33ch;
+  max-width: 80ch;
+}
+
 .shared-header__actions {
   display: inline-flex;
   align-items: center;
@@ -171,7 +198,8 @@ function onNamespaceChange(event) {
 }
 
 .shared-header__btn:disabled,
-.shared-header__select:disabled {
+.shared-header__select:disabled,
+.shared-header__selectors:disabled {
   opacity: 0.6;
   cursor: default;
 }

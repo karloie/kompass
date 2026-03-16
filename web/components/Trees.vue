@@ -11,6 +11,18 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  selectors: {
+    type: String,
+    default: '',
+  },
+  draftQuery: {
+    type: String,
+    default: '',
+  },
+  filtering: {
+    type: Boolean,
+    default: false,
+  },
   query: {
     type: String,
     default: '',
@@ -29,7 +41,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading', 'open-view'])
+const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading', 'update:query', 'apply-query', 'open-view'])
 
 const loading = ref(false)
 const error = ref('')
@@ -116,6 +128,7 @@ function toggleNode(key, node, depth, nodeType) {
 }
 
 provide('treeExpand', { isNodeOpen, toggleNode, queryFilterActive })
+provide('treeNamespace', computed(() => String(props.namespace || '').trim()))
 
 async function fetchTree() {
   if (!props.context.trim() || !props.namespace.trim()) {
@@ -212,6 +225,13 @@ watch(() => props.refreshKey, () => {
   fetchTree()
 })
 
+watch(() => props.selectors, () => {
+  if (!dynamicEnabled.value) {
+    return
+  }
+  fetchTree()
+})
+
 watch(contextTitle, (value) => {
   emit('update:context-title', value)
 }, { immediate: true })
@@ -296,11 +316,28 @@ function treeURL() {
   const params = new URLSearchParams()
   const namespace = props.namespace.trim()
   const context = props.context.trim()
+  const selectors = String(props.selectors || '').trim()
   params.set('context', context)
   params.set('namespace', namespace)
+  if (selectors) {
+    params.set('selectors', selectors)
+  }
 
   const query = params.toString()
   return query ? `${base}?${query}` : base
+}
+
+function onQueryInput(event) {
+  emit('update:query', event.target.value)
+}
+
+function applyQuery() {
+  emit('apply-query')
+}
+
+function clearQuery() {
+  emit('update:query', '')
+  emit('apply-query')
 }
 
 function collectNamespaces(nodes, out) {
@@ -586,6 +623,43 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
 
 <template>
   <section class="tree">
+    <div class="tree__filters">
+      <label class="tree__field tree__field--grow">
+        <span class="tree__label-wrap">
+          <span v-if="filtering" class="tree__filtering">Filtering...</span>
+        </span>
+        <input
+          class="tree__input"
+          type="text"
+          placeholder="Filter: kafka* pod/?/api !crash"
+          :value="draftQuery"
+          @input="onQueryInput"
+          @keydown.enter.prevent="applyQuery"
+        />
+      </label>
+
+      <button
+        class="tree__apply"
+        type="button"
+        :aria-label="'Apply filter'"
+        :title="'Apply filter (same as Enter)'"
+        @click="applyQuery"
+      >
+        🔎
+      </button>
+
+      <button
+        class="tree__clear"
+        type="button"
+        :aria-label="'Clear filter'"
+        :title="'Clear filter'"
+        :disabled="!draftQuery"
+        @click="clearQuery"
+      >
+        🧹
+      </button>
+    </div>
+
     <p v-if="error" class="tree__error">Failed: {{ error }}</p>
     <p v-else-if="!roots.length && !loading" class="tree__hint">No tree data returned.</p>
     <p v-else-if="!filteredRoots.length && !loading" class="tree__hint">No matches for current filters.</p>
@@ -610,11 +684,65 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--panel-bg);
   color: var(--text-main);
+}
+
+.tree__filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.tree__field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.tree__field--grow {
+  flex: 1;
+  min-width: 320px;
+}
+
+.tree__label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tree__filtering {
+  font-size: 0.72rem;
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.tree__input {
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+  background: var(--panel-bg);
+  color: var(--text-main);
+}
+
+.tree__clear,
+.tree__apply {
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--button-text);
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tree__clear:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .tree__hint {

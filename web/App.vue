@@ -21,6 +21,7 @@ const contexts = ref([])
 const selectedContext = ref(resolveInitialContext())
 const namespaces = ref([])
 const selectedNamespace = ref(resolveInitialNamespace())
+const selectors = ref(resolveInitialSelectors())
 const searchDraftQuery = ref('')
 const appliedSearchQuery = ref('')
 const loading = ref(false)
@@ -53,7 +54,7 @@ onMounted(() => {
 })
 
 watch(
-  () => [selectedContext.value, selectedNamespace.value],
+  () => [selectedContext.value, selectedNamespace.value, selectors.value],
   () => {
     syncScopeQueryParams()
   },
@@ -180,6 +181,9 @@ function syncScopeQueryParams() {
   const url = new URL(window.location.href)
   const currentContext = String(selectedContext.value || '').trim()
   const currentNamespace = String(selectedNamespace.value || '').trim()
+  const currentSelectors = String(selectors.value || '').trim()
+  const currentResource = String(activeResourceView.value?.node?.key || '').trim()
+  const currentView = String(activeResourceView.value?.view || '').trim()
 
   if (currentContext) {
     url.searchParams.set('context', currentContext)
@@ -191,6 +195,24 @@ function syncScopeQueryParams() {
     url.searchParams.set('namespace', currentNamespace)
   } else {
     url.searchParams.delete('namespace')
+  }
+
+  if (currentSelectors) {
+    url.searchParams.set('selectors', currentSelectors)
+  } else {
+    url.searchParams.delete('selectors')
+  }
+
+  if (currentResource) {
+    url.searchParams.set('resource', currentResource)
+  } else {
+    url.searchParams.delete('resource')
+  }
+
+  if (currentView) {
+    url.searchParams.set('view', currentView)
+  } else {
+    url.searchParams.delete('view')
   }
 
   const nextURL = `${url.pathname}${url.search}${url.hash}`
@@ -223,6 +245,14 @@ function resolveInitialContext() {
   return String(props.bootstrapConfig?.context || props.bootstrapData?.request?.context || '').trim()
 }
 
+function resolveInitialSelectors() {
+  const fromURL = resolveInitialScopeParam('selectors')
+  if (fromURL) {
+    return fromURL
+  }
+  return String(props.bootstrapConfig?.selectors || props.bootstrapData?.request?.selectors || '').trim()
+}
+
 function openResourceView(payload) {
   if (!payload?.node) {
     return
@@ -231,10 +261,27 @@ function openResourceView(payload) {
     node: payload.node,
     view: payload.view || 'describe',
   }
+  syncScopeQueryParams()
 }
 
 function closeResourceView() {
   activeResourceView.value = null
+  syncScopeQueryParams()
+}
+
+function updateResourceViewTab(nextView) {
+  if (!activeResourceView.value) {
+    return
+  }
+  const view = String(nextView || '').trim()
+  if (!view) {
+    return
+  }
+  activeResourceView.value = {
+    ...activeResourceView.value,
+    view,
+  }
+  syncScopeQueryParams()
 }
 
 function formatKompassTitle(raw) {
@@ -259,25 +306,28 @@ function formatKompassTitle(raw) {
         :loading="loading"
         :namespaces="namespaces"
         :namespace="selectedNamespace"
-        :query="searchDraftQuery"
-        :filtering="filtering"
+        :selectors="selectors"
         :disabled="false"
         @refresh="refreshTree"
         @update:namespace="selectedNamespace = $event"
         @update:context="updateContext"
-        @update:query="updateSearchQuery"
-        @apply-query="applySearchQuery"
+        @update:selectors="selectors = $event"
       />
 
       <Trees
         :context="viewContextName"
         :namespace="selectedNamespace"
+        :selectors="selectors"
+        :draft-query="searchDraftQuery"
+        :filtering="filtering"
         :query="appliedSearchQuery"
         :refresh-key="refreshKey"
         :bootstrap-config="bootstrapConfig"
         :bootstrap-data="bootstrapData"
         @update:context-title="contextTitle = $event"
         @update:loading="loading = $event"
+        @update:query="updateSearchQuery"
+        @apply-query="applySearchQuery"
         @open-view="openResourceView"
       />
     </section>
@@ -292,6 +342,7 @@ function formatKompassTitle(raw) {
       :contexts="contextOptions"
       :namespaces="namespaces"
       :namespace="selectedNamespace"
+      :selectors="selectors"
       :loading="loading"
       :refresh-disabled="isStaticMode"
       :theme-icon="themeIcon"
@@ -300,6 +351,8 @@ function formatKompassTitle(raw) {
       @refresh="refreshTree"
       @update:namespace="selectedNamespace = $event"
       @update:context="updateContext"
+      @update:selectors="selectors = $event"
+      @update:view="updateResourceViewTab"
       @toggle-theme="toggleTheme"
     />
   </main>
@@ -311,7 +364,7 @@ function formatKompassTitle(raw) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1.5rem;
+  padding: 0.75rem;
   overflow: hidden;
 }
 

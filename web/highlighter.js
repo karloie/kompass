@@ -153,9 +153,12 @@ const TOKEN_PATTERNS = {
       regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
       replacer: formatTimeOnly,
     },
+    { className: 'view__token--level-trace', regex: /\b(?:TRACE|VERBOSE)\b/g },
     { className: 'view__token--level-debug', regex: /\bDEBUG\b/g },
     { className: 'view__token--level-info', regex: /\bINFO\b/g },
-    { className: 'view__token--level-warn', regex: /\bWARN\b/g },
+    { className: 'view__token--level-warn', regex: /\b(?:WARN|WARNING)\b/g },
+    { className: 'view__token--level-error', regex: /\b(?:ERROR|ERR)\b/g },
+    { className: 'view__token--level-fatal', regex: /\b(?:FATAL|PANIC|CRITICAL)\b/g },
     {
       className: 'view__token--time-meta',
       regex: /\b\d{10}(?:\d{3})?\b/g,

@@ -171,6 +171,31 @@ func TestHandleGraphSuccess(t *testing.T) {
 	}
 }
 
+func TestHandleGraphAcceptsPluralSelectorsParam(t *testing.T) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/graph?selectors=*/petshop/*+OR+*/kafka-system/*&context=mock-01&namespace=petshop&mock=mock", nil)
+
+	s.handleGraph(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	var out kube.Response
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("expected JSON output, got err: %v body=%q", err, rr.Body.String())
+	}
+	if len(out.Request.Selectors) != 2 {
+		t.Fatalf("expected 2 selectors, got %+v", out.Request.Selectors)
+	}
+	if out.Request.Selectors[0] != "*/petshop/*" || out.Request.Selectors[1] != "*/kafka-system/*" {
+		t.Fatalf("expected selectors to split by OR, got %+v", out.Request.Selectors)
+	}
+}
+
 func TestHandleGraphProviderError(t *testing.T) {
 	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
 		return nil, errors.New("provider failure")

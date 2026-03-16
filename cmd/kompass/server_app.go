@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os/exec"
 	"regexp"
@@ -228,6 +229,12 @@ func buildDescribeView(provider kube.Kube, target appResourceTarget, resource *k
 	if err == nil && strings.TrimSpace(body) != "" {
 		return body, nil
 	}
+
+	reason := "resource not found or empty"
+	if err != nil {
+		reason = err.Error()
+	}
+	slog.Warn("describe provider fallback", "from", "kubectl", "to", "in-memory", "resource", target.Key, "reason", reason)
 
 	fallback, fallbackErr := buildDescribeFallback(resource)
 	if fallbackErr != nil {

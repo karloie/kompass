@@ -354,7 +354,11 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
-	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
+	rawSelectors := strings.TrimSpace(r.URL.Query().Get("selectors"))
+	if rawSelectors == "" {
+		rawSelectors = r.URL.Query().Get("selector")
+	}
+	selectors := graph.ParseSelectors(rawSelectors)
 	contextArg, err := requireContextArg(r)
 	if err != nil {
 		return nil, "", nil, nil, err

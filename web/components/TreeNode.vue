@@ -20,14 +20,37 @@ const props = defineProps({
 const emit = defineEmits(['open-view'])
 
 const treeExpand = inject('treeExpand', null)
+const treeNamespace = inject('treeNamespace', null)
 
 const nodeKey = computed(() => String(props.node?.key || ''))
 const nodeType = computed(() => String(props.node?.type || '').toLowerCase())
 
 const title = computed(() => {
   const meta = props.node?.metadata || {}
-  const name = meta.name || props.node?.key || 'unknown'
-  const type = props.node?.type || 'resource'
+  const key = String(props.node?.key || '').trim()
+  const type = String(props.node?.type || extractTypeFromKey(key) || 'resource').trim()
+  const typeLower = type.toLowerCase()
+  if (typeLower === 'env') {
+    const envName = String(meta.name || extractNameFromKey(key) || '').trim()
+    const hasValue = Object.prototype.hasOwnProperty.call(meta, 'value')
+    const envValue = hasValue ? String(meta.value ?? '') : ''
+    if (envName && hasValue) {
+      return `${envName}=${envValue}`
+    }
+    if (envName) {
+      return envName
+    }
+  }
+  if (typeLower === 'mount') {
+    const mountPath = String(meta.mount || '').trim()
+    if (mountPath) {
+      return mountPath
+    }
+  }
+  const name = String(meta.name || extractNameFromKey(key) || 'unknown').trim()
+  if (name && type && name.toLowerCase() === type.toLowerCase()) {
+    return type
+  }
   return `${type} ${name}`
 })
 
@@ -47,6 +70,160 @@ const isOpen = computed(() => {
   return treeExpand.isNodeOpen(nodeKey.value, props.depth, nodeType.value)
 })
 
+const metadataLines = computed(() => {
+  return visibleMetadataEntries.value.map((entry) => `${entry.key}: ${entry.value}`)
+})
+
+const statusBadge = computed(() => {
+  const meta = props.node?.metadata || {}
+  const raw = pickStatusValue(meta)
+  if (!raw) {
+    return null
+  }
+  return {
+    text: compactStatusText(raw),
+    tone: statusTone(raw),
+  }
+})
+
+const stateBadge = computed(() => {
+  const meta = props.node?.metadata || {}
+  const raw = compactStateValue(meta.state)
+  if (!raw) {
+    return null
+  }
+  return {
+    text: compactStatusText(raw),
+    tone: statusTone(raw),
+  }
+})
+
+const trafficBadges = computed(() => {
+  const meta = props.node?.metadata || {}
+  const badges = []
+
+  const ingress = asBool(meta.ingress)
+  if (ingress === true) {
+    badges.push({ text: 'INGRESS' })
+  }
+
+  const egress = asBool(meta.egress)
+  if (egress === true) {
+    badges.push({ text: 'EGRESS' })
+  }
+
+  return badges
+})
+
+const metadataInline = computed(() => {
+  const pairs = visibleMetadataEntries.value
+    .filter((entry) => !statusMetadataKeys.has(entry.key))
+    .map((entry) => `${entry.key}: ${entry.value}`)
+  if (!pairs.length) {
+    return ''
+  }
+  const joined = pairs.join(' | ')
+  if (joined.length <= 90) {
+    return joined
+  }
+  return `${joined.slice(0, 87)}...`
+})
+
+function pickStatusValue(meta) {
+  const keys = [
+    'status',
+    'phase',
+    'conditions',
+    'replicaCounts',
+    'daemonCounts',
+    'jobCounts',
+    'hpaStatus',
+    'issuerStatus',
+  ]
+  for (const key of keys) {
+    const value = String(meta?.[key] || '').trim()
+    if (value) {
+      return value
+    }
+  }
+  return ''
+}
+
+function compactStatusText(raw) {
+  const text = String(raw || '').trim()
+  if (text.length <= 22) {
+    return text
+  }
+  return `${text.slice(0, 19)}...`
+}
+
+function compactStateValue(value) {
+  if (value == null) {
+    return ''
+  }
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value)
+    if (!keys.length) {
+      return ''
+    }
+    return keys[0]
+  }
+  return String(value).trim()
+}
+
+function asBool(value) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase()
+    if (v === 'true') return true
+    if (v === 'false') return false
+  }
+  return null
+}
+
+function statusTone(raw) {
+  const value = String(raw || '').toLowerCase()
+  if (
+    value.includes('crash') ||
+    value.includes('error') ||
+    value.includes('fail') ||
+    value.includes('degrad') ||
+    value.includes('unhealthy') ||
+    value.includes('not ready') ||
+    value.includes('oom') ||
+    value.includes('backoff')
+  ) {
+    return 'bad'
+  }
+  if (
+    value.includes('pending') ||
+    value.includes('progress') ||
+    value.includes('starting') ||
+    value.includes('terminating') ||
+    value.includes('unknown')
+  ) {
+    return 'warn'
+  }
+  if (
+    value.includes('running') ||
+    value.includes('ready') ||
+    value.includes('active') ||
+    value.includes('bound') ||
+    value.includes('healthy') ||
+    value.includes('succeed') ||
+    value.includes('pass') ||
+    value.includes('ok')
+  ) {
+    return 'good'
+  }
+  return 'neutral'
+}
+
 function onToggle() {
   if (!treeExpand || isLeaf.value) return
   treeExpand.toggleNode(nodeKey.value, props.node, props.depth, nodeType.value)
@@ -55,6 +232,100 @@ function onToggle() {
 function openView(view) {
   emit('open-view', { node: props.node, view })
 }
+
+function extractNameFromKey(key) {
+  const parts = String(key || '').split('/').filter(Boolean)
+  if (!parts.length) {
+    return ''
+  }
+  return parts[parts.length - 1]
+}
+
+function extractTypeFromKey(key) {
+  const parts = String(key || '').split('/').filter(Boolean)
+  if (!parts.length) {
+    return ''
+  }
+  return parts[0]
+}
+
+const hiddenMetadataKeys = new Set([
+  'annotations',
+  'available',
+  'current',
+  '__nodetype',
+  'count',
+  'creationtimestamp',
+  'displayprefix',
+  'index',
+  'kind',
+  'labels',
+  'managedfields',
+  'mount',
+  'name',
+  'orphaned',
+  'ownerreferences',
+  'policytype',
+  'livenessstatus',
+  'readinessstatus',
+  'startupstatus',
+  'resourceversion',
+  'ruletype',
+  'ready',
+  'source',
+  'sourcetype',
+  'targetkind',
+  'updated',
+  'uid',
+  'value',
+  'volumetype',
+])
+
+const statusMetadataKeys = new Set([
+  'status',
+  'state',
+  'ingress',
+  'egress',
+  'phase',
+  'conditions',
+  'replicaCounts',
+  'daemonCounts',
+  'jobCounts',
+  'hpaStatus',
+  'issuerStatus',
+])
+
+const visibleMetadataEntries = computed(() => {
+  const meta = props.node?.metadata || {}
+  const selectedNamespace = String(treeNamespace?.value || '').trim()
+  const keys = Object.keys(meta).sort((a, b) => a.localeCompare(b))
+  const entries = []
+  for (const key of keys) {
+    const value = meta[key]
+    if (value == null) {
+      continue
+    }
+    if (hiddenMetadataKeys.has(String(key).trim().toLowerCase())) {
+      continue
+    }
+    if (String(key).trim().toLowerCase() === 'namespace' && selectedNamespace) {
+      const nsValue = String(value || '').trim()
+      if (nsValue === selectedNamespace) {
+        continue
+      }
+    }
+    let displayValue = value
+    if (typeof value === 'object') {
+      displayValue = JSON.stringify(value, null, 0).replace(/,/g, ', ')
+    }
+    const text = String(displayValue).trim()
+    if (!text) {
+      continue
+    }
+    entries.push({ key, value: text })
+  }
+  return entries
+})
 </script>
 
 <template>
@@ -65,6 +336,16 @@ function openView(view) {
           <span class="tree-node__expand-icon" aria-hidden="true">{{ isOpen ? '▾' : '▸' }}</span>
           <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
           <span class="tree-node__label">{{ title }}</span>
+          <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
+          <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
+          <span
+            v-for="badge in trafficBadges"
+            :key="badge.text"
+            class="tree-node__policy-badge"
+          >
+            {{ badge.text }}
+          </span>
+          <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
         </span>
         <span v-if="availableViews.length" class="tree-node__actions">
           <button
@@ -78,6 +359,9 @@ function openView(view) {
             {{ viewShortLabel(view) }}
           </button>
         </span>
+        <div v-if="metadataLines.length" class="tree-node__metadata-popup">
+          <div v-for="(line, idx) in metadataLines" :key="idx" class="tree-node__metadata-line">{{ line }}</div>
+        </div>
       </div>
       <ul v-show="isOpen" class="tree-node__children">
         <TreeNode
@@ -95,6 +379,16 @@ function openView(view) {
         <span class="tree-node__expand-icon" aria-hidden="true"> </span>
         <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
         <span class="tree-node__label">{{ title }}</span>
+        <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
+        <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
+        <span
+          v-for="badge in trafficBadges"
+          :key="badge.text"
+          class="tree-node__policy-badge"
+        >
+          {{ badge.text }}
+        </span>
+        <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
       </span>
       <span v-if="availableViews.length" class="tree-node__actions">
         <button
@@ -108,6 +402,9 @@ function openView(view) {
           {{ viewShortLabel(view) }}
         </button>
       </span>
+      <div v-if="metadataLines.length" class="tree-node__metadata-popup">
+        <div v-for="(line, idx) in metadataLines" :key="idx" class="tree-node__metadata-line">{{ line }}</div>
+      </div>
     </div>
   </li>
 </template>
@@ -124,6 +421,7 @@ function openView(view) {
   white-space: nowrap;
   overflow: hidden;
   user-select: none;
+  position: relative;
 }
 
 .tree-node__branch {
@@ -148,7 +446,7 @@ function openView(view) {
 .tree-node__summary-main {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.3rem;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -164,6 +462,64 @@ function openView(view) {
   cursor: default;
 }
 
+.tree-node__status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--button-border);
+  padding: 0.05rem 0.45rem;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tree-node__status--good {
+  color: #2fb36a;
+  background: color-mix(in srgb, #2fb36a 14%, transparent);
+}
+
+.tree-node__status--warn {
+  color: #d0a53a;
+  background: color-mix(in srgb, #d0a53a 14%, transparent);
+}
+
+.tree-node__status--bad {
+  color: #de5b5b;
+  background: color-mix(in srgb, #de5b5b 14%, transparent);
+}
+
+.tree-node__status--neutral {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.tree-node__policy-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--button-border);
+  padding: 0.05rem 0.45rem;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #4aa6ff;
+  background: color-mix(in srgb, #4aa6ff 16%, transparent);
+}
+
+.tree-node__meta-inline {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .tree-node__icon {
   display: inline-block;
   width: 1.4em;
@@ -171,7 +527,7 @@ function openView(view) {
 
 .tree-node__children {
   margin: 0.25rem 0 0.25rem 1rem;
-  padding-left: 0.75rem;
+  padding-left: 0.5rem;
   border-left: 1px dashed var(--button-border);
 }
 
@@ -202,5 +558,42 @@ function openView(view) {
   font-weight: 700;
   line-height: 1.4;
   cursor: pointer;
+}
+
+.tree-node__metadata-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: none;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  min-width: 200px;
+  max-width: 400px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.tree-node__summary:hover > .tree-node__metadata-popup {
+  display: block;
+}
+
+.tree-node__metadata-line {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0;
+  word-break: break-word;
+  font-family: monospace;
+}
+
+.tree-node__metadata-line:first-child {
+  margin-top: 0;
+}
+
+.tree-node__metadata-line:last-child {
+  margin-bottom: 0;
 }
 </style>

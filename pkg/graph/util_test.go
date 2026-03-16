@@ -155,6 +155,15 @@ func TestParseAndExpandSelectors(t *testing.T) {
 	if got := ParseSelectors(" a , , b "); !reflect.DeepEqual(got, []string{"a", "b"}) {
 		t.Fatalf("ParseSelectors mismatch: %#v", got)
 	}
+	if got := ParseSelectors("*/petshop/* */*/zoo*"); !reflect.DeepEqual(got, []string{"*/petshop/*", "*/*/zoo*"}) {
+		t.Fatalf("ParseSelectors whitespace OR mismatch: %#v", got)
+	}
+	if got := ParseSelectors("*/petshop/* | */*/zoo*"); !reflect.DeepEqual(got, []string{"*/petshop/*", "*/*/zoo*"}) {
+		t.Fatalf("ParseSelectors pipe OR mismatch: %#v", got)
+	}
+	if got := ParseSelectors("*/petshop/* OR */*/zoo*"); !reflect.DeepEqual(got, []string{"*/petshop/*", "*/*/zoo*"}) {
+		t.Fatalf("ParseSelectors keyword OR mismatch: %#v", got)
+	}
 
 	nodeMap := map[string]kube.Resource{
 		"pod/petshop/api":        {Key: "pod/petshop/api", Type: "pod"},

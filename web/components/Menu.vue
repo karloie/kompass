@@ -38,13 +38,9 @@ const props = defineProps({
     type: String,
     default: '',
   },
-  query: {
+  selectors: {
     type: String,
     default: '',
-  },
-  filtering: {
-    type: Boolean,
-    default: false,
   },
   disabled: {
     type: Boolean,
@@ -52,7 +48,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['refresh', 'update:namespace', 'update:context', 'update:query', 'apply-query'])
+const emit = defineEmits(['refresh', 'update:namespace', 'update:context', 'update:selectors'])
 
 function onNamespaceChange(value) {
   emit('update:namespace', String(value || ''))
@@ -62,17 +58,8 @@ function onContextChange(value) {
   emit('update:context', String(value || ''))
 }
 
-function onQueryInput(event) {
-  emit('update:query', event.target.value)
-}
-
-function applyQuery() {
-  emit('apply-query')
-}
-
-function clearQuery() {
-  emit('update:query', '')
-  emit('apply-query')
+function onSelectorsChange(value) {
+  emit('update:selectors', String(value || ''))
 }
 
 function toggleTheme() {
@@ -89,6 +76,7 @@ function toggleTheme() {
       :contexts="contexts"
       :namespace="namespace"
       :namespaces="namespaces"
+      :selectors="selectors"
       :loading="loading"
       :refresh-disabled="refreshDisabled"
       :theme-icon="themeIcon"
@@ -98,46 +86,8 @@ function toggleTheme() {
       @toggle-theme="toggleTheme"
       @update:namespace="onNamespaceChange"
       @update:context="onContextChange"
+      @update:selectors="onSelectorsChange"
     />
-
-    <div class="menu__filters">
-      <label class="menu__field menu__field--grow">
-        <span class="menu__label-wrap">
-          <span v-if="filtering" class="menu__filtering">Filtering...</span>
-        </span>
-        <input
-          class="menu__input"
-          type="text"
-          placeholder="Filter: kafka* pod/?/api !crash"
-          :value="query"
-          :disabled="disabled"
-          @input="onQueryInput"
-          @keydown.enter.prevent="applyQuery"
-        />
-      </label>
-
-      <button
-        class="menu__apply"
-        type="button"
-        :aria-label="'Apply filter'"
-        :title="'Apply filter (same as Enter)'"
-        :disabled="disabled"
-        @click="applyQuery"
-      >
-        🔎
-      </button>
-
-      <button
-        class="menu__clear"
-        type="button"
-        :aria-label="'Clear filter'"
-        :title="'Clear filter'"
-        :disabled="disabled || !query"
-        @click="clearQuery"
-      >
-        🧹
-      </button>
-    </div>
   </section>
 </template>
 
@@ -145,77 +95,7 @@ function toggleTheme() {
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0;
 }
 
-.menu__filters {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.menu__field {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.menu__field--grow {
-  flex: 1;
-  min-width: 320px;
-}
-
-.menu__label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.menu__label-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.menu__filtering {
-  font-size: 0.72rem;
-  color: var(--accent-color);
-  font-weight: 600;
-}
-
-.menu__select,
-.menu__input {
-  border: 1px solid var(--button-border);
-  border-radius: 6px;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.9rem;
-  background: var(--panel-bg);
-  color: var(--text-main);
-}
-
-.menu__clear {
-  border: 1px solid var(--button-border);
-  background: var(--button-bg);
-  color: var(--button-text);
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.menu__apply {
-  border: 1px solid var(--button-border);
-  background: var(--button-bg);
-  color: var(--button-text);
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.menu__clear:disabled,
-.menu__apply:disabled,
-.menu__select:disabled,
-.menu__input:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
 </style>

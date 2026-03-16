@@ -70,24 +70,14 @@ func ObserveHubbleByMode(podRef string, last int, context, mode string) (string,
 		return observeHubbleNative(podRef, last, context)
 	default: // auto
 		body, err := observeHubbleNative(podRef, last, context)
-		if err == nil && !IsNativeHubbleNoData(body) {
+		if err == nil {
+			// Native succeeded (even if no flows were observed) — return the result.
 			return body, nil
 		}
-		reason := "no native flow data"
-		if err != nil {
-			reason = err.Error()
-		}
-		slog.Warn("hubble provider fallback", "from", "native", "to", "cli", "pod", podRef, "reason", reason)
+		// Only fall back to CLI on actual errors.
+		slog.Warn("hubble provider fallback", "from", "native", "to", "cli", "pod", podRef, "reason", err.Error())
 		return observeHubbleWithCLI(podRef, last, context)
 	}
-}
-
-func IsNativeHubbleNoData(body string) bool {
-	trimmed := strings.TrimSpace(body)
-	if trimmed == "" {
-		return true
-	}
-	return strings.HasPrefix(trimmed, "(no hubble flows observed")
 }
 
 func observeHubbleWithCLI(podRef string, last int, context string) (string, error) {

@@ -38,6 +38,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  selectors: {
+    type: String,
+    default: '',
+  },
   loading: {
     type: Boolean,
     default: false,
@@ -56,7 +60,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['close', 'refresh', 'update:namespace', 'update:context', 'toggle-theme'])
+const emit = defineEmits(['close', 'refresh', 'update:namespace', 'update:context', 'update:selectors', 'update:view', 'toggle-theme'])
 
 const activeView = ref('')
 const loading = ref(false)
@@ -82,11 +86,17 @@ const endpointMap = {
 
 const currentPayload = computed(() => cache.value[activeView.value] || null)
 const title = computed(() => String(props.node?.key || '').trim() || currentPayload.value?.title || '(unknown resource)')
+const titleKindEmoji = computed(() => {
+  if (typeof props.node?.icon === 'string' && props.node.icon.trim() !== '') {
+    return props.node.icon
+  }
+  return ''
+})
 const content = computed(() => currentPayload.value?.content || '')
 const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
 const supportsContentFilter = computed(() => {
   const view = String(activeView.value || '').toLowerCase()
-  return view === 'logs' || view === 'events' || view === 'hubble'
+  return view === 'logs' || view === 'events' || view === 'hubble' || view === 'yaml'
 })
 const normalizedContentFilter = computed(() => String(contentFilter.value || '').trim().toLowerCase())
 const filteredContent = computed(() => {
@@ -131,8 +141,12 @@ watch(
   { immediate: true },
 )
 
-watch(activeView, () => {
+watch(activeView, (value) => {
   contentFilter.value = ''
+  const next = String(value || '').trim()
+  if (next) {
+    emit('update:view', next)
+  }
 })
 
 watch(highlightedContent, async () => {
@@ -154,6 +168,18 @@ watch(
   },
   { immediate: true },
 )
+
+watch(() => props.selectors, () => {
+  const view = String(activeView.value || '').trim()
+  if (!view) {
+    return
+  }
+  cache.value = {
+    ...cache.value,
+    [view]: null,
+  }
+  fetchView(view)
+})
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
@@ -192,8 +218,12 @@ async function fetchView(view) {
   try {
     const params = nodeRequestParams(props.node)
     const selectedContext = String(props.contextName || '').trim()
+    const selectors = String(props.selectors || '').trim()
     if (selectedContext) {
       params.set('context', selectedContext)
+    }
+    if (selectors) {
+      params.set('selectors', selectors)
     }
     const endpoint = endpointMap[view] || view
     const response = await fetch(`${props.apiBase}/${endpoint}?${params.toString()}`, {
@@ -258,44 +288,58 @@ function buildFallbackCommand(view, node, contextName) {
     return ''
   }
 
-  const kubectl = kubectlPrefix(contextName)
-  const nsFlag = target.namespace ? ` -n ${shellQuote(target.namespace)}` : ''
+  const kubectl = 'kubectl'
+  const context = String(contextName || '').trim()
+  const namespace = String(target.namespace || '').trim()
   const kind = shellQuote(target.type)
   const name = shellQuote(target.name)
 
   switch (String(view || '').toLowerCase()) {
     case 'describe':
-      return `${kubectl} describe ${kind} ${name}${nsFlag}`
+      return appendCommandScopeFlags(`${kubectl} describe ${kind} ${name}`, namespace, context)
     case 'logs':
       if (target.type !== 'pod') {
-        return `${kubectl} describe ${kind} ${name}${nsFlag}`
+        return appendCommandScopeFlags(`${kubectl} describe ${kind} ${name}`, namespace, context)
       }
-      return `${kubectl} logs ${name}${nsFlag} --tail=100`
+      return appendCommandScopeFlags(`${kubectl} logs ${name} --tail=100`, namespace, context)
     case 'events':
-      return `${kubectl} get events${nsFlag} --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp | tail -n 100`
+      return `${appendCommandScopeFlags(`${kubectl} get events --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp`, namespace, context)} | tail -n 100`
     case 'yaml':
-      return `${kubectl} get ${kind} ${name}${nsFlag} -o yaml`
+      return appendCommandScopeFlags(`${kubectl} get ${kind} ${name} -o yaml`, namespace, context)
     case 'hubble': {
       if (target.type !== 'pod' || !target.namespace) {
-        return `${kubectl} get netpol${nsFlag}`
+        return appendCommandScopeFlags(`${kubectl} get netpol`, namespace, context)
       }
-      const ctx = String(contextName || '').trim()
-      const hubbleCtx = ctx ? ` --context ${shellQuote(ctx)}` : ''
-      const ciliumCtx = ctx ? ` --context ${shellQuote(ctx)}` : ''
       const podRef = `${target.namespace}/${target.name}`
-      return `hubble observe${hubbleCtx} --namespace ${shellQuote(target.namespace)} --pod ${name} --last 100 || cilium monitor${ciliumCtx} --related-to ${shellQuote(podRef)}`
+      const hubble = appendCommandScopeFlags(`hubble observe --pod ${name} --last 100`, namespace, context)
+      const cilium = appendContextFlag(`cilium monitor --related-to ${shellQuote(podRef)}`, context)
+      return `${hubble} || ${cilium}`
     }
     default:
-      return `${kubectl} describe ${kind} ${name}${nsFlag}`
+      return appendCommandScopeFlags(`${kubectl} describe ${kind} ${name}`, namespace, context)
   }
 }
 
-function kubectlPrefix(contextName) {
-  const ctx = String(contextName || '').trim()
-  if (!ctx) {
-    return 'kubectl'
+function appendCommandScopeFlags(command, namespace, context) {
+  let out = String(command || '').trim()
+  const ns = String(namespace || '').trim()
+  const ctx = String(context || '').trim()
+  if (ns) {
+    out += ` --namespace ${shellQuote(ns)}`
   }
-  return `kubectl --context ${shellQuote(ctx)}`
+  if (ctx) {
+    out += ` --context ${shellQuote(ctx)}`
+  }
+  return out
+}
+
+function appendContextFlag(command, context) {
+  let out = String(command || '').trim()
+  const ctx = String(context || '').trim()
+  if (ctx) {
+    out += ` --context ${shellQuote(ctx)}`
+  }
+  return out
 }
 
 function parseNodeTarget(node) {
@@ -333,6 +377,7 @@ function shellQuote(value) {
       :contexts="contexts"
       :namespace="namespace"
       :namespaces="namespaces"
+      :selectors="selectors"
       :loading="loading"
       :refresh-disabled="refreshDisabled"
       :theme-icon="themeIcon"
@@ -341,37 +386,26 @@ function shellQuote(value) {
       @toggle-theme="emit('toggle-theme')"
       @update:namespace="emit('update:namespace', $event)"
       @update:context="emit('update:context', $event)"
+      @update:selectors="emit('update:selectors', $event)"
     />
 
-    <div v-if="fallbackCommand" class="view__command-row">
-      <div class="view__command-wrap">
-        <input
-          id="view-fallback-command"
-          class="view__command-input"
-          type="text"
-          :value="fallbackCommand"
-          readonly
-          @focus="$event.target.select()"
-        />
-        <button
-          class="view__command-copy"
-          type="button"
-          :aria-label="copiedCommand ? 'Copied command' : 'Copy command'"
-          :title="copiedCommand ? 'Copied command' : 'Copy command'"
-          @click="copyFallbackCommand"
-        >
-          {{ copiedCommand ? '✅' : '📋' }}
-        </button>
-      </div>
-    </div>
-
-    <header class="view__header">
-      <div>
-        <h2 class="view__title">{{ title }}</h2>
-      </div>
-    </header>
-
     <article class="view__panel">
+
+      <header class="view__header">
+        <div class="view__title-wrap">
+          <span v-if="titleKindEmoji" class="view__title-emoji" aria-hidden="true">{{ titleKindEmoji }}</span>
+          <h2 class="view__title">{{ title }}</h2>
+        </div>
+        <button
+          class="view__close"
+          type="button"
+          aria-label="Close view"
+          title="Close view"
+          @click="closeView"
+        >
+          ❌
+        </button>
+      </header>
 
       <nav v-if="views.length" class="view__tabs" aria-label="Resource views">
         <button
@@ -385,39 +419,6 @@ function shellQuote(value) {
           {{ viewLabel(view) }}
         </button>
 
-        <div class="view__tabs-actions">
-          <div v-if="supportsContentFilter" class="view__filter-inline">
-            <input
-              v-model="contentFilter"
-              class="view__filter-input"
-              type="text"
-              placeholder="Filter lines"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <span v-if="contentFilterStats" class="view__filter-stats">{{ contentFilterStats }}</span>
-            <button
-              class="view__filter-clear"
-              type="button"
-              :disabled="!contentFilter"
-              title="Clear filter"
-              aria-label="Clear filter"
-              @click="clearContentFilter"
-            >
-              🧹
-            </button>
-          </div>
-
-          <button
-            class="view__close view__close--tabs"
-            type="button"
-            aria-label="Close view"
-            title="Close view"
-            @click="closeView"
-          >
-            ❌
-          </button>
-        </div>
       </nav>
 
       <p v-if="error" class="view__error">{{ error }}</p>
@@ -425,6 +426,50 @@ function shellQuote(value) {
       <p v-else-if="!views.length" class="view__hint">No backend views available for this resource.</p>
       <p v-else-if="supportsContentFilter && normalizedContentFilter && !filteredContent" class="view__hint">No lines match the filter.</p>
       <pre v-else ref="contentEl" class="view__content" v-html="highlightedContent"></pre>
+
+      <div v-if="fallbackCommand || supportsContentFilter" class="view__command-row">
+        <div v-if="fallbackCommand" class="view__command-wrap">
+          <input
+            id="view-fallback-command"
+            class="view__command-input"
+            type="text"
+            :value="fallbackCommand"
+            readonly
+            @focus="$event.target.select()"
+          />
+          <button
+            class="view__command-copy"
+            type="button"
+            :aria-label="copiedCommand ? 'Copied command' : 'Copy command'"
+            :title="copiedCommand ? 'Copied command' : 'Copy command'"
+            @click="copyFallbackCommand"
+          >
+            {{ copiedCommand ? '✅' : '📋' }}
+          </button>
+        </div>
+
+        <div v-if="supportsContentFilter" class="view__filter-inline view__filter-inline--right">
+          <input
+            v-model="contentFilter"
+            class="view__filter-input"
+            type="text"
+            placeholder="Filter lines"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span v-if="contentFilterStats" class="view__filter-stats">{{ contentFilterStats }}</span>
+          <button
+            class="view__filter-clear"
+            type="button"
+            :disabled="!contentFilter"
+            title="Clear filter"
+            aria-label="Clear filter"
+            @click="clearContentFilter"
+          >
+            🧹
+          </button>
+        </div>
+      </div>
     </article>
   </section>
 </template>
@@ -445,8 +490,8 @@ function shellQuote(value) {
   flex: 1;
   max-height: none;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.35rem;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0.15rem;
   padding: 0.8rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -462,13 +507,13 @@ function shellQuote(value) {
 }
 
 .view__tabs {
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .view__hint,
 .view__error,
 .view__content {
-  grid-row: 2;
+  grid-row: 3;
 }
 
 .view__eyebrow {
@@ -482,6 +527,18 @@ function shellQuote(value) {
 
 .view__title {
   margin: 0;
+  font-size: 1.05rem;
+}
+
+.view__title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.view__title-emoji {
+  line-height: 1;
   font-size: 1.05rem;
 }
 
@@ -505,10 +562,6 @@ function shellQuote(value) {
   padding: 0.42rem 0.78rem;
   font-size: 0.8rem;
   line-height: 1.2;
-}
-
-.view__close--tabs {
-  margin-left: 0;
 }
 
 .view__tabs {
@@ -540,16 +593,10 @@ function shellQuote(value) {
   border-bottom-color: var(--panel-bg);
 }
 
-.view__tabs-actions {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .view__command-row {
+  grid-row: 4;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.6rem;
 }
 
@@ -591,10 +638,16 @@ function shellQuote(value) {
 }
 
 .view__filter-inline {
-  display: inline-grid;
+  display: grid;
   grid-template-columns: minmax(9rem, 14rem) auto auto;
   gap: 0.5rem;
   align-items: center;
+}
+
+.view__filter-inline--right {
+  width: 25%;
+  min-width: 14rem;
+  margin-left: auto;
 }
 
 .view__filter-input {
@@ -684,6 +737,10 @@ function shellQuote(value) {
   color: #b26cff;
 }
 
+.view__content :deep(.view__token--level-trace) {
+  color: #666;
+}
+
 .view__content :deep(.view__token--level-debug) {
   color: var(--accent-color);
 }
@@ -694,6 +751,15 @@ function shellQuote(value) {
 
 .view__content :deep(.view__token--level-warn) {
   color: var(--accent-cyan);
+}
+
+.view__content :deep(.view__token--level-error) {
+  color: #ff6b6b;
+}
+
+.view__content :deep(.view__token--level-fatal) {
+  color: #ff3333;
+  font-weight: 700;
 }
 
 .view__content :deep(.view__token--string) {
