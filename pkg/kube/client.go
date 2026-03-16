@@ -72,7 +72,8 @@ func (c *Client) GetContexts() (any, error) {
 		values[ctx] = struct{}{}
 	}
 
-	kubeconfig := strings.TrimSpace(os.Getenv("KUBECONFIG"))
+	kubeconfigEnv := strings.TrimSpace(os.Getenv("KUBECONFIG"))
+	kubeconfig := kubeconfigEnv
 	if kubeconfig == "" {
 		if home, err := os.UserHomeDir(); err == nil {
 			kubeconfig = filepath.Join(home, ".kube", "config")
@@ -80,7 +81,29 @@ func (c *Client) GetContexts() (any, error) {
 	}
 
 	if kubeconfig != "" {
-		loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig}
+		loadingRules := &clientcmd.ClientConfigLoadingRules{}
+		paths := filepath.SplitList(kubeconfig)
+		if len(paths) == 1 && strings.TrimSpace(paths[0]) != "" {
+			loadingRules.ExplicitPath = strings.TrimSpace(paths[0])
+		} else if len(paths) > 1 {
+			precedence := make([]string, 0, len(paths))
+			for _, item := range paths {
+				item = strings.TrimSpace(item)
+				if item != "" {
+					precedence = append(precedence, item)
+				}
+			}
+			if len(precedence) > 0 {
+				loadingRules.Precedence = precedence
+			}
+		}
+
+		// If no valid explicit/preferred paths were derived (e.g., malformed env),
+		// keep the active context fallback already collected from c.context.
+		if loadingRules.ExplicitPath == "" && len(loadingRules.Precedence) == 0 && kubeconfigEnv != "" {
+			loadingRules.ExplicitPath = kubeconfigEnv
+		}
+
 		if raw, err := loadingRules.Load(); err == nil && raw != nil {
 			for name := range raw.Contexts {
 				name = strings.TrimSpace(name)
@@ -92,7 +115,10 @@ func (c *Client) GetContexts() (any, error) {
 	}
 
 	if c.mockMode {
-		values["mock-cluster"] = struct{}{}
+		values["mock-01"] = struct{}{}
+		if isInClusterEnvironment() {
+			values["in-cluster"] = struct{}{}
+		}
 	}
 
 	if len(values) == 0 {
@@ -106,6 +132,11 @@ func (c *Client) GetContexts() (any, error) {
 	sort.Strings(contexts)
 
 	return contexts, nil
+}
+
+func isInClusterEnvironment() bool {
+	return strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_HOST")) != "" &&
+		strings.TrimSpace(os.Getenv("KUBERNETES_SERVICE_PORT")) != ""
 }
 func (c *Client) SetContext(context string)     { c.context = context }
 func (c *Client) GetNamespace() (string, error) { return c.namespace, nil }

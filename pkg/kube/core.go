@@ -359,7 +359,7 @@ func NewMockClient(model *InMemoryModel, configs ...MockConfig) *Client {
 		mockMode:       true,
 		mockConfig:     config,
 		mockModel:      model,
-		context:        "mock-cluster",
+		context:        "mock-01",
 		namespace:      "default",
 		kubeconfig:     "mock",
 		cache:          newResourceCache(),

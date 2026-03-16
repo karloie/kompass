@@ -124,11 +124,19 @@ func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube
 	if providerNamespace == "" {
 		providerNamespace = s.namespaceArg
 	}
+	providerContext := strings.TrimSpace(r.URL.Query().Get("context"))
+	if providerContext == "" {
+		providerContext = s.contextArg
+	}
+	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
+	if mockProvider == "" && providerContext == "mock-01" {
+		mockProvider = "mock"
+	}
 
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 
-	provider, err := s.getProvider(r.URL.Query().Get("mock"), providerNamespace)
+	provider, err := s.getProvider(mockProvider, providerContext, providerNamespace)
 	if err != nil {
 		return appResourceTarget{}, nil, nil, nil, err
 	}

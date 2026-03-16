@@ -61,7 +61,7 @@ func TestHandleMetadataWithClient(t *testing.T) {
 
 func TestGetProviderUnknownMock(t *testing.T) {
 	s := &server{}
-	_, err := s.getProvider("nope", "")
+	_, err := s.getProvider("nope", "", "")
 	if err == nil {
 		t.Fatalf("expected error for unknown mock provider")
 	}
@@ -71,7 +71,7 @@ func TestGetProviderFromClientFactoryError(t *testing.T) {
 	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
 		return nil, errors.New("factory error")
 	}}
-	_, err := s.getProvider("", "petshop")
+	_, err := s.getProvider("", "ctx-a", "petshop")
 	if err == nil {
 		t.Fatalf("expected error from client factory")
 	}
@@ -82,7 +82,7 @@ func TestGetProviderUsesExistingClientAndUpdatesNamespace(t *testing.T) {
 	c.SetNamespace("default")
 	s := &server{client: c}
 
-	provider, err := s.getProvider("", "petshop")
+	provider, err := s.getProvider("mock", "mock-01", "petshop")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestHandleGraphSuccess(t *testing.T) {
 	if len(out.Request.Selectors) != 1 || out.Request.Selectors[0] != "*/petshop/*" {
 		t.Fatalf("expected request selectors to round-trip, got %+v", out.Request)
 	}
-	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+	if out.Request.Context != "mock-01" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
 		t.Fatalf("expected normalized request metadata, got %+v", out.Request)
 	}
 }
@@ -162,7 +162,7 @@ func TestHandleTreeSuccess(t *testing.T) {
 	if len(out.Trees) == 0 {
 		t.Fatalf("expected non-empty tree response")
 	}
-	if out.Request.Context != "mock-cluster" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
+	if out.Request.Context != "mock-01" || out.Request.Namespace != "petshop" || out.Request.ConfigPath != "mock" {
 		t.Fatalf("expected normalized request metadata in tree response, got %+v", out.Request)
 	}
 	for i := range out.Trees {

@@ -18,6 +18,7 @@ const props = defineProps({
 const theme = ref('light')
 const contextTitle = ref('Context')
 const contexts = ref([])
+const selectedContext = ref(resolveInitialContext())
 const namespaces = ref([])
 const selectedNamespace = ref(resolveInitialNamespace())
 const searchQuery = ref('')
@@ -32,8 +33,8 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light the
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
-const brandedContextTitle = computed(() => formatKompassTitle(contextTitle.value))
-const viewContextName = computed(() => String(contextTitle.value || '').trim() || 'mock-cluster')
+const brandedContextTitle = computed(() => formatKompassTitle(viewContextName.value))
+const viewContextName = computed(() => String(selectedContext.value || contextTitle.value || '').trim() || 'mock-01')
 const contextOptions = computed(() => {
   const values = new Set(contexts.value.map((item) => String(item || '').trim()).filter(Boolean))
   const current = String(viewContextName.value || '').trim()
@@ -96,8 +97,13 @@ function applySuggestedNamespace(namespace) {
   }
 }
 
-function updateContext(_next) {
-  // Context dropdown is currently single-source from backend request context.
+function updateContext(next) {
+  const value = String(next || '').trim()
+  if (!value || value === selectedContext.value) {
+    return
+  }
+  selectedContext.value = value
+  refreshTree()
 }
 
 async function fetchMetadataContexts() {
@@ -113,6 +119,10 @@ async function fetchMetadataContexts() {
     const payload = await response.json()
     const values = Array.isArray(payload?.contexts) ? payload.contexts : []
     contexts.value = values.map((item) => String(item || '').trim()).filter(Boolean)
+    const current = String(payload?.currentContext || '').trim()
+    if (!selectedContext.value && current) {
+      selectedContext.value = current
+    }
   } catch {
     // Metadata endpoint may be unavailable in static mode; keep fallback context only.
   }
@@ -120,6 +130,10 @@ async function fetchMetadataContexts() {
 
 function resolveInitialNamespace() {
   return String(props.bootstrapConfig?.namespace || props.bootstrapData?.request?.namespace || '').trim()
+}
+
+function resolveInitialContext() {
+  return String(props.bootstrapConfig?.context || props.bootstrapData?.request?.context || '').trim()
 }
 
 function openResourceView(payload) {
@@ -137,7 +151,7 @@ function closeResourceView() {
 }
 
 function formatKompassTitle(raw) {
-  const context = String(raw || '').trim() || 'mock-cluster'
+  const context = String(raw || '').trim() || 'mock-01'
   if (context.startsWith('🧭 Kompass - ')) {
     return context
   }
@@ -167,6 +181,7 @@ function formatKompassTitle(raw) {
     />
 
     <Trees
+      :context="viewContextName"
       :namespace="selectedNamespace"
       :query="debouncedSearchQuery"
       :refresh-key="refreshKey"

@@ -20,11 +20,11 @@ const props = defineProps({
   },
   chromeTitle: {
     type: String,
-    default: '🧭 Kompass - mock-cluster',
+    default: '🧭 Kompass - mock-01',
   },
   contextName: {
     type: String,
-    default: 'mock-cluster',
+    default: 'mock-01',
   },
   contexts: {
     type: Array,
@@ -150,6 +150,10 @@ async function fetchView(view) {
 
   try {
     const params = nodeRequestParams(props.node)
+    const selectedContext = String(props.contextName || '').trim()
+    if (selectedContext) {
+      params.set('context', selectedContext)
+    }
     const endpoint = endpointMap[view] || view
     const response = await fetch(`${props.apiBase}/${endpoint}?${params.toString()}`, {
       headers: {

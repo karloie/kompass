@@ -4,7 +4,7 @@ import MenuHeader from './MenuHeader.vue'
 const props = defineProps({
   contextName: {
     type: String,
-    default: 'mock-cluster',
+    default: 'mock-01',
   },
   contexts: {
     type: Array,

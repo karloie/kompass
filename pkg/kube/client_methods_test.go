@@ -44,13 +44,13 @@ func TestClientAccessorsAndSetters(t *testing.T) {
 		}
 		foundMock := false
 		for _, item := range items {
-			if item == "mock-cluster" {
+			if item == "mock-01" {
 				foundMock = true
 				break
 			}
 		}
 		if !foundMock {
-			t.Fatalf("expected mock-cluster in contexts, got %v", items)
+			t.Fatalf("expected mock-01 in contexts, got %v", items)
 		}
 	}
 
@@ -79,6 +79,25 @@ func TestClientAccessorsAndSetters(t *testing.T) {
 
 	if got := clusterClient.DynamicClient(); got != dc {
 		t.Fatalf("expected DynamicClient() to return injected dynamic client")
+	}
+
+	if contexts, err := clusterClient.GetContexts(); err != nil {
+		t.Fatalf("cluster GetContexts() error: %v", err)
+	} else {
+		items, ok := contexts.([]string)
+		if !ok {
+			t.Fatalf("expected []string contexts from cluster client, got %T", contexts)
+		}
+		foundCurrent := false
+		for _, item := range items {
+			if item == "ctx-b" {
+				foundCurrent = true
+				break
+			}
+		}
+		if !foundCurrent {
+			t.Fatalf("expected active context ctx-b in GetContexts(), got %v", items)
+		}
 	}
 }
 
@@ -150,6 +169,40 @@ func TestMockClientAdditionalResourceWrappers(t *testing.T) {
 
 	if list, err := client.GetCustomResourceDefinitions(ctx, opts); err != nil || len(list.Items) != 0 {
 		t.Fatalf("GetCustomResourceDefinitions() = (%d, %v), want (0, nil)", len(list.Items), err)
+	}
+}
+
+func TestGetContextsMockModeIncludesInClusterWhenRunningInCluster(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+	client := NewMockClient(NewModel())
+	contexts, err := client.GetContexts()
+	if err != nil {
+		t.Fatalf("GetContexts() error: %v", err)
+	}
+
+	items, ok := contexts.([]string)
+	if !ok {
+		t.Fatalf("expected []string contexts, got %T", contexts)
+	}
+
+	foundMock := false
+	foundInCluster := false
+	for _, item := range items {
+		if item == "mock-01" {
+			foundMock = true
+		}
+		if item == "in-cluster" {
+			foundInCluster = true
+		}
+	}
+
+	if !foundMock {
+		t.Fatalf("expected mock-01 in contexts, got %v", items)
+	}
+	if !foundInCluster {
+		t.Fatalf("expected in-cluster in contexts, got %v", items)
 	}
 }
 

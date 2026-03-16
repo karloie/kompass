@@ -295,15 +295,23 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
 	selectors := graph.ParseSelectors(r.URL.Query().Get("selector"))
+	contextArg := strings.TrimSpace(r.URL.Query().Get("context"))
+	if contextArg == "" {
+		contextArg = s.contextArg
+	}
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
 		namespace = s.namespaceArg
+	}
+	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
+	if mockProvider == "" && contextArg == "mock-01" {
+		mockProvider = "mock"
 	}
 
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 
-	provider, err := s.getProvider(r.URL.Query().Get("mock"), namespace)
+	provider, err := s.getProvider(mockProvider, contextArg, namespace)
 	if err != nil {
 		return nil, namespace, nil, nil, err
 	}
@@ -330,21 +338,28 @@ func graphOnlyResponse(result *kube.Response) *kube.Response {
 	}
 }
 
-func (s *server) getProvider(mockProvider, namespace string) (kube.Kube, error) {
+func (s *server) getProvider(mockProvider, contextArg, namespace string) (kube.Kube, error) {
 	if s.clientFactory != nil {
-		return s.clientFactory(s.contextArg, namespace)
+		if mockProvider != "" {
+			return s.clientFactory("", namespace)
+		}
+		return s.clientFactory(contextArg, namespace)
 	}
 	if mockProvider != "" {
 		if mockProvider != "mock" {
 			return nil, fmt.Errorf("unknown mock provider: %s", mockProvider)
 		}
+		if s.client != nil && s.client.IsMockMode() {
+			s.client.SetNamespace(namespace)
+			return s.client, nil
+		}
 		provider, _, _, err := initProvider(true, "", namespace)
 		return provider, err
 	}
-	if s.client != nil {
+	if s.client != nil && !s.client.IsMockMode() && (contextArg == "" || contextArg == s.contextArg) {
 		s.client.SetNamespace(namespace)
 		return s.client, nil
 	}
-	provider, _, _, err := initProvider(false, s.contextArg, namespace)
+	provider, _, _, err := initProvider(false, contextArg, namespace)
 	return provider, err
 }

@@ -3,6 +3,10 @@ import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } f
 import TreeNode from './TreeNode.vue'
 
 const props = defineProps({
+  context: {
+    type: String,
+    default: '',
+  },
   namespace: {
     type: String,
     default: '',
@@ -216,6 +220,13 @@ watch(() => props.namespace, () => {
   }, 250)
 })
 
+watch(() => props.context, () => {
+  if (!dynamicEnabled.value) {
+    return
+  }
+  fetchTree()
+})
+
 watch(() => props.refreshKey, () => {
   if (!dynamicEnabled.value) {
     return
@@ -248,6 +259,11 @@ function treeURL() {
   }
   const params = new URLSearchParams()
   const namespace = props.namespace.trim()
+  const context = props.context.trim()
+
+  if (context) {
+    params.set('context', context)
+  }
 
   if (namespace) {
     params.set('namespace', namespace)
