@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/karloie/kompass/pkg/diagnostics"
 	"github.com/karloie/kompass/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,14 +73,6 @@ func TestHandleAppEvents(t *testing.T) {
 }
 
 func TestHandleAppHubbleCombinesNetpolAndHubble(t *testing.T) {
-	prev := diagnostics.RunHubbleObserve
-	diagnostics.RunHubbleObserve = func(podRef string, last int, context string) (string, error) {
-		return "flow line", nil
-	}
-	defer func() {
-		diagnostics.RunHubbleObserve = prev
-	}()
-
 	s := newAppTestServer()
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/app/hubble?key="+appTestPodKey, nil)
@@ -97,7 +88,7 @@ func TestHandleAppHubbleCombinesNetpolAndHubble(t *testing.T) {
 	if !strings.Contains(out.Content, "NetworkPolicy") {
 		t.Fatalf("expected combined hubble view to include NetworkPolicy section, got %q", out.Content)
 	}
-	if !strings.Contains(out.Content, "flow line") {
+	if !strings.Contains(out.Content, "Captured mock flows for petshop/"+appTestPodName) {
 		t.Fatalf("expected combined hubble view to include hubble output, got %q", out.Content)
 	}
 	if out.Title != "Hubble" {

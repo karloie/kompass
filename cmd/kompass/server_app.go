@@ -334,7 +334,7 @@ func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.
 	podTarget := diagnostics.PodTarget{ResourceType: target.Type, Name: target.Name, Namespace: target.Namespace}
 
 	netpolBody, netpolErr := diagnostics.ResolveNetpolProvider(nil).AnalyzePod(podTarget, contextName, resources)
-	hubbleBody, hubbleErr := diagnostics.ResolveHubbleProvider(nil).ObservePod(target.Namespace+"/"+target.Name, 100, contextName)
+	hubbleBody, hubbleErr := buildHubbleObserve(provider, target)
 
 	sections := make([]string, 0, 2)
 	if strings.TrimSpace(netpolBody) != "" {
@@ -353,6 +353,32 @@ func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.
 		return "(no hubble data available)", nil
 	}
 	return strings.Join(sections, "\n\n"), nil
+}
+
+func buildHubbleObserve(provider kube.Kube, target appResourceTarget) (string, error) {
+	if isMockProvider(provider) {
+		return buildMockHubbleView(target), nil
+	}
+	contextName, _ := provider.GetContext()
+	return diagnostics.ResolveHubbleProvider(nil).ObservePod(target.Namespace+"/"+target.Name, 100, contextName)
+}
+
+func isMockProvider(provider kube.Kube) bool {
+	type mockAware interface {
+		IsMockMode() bool
+	}
+	aware, ok := provider.(mockAware)
+	return ok && aware.IsMockMode()
+}
+
+func buildMockHubbleView(target appResourceTarget) string {
+	podRef := target.Namespace + "/" + target.Name
+	return strings.Join([]string{
+		fmt.Sprintf("%s  FORWARDED  pod/%s -> kube-dns/coredns-7b98449c4-xv9l2  DNS Query A api.petshop.internal", target.Namespace, target.Name),
+		fmt.Sprintf("%s  FORWARDED  pod/%s -> service/petshop-backend-boys:8080  HTTP GET /api/catalog", target.Namespace, target.Name),
+		fmt.Sprintf("%s  FORWARDED  service/petshop-backend-boys:8080 -> pod/%s  HTTP 200 24ms", target.Namespace, target.Name),
+		fmt.Sprintf("Captured mock flows for %s. Run against a live cluster for real-time Hubble output.", podRef),
+	}, "\n")
 }
 
 func filterEvents(events *corev1.EventList, target appResourceTarget, resource *kube.Resource) []corev1.Event {

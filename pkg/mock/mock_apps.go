@@ -148,6 +148,7 @@ func addWebApp(model *kube.InMemoryModel) {
 		},
 	}
 	model.Pods = append(model.Pods, pod)
+	addPodRuntimeData(model, pod, "petshop-frontend-girls")
 }
 
 func addWebServiceApp(model *kube.InMemoryModel) {

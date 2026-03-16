@@ -2,6 +2,84 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { availableViewsForNode, nodeDisplayTitle, nodeRequestParams, viewLabel } from '../resourceViews'
 
+const HTML_ESCAPE_MAP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+const TOKEN_PATTERNS = {
+  yaml: [
+    {
+      className: 'view__token--yaml-key',
+      regex: /(^|[\s\-\[{,])([A-Za-z_][\w.-]*)(?=:\s|:$)/gm,
+      replacer: (match, prefix, value) => `${prefix}<span class="view__token view__token--yaml-key">${escapeHtml(value)}</span>`,
+    },
+    {
+      className: 'view__token--string',
+      regex: /("[^"]*"|'[^']*')/g,
+    },
+    {
+      className: 'view__token--bool',
+      regex: /\b(?:true|false)\b/gi,
+    },
+    {
+      className: 'view__token--null',
+      regex: /\bnull\b/gi,
+    },
+    {
+      className: 'view__token--number',
+      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
+    },
+    {
+      className: 'view__token--date',
+      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
+    },
+  ],
+  logs: [
+    {
+      className: 'view__token--date',
+      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
+    },
+    {
+      className: 'view__token--level-debug',
+      regex: /\bDEBUG\b/g,
+    },
+    {
+      className: 'view__token--level-info',
+      regex: /\bINFO\b/g,
+    },
+    {
+      className: 'view__token--level-warn',
+      regex: /\bWARN\b/g,
+    },
+    {
+      className: 'view__token--number',
+      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
+    },
+    {
+      className: 'view__token--log-prefix',
+      regex: /^(\s*\[?\w+\]?[:\-])\s+/gm,
+    },
+    {
+      className: 'view__token--stacktrace',
+      regex: /^\s+at\s+.*$/gm,
+    },
+  ],
+  default: [
+    {
+      className: 'view__token--date',
+      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
+    },
+    {
+      className: 'view__token--number',
+      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
+    },
+  ],
+}
+
 const props = defineProps({
   node: {
     type: Object,
@@ -38,6 +116,16 @@ const endpointMap = {
 const currentPayload = computed(() => cache.value[activeView.value] || null)
 const title = computed(() => currentPayload.value?.title || nodeDisplayTitle(props.node))
 const content = computed(() => currentPayload.value?.content || '')
+const highlightedContent = computed(() => {
+  const view = (activeView.value || '').toLowerCase()
+  let patterns = TOKEN_PATTERNS.default
+  if (view === 'yaml' || view === 'describe' || view === 'events') {
+    patterns = TOKEN_PATTERNS.yaml
+  } else if (view === 'logs' || view === 'hubble') {
+    patterns = TOKEN_PATTERNS.logs
+  }
+  return highlightContent(content.value, patterns)
+})
 
 watch(
   () => [props.node?.key, props.initialView, views.value.join(',')],
@@ -130,6 +218,25 @@ function onKeydown(event) {
     closeView()
   }
 }
+
+function highlightContent(source, patterns) {
+  const text = String(source || '')
+  if (!text) return ''
+  const escaped = escapeHtml(text)
+  return (patterns || []).reduce((value, token) => {
+    return value.replace(token.regex, (...args) => {
+      if (token.replacer) {
+        return token.replacer(...args)
+      }
+      const match = args[0]
+      return `<span class=\"view__token ${token.className}\">${match}</span>`
+    })
+  }, escaped)
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char])
+}
 </script>
 
 <template>
@@ -160,7 +267,7 @@ function onKeydown(event) {
       <p v-if="error" class="view__error">{{ error }}</p>
       <p v-else-if="loading && !content" class="view__hint">Loading view...</p>
       <p v-else-if="!views.length" class="view__hint">No backend views available for this resource.</p>
-      <pre v-else class="view__content">{{ content }}</pre>
+      <pre v-else class="view__content" v-html="highlightedContent"></pre>
     </article>
   </section>
 </template>
@@ -170,20 +277,24 @@ function onKeydown(event) {
   position: fixed;
   inset: 0;
   z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 0.9rem 1.5rem 1.5rem;
   background: color-mix(in srgb, var(--page-bg) 40%, transparent);
   backdrop-filter: blur(8px);
 }
 
 .view__panel {
   width: min(1100px, 100%);
-  height: min(85dvh, 100%);
+  min-height: min(18rem, calc(100dvh - 2.4rem));
+  max-height: calc(100dvh - 2.4rem);
   display: grid;
   grid-template-rows: auto auto 1fr;
   gap: 0.9rem;
   padding: 1.1rem;
+  margin: 0 auto;
   border: 1px solid var(--border-color);
   border-radius: 14px;
   background: var(--panel-bg);
@@ -262,5 +373,71 @@ function onKeydown(event) {
   white-space: pre-wrap;
   word-break: break-word;
   font: 0.87rem/1.45 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.view__content :deep(.view__token) {
+  font-weight: 600;
+}
+
+.view__content :deep(.view__token--yaml-key) {
+  color: #5a3aa1;
+}
+
+.view__content :deep(.view__token--date) {
+  color: #0d6b4d;
+}
+
+.view__content :deep(.view__token--number) {
+  color: #9a4d00;
+}
+
+.view__content :deep(.view__token--level-debug) {
+  color: #3b5ccc;
+}
+
+.view__content :deep(.view__token--level-info) {
+  color: #0b7a57;
+}
+
+.view__content :deep(.view__token--level-warn) {
+  color: #b25a00;
+}
+
+.view__content :deep(.view__token--string) {
+  color: #b23a7a;
+}
+.view__content :deep(.view__token--bool) {
+  color: #1a7a1a;
+}
+.view__content :deep(.view__token--null) {
+  color: #888;
+  font-style: italic;
+}
+.view__content :deep(.view__token--log-prefix) {
+  color: #888;
+  font-weight: 400;
+}
+.view__content :deep(.view__token--stacktrace) {
+  color: #888;
+  font-style: italic;
+}
+
+.view__content :deep(.view__token--string) {
+  color: #b23a7a;
+}
+.view__content :deep(.view__token--bool) {
+  color: #1a7a1a;
+}
+.view__content :deep(.view__token--null) {
+  color: #888;
+  font-style: italic;
+}
+.view__content :deep(.view__token--log-prefix) {
+  color: #888;
+  font-weight: 400;
+}
+.view__content :deep(.view__token--stacktrace) {
+  color: #888;
+  font-style: italic;
 }
 </style>
