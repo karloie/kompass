@@ -70,6 +70,18 @@ const isOpen = computed(() => {
   return treeExpand.isNodeOpen(nodeKey.value, props.depth, nodeType.value)
 })
 
+const isPolicyNode = computed(() => nodeType.value.includes('policy'))
+const policyRuleDirection = computed(() => {
+  const key = nodeKey.value
+  if (key.includes('/ingress/rule/')) {
+    return 'in'
+  }
+  if (key.includes('/egress/rule/')) {
+    return 'out'
+  }
+  return ''
+})
+
 const statusBadge = computed(() => {
   const meta = props.node?.metadata || {}
   const raw = pickStatusValue(meta)
@@ -95,18 +107,33 @@ const stateBadge = computed(() => {
 })
 
 const trafficBadges = computed(() => {
+  if (policyRuleDirection.value === 'in') {
+    return [{ text: 'IN RULE', title: 'Ingress rule', tone: 'rule' }]
+  }
+  if (policyRuleDirection.value === 'out') {
+    return [{ text: 'OUT RULE', title: 'Egress rule', tone: 'rule' }]
+  }
+
+  if (!isPolicyNode.value) {
+    return []
+  }
+
   const meta = props.node?.metadata || {}
   const badges = []
 
   const ingress = asBool(meta.ingress)
-  if (ingress === true) {
-    badges.push({ text: 'INGRESS' })
-  }
+  badges.push(
+    ingress === true
+      ? { text: 'IN DENY', title: 'Inbound direction: default deny enabled', tone: 'deny' }
+      : { text: 'IN ALLOW', title: 'Inbound direction: default deny not enabled', tone: 'allow' },
+  )
 
   const egress = asBool(meta.egress)
-  if (egress === true) {
-    badges.push({ text: 'EGRESS' })
-  }
+  badges.push(
+    egress === true
+      ? { text: 'OUT DENY', title: 'Outbound direction: default deny enabled', tone: 'deny' }
+      : { text: 'OUT ALLOW', title: 'Outbound direction: default deny not enabled', tone: 'allow' },
+  )
 
   return badges
 })
@@ -338,6 +365,8 @@ const visibleMetadataEntries = computed(() => {
         v-for="badge in trafficBadges"
         :key="badge.text"
         class="tree-node__policy-badge"
+        :class="`tree-node__policy-badge--${badge.tone || 'deny'}`"
+        :title="badge.title"
       >
         {{ badge.text }}
       </span>
@@ -459,6 +488,19 @@ const visibleMetadataEntries = computed(() => {
   line-height: 1.2;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.tree-node__policy-badge--deny {
+  color: #de5b5b;
+  background: color-mix(in srgb, #de5b5b 14%, transparent);
+}
+
+.tree-node__policy-badge--allow {
+  color: #2fb36a;
+  background: color-mix(in srgb, #2fb36a 14%, transparent);
+}
+
+.tree-node__policy-badge--rule {
   color: #4aa6ff;
   background: color-mix(in srgb, #4aa6ff 16%, transparent);
 }
