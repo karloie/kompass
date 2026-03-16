@@ -12,16 +12,25 @@ import (
 func printHelp() {
 	fmt.Print(`Usage: kompass [options] [selector...]
 
-Options:
-  -c, --context <name>     K8s context
-  -n, --namespace <name>   K8s namespace
-  --service [addr]         Start web server (format: host:port, default localhost:8080)
-  --json                   JSON output
-  --mock <name>            Mock provider (mock)
-  --plain                  Plain output without ANSI colors
+Global options (always apply):
+
+  -c, --context <name>     Kubernetes context
+  -n, --namespace <name>   Kubernetes namespace
+
   -d, --debug              Enable debug logging
-  -h, --help               Show help
+  -m, --mock               Use mock provider
+
+Mode flags (mutually exclusive; listed in precedence order):
+
+  -h, --help               Show help message
   -v, --version            Show version
+
+  -o, --output <mode>      One-shot output: json|text|plain|html
+                           Overrides --service and --tui
+  -s, --service [addr]     Start web server (default localhost:8080)
+                           Combine with --tui to also open interactive UI
+  -t, --tui                Interactive terminal UI
+                           Default when stdout is a terminal
 
 Selectors (type/namespace/name format):
   (empty)                  All pods in current namespace + inferred resources
@@ -50,7 +59,7 @@ Note: All selectors automatically include inferred/connected resources.
 `)
 }
 
-func printGraphs(result *kube.Response, context, namespace, configPath string, selectors []string) {
+func printJsonGraphs(result *kube.Response, context, namespace, configPath string, selectors []string) {
 	if result == nil {
 		result = &kube.Response{}
 	}
@@ -68,7 +77,11 @@ func printGraphs(result *kube.Response, context, namespace, configPath string, s
 	}
 }
 
-func printTrees(result *kube.Response, context, namespace, configPath string, selectors []string, plain bool) {
-	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context, namespace, selectors, configPath)
+func printTreesText(result *kube.Response, context, namespace, configPath string, selectors []string, plain bool) {
+	header := "🌍 " + tree.FormatTreeHeader(context, namespace, configPath, selectors)
 	fmt.Print(tree.RenderText(result, header, plain))
+}
+
+func printTreesHtml(result *kube.Response, context, namespace, configPath string, selectors []string) {
+	fmt.Print(tree.RenderHtml(result, context, namespace, configPath, selectors, false))
 }

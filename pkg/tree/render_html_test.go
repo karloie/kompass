@@ -80,7 +80,7 @@ func TestBuildNodeSearchText_ExcludesNoisyMetadataAndHashes(t *testing.T) {
 }
 
 func TestRenderHTML_DoesNotIncludeLiveReloadMetadata(t *testing.T) {
-	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, false)
+	html := RenderHtml(&kube.Response{}, "ctx", "petshop", "mock", nil, false)
 	if strings.Contains(html, `data-live-reload-poll-ms=`) {
 		t.Fatalf("expected html to omit live reload poll metadata, got %q", html)
 	}
@@ -90,7 +90,7 @@ func TestRenderHTML_DoesNotIncludeLiveReloadMetadata(t *testing.T) {
 }
 
 func TestRenderHTML_StaticModeDoesNotIncludeLiveReloadMetadata(t *testing.T) {
-	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, true)
+	html := RenderHtml(&kube.Response{}, "ctx", "petshop", "mock", nil, true)
 	if strings.Contains(html, `data-live-reload-poll-ms=`) {
 		t.Fatalf("expected static html to omit live reload poll metadata, got %q", html)
 	}

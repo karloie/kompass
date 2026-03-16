@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -42,8 +41,8 @@ type treeHTMLView struct {
 	Script     template.JS
 }
 
-// RenderHTML renders all trees as a self-contained HTML document.
-func RenderHTML(result *kube.Response, context_, namespace, configPath string, selectors []string, staticMode bool) string {
+// RenderHtml renders all trees as a self-contained HTML document.
+func RenderHtml(result *kube.Response, context_, namespace, configPath string, selectors []string, staticMode bool) string {
 	if result == nil {
 		result = &kube.Response{}
 	}
@@ -58,7 +57,8 @@ func RenderHTML(result *kube.Response, context_, namespace, configPath string, s
 
 	brand := "🧭 <a href=\"https://github.com/karloie/kompass\" target=\"_blank\" rel=\"noopener noreferrer\">Kompass</a>"
 
-	header := template.HTML(fmt.Sprintf("%s: Context: %s, Namespace: %s, Selectors: %v, Config: %s", brand, context_, namespace, selectors, configPath))
+	headerSummary := html.EscapeString(FormatTreeHeader(context_, namespace, configPath, selectors))
+	header := template.HTML(fmt.Sprintf("%s: %s", brand, headerSummary))
 	namespaces := []string{}
 	if !staticMode {
 		namespaces = collectTreeNamespaces(result, namespace)
@@ -135,20 +135,9 @@ func renderTreeHTMLNode(sb *strings.Builder, treeNode *kube.Tree, nodeMap map[st
 		return
 	}
 
-	meta := treeNode.Meta
-	if len(meta) == 0 {
-		if resource, ok := nodeMap[treeNode.Key]; ok {
-			meta = extractMetadataFromResource(*resource, nodeMap)
-		}
-	}
-
-	var label string
-	if len(meta) > 0 {
-		label = formatNodeName(treeNode.Type, meta, nil, true, parentMeta)
-	} else {
-		label = graph.GetResourceEmoji(treeNode.Type) + " " + treeNode.Type
-	}
-	searchText := buildNodeSearchText(treeNode.Type, label, meta)
+	meta := ResolveNodeMetadata(treeNode, nodeMap)
+	label := RenderNodeLabel(treeNode, nodeMap, true, parentMeta)
+	searchText := BuildNodeSearchText(treeNode.Type, label, meta)
 
 	sb.WriteString(`<li data-label="`)
 	sb.WriteString(html.EscapeString(label))

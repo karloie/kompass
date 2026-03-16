@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       bump:
@@ -17,6 +20,7 @@ permissions:
 
 jobs:
   manual-new-release:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
       group: manual-release-main
@@ -80,8 +84,7 @@ jobs:
           git push origin "$next_tag"
 
       - name: Checkout new tag
-        run: |
-          git checkout "${{ steps.tag.outputs.next_tag }}"
+        run: git checkout "${{ steps.tag.outputs.next_tag }}"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -105,3 +108,65 @@ jobs:
         run: |
           echo "Bumped from: ${{ steps.tag.outputs.latest_tag }}"
           echo "Released new: ${{ steps.tag.outputs.next_tag }}"
+
+  release-from-tag-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          set -euo pipefail
+
+          selected_tag='${{ github.ref_name }}'
+
+          if ! git rev-parse "$selected_tag" >/dev/null 2>&1; then
+            echo "Tag '$selected_tag' does not exist."
+            exit 1
+          fi
+
+          if [[ "$selected_tag" != v* ]]; then
+            echo "Tag '$selected_tag' does not match expected release format v*"
+            exit 1
+          fi
+
+          echo "tag=$selected_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        run: git checkout "${{ steps.tag.outputs.tag }}"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "Released tag: ${{ steps.tag.outputs.tag }}"
+          echo "Triggered by tag push event."

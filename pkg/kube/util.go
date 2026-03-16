@@ -169,6 +169,7 @@ func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionRes
 
 	if err != nil {
 		slog.Debug("provider cluster call failed", "resource", gvr.Resource, "namespace", namespace, "selector", opts.LabelSelector, "duration", time.Since(start).String(), "error", err)
+		slog.Warn("kube fallback", "kind", "dynamic-list-empty", "resource", gvr.Resource, "group", gvr.Group, "version", gvr.Version, "namespace", namespace, "reason", err.Error())
 		return []map[string]any{}, nil
 	}
 
@@ -258,6 +259,7 @@ func retryWithBackoff[T any](c *Client, fn func() (T, error)) (T, error) {
 		if backoff > c.maxBackoff {
 			backoff = c.maxBackoff
 		}
+		slog.Warn("kube fallback", "kind", "retry-backoff", "attempt", attempt+1, "maxAttempts", c.maxRetries+1, "backoff", backoff.String(), "reason", err.Error())
 		time.Sleep(backoff)
 	}
 	return empty, fmt.Errorf("max retries exceeded (%d attempts): %w", c.maxRetries+1, lastErr)

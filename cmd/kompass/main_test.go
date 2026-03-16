@@ -61,6 +61,19 @@ func TestNormalizeServiceArgsSupportsSeparateAddressToken(t *testing.T) {
 	}
 }
 
+func TestNormalizeServiceArgsSupportsShortFlagWithSeparateAddressToken(t *testing.T) {
+	args := normalizeServiceArgs([]string{"-s", ":19090", "--mock"})
+	if len(args) < 2 {
+		t.Fatalf("unexpected normalized args: %#v", args)
+	}
+	if args[0] != "--service=:19090" {
+		t.Fatalf("expected first arg to be --service=:19090, got %q", args[0])
+	}
+	if args[1] != "--mock" {
+		t.Fatalf("expected second arg to remain --mock, got %q", args[1])
+	}
+}
+
 func TestMainHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
@@ -79,7 +92,7 @@ func TestMainHelperProcess(t *testing.T) {
 }
 
 func TestMainCLIPathRuns(t *testing.T) {
-	res := runHelper(t, 20*time.Second, "--mock", "--plain")
+	res := runHelper(t, 20*time.Second, "--mock", "--output", "plain")
 	if res.err != nil {
 		t.Fatalf("expected CLI run to succeed, got err: %v\noutput:\n%s", res.err, res.output)
 	}
@@ -89,12 +102,94 @@ func TestMainCLIPathRuns(t *testing.T) {
 }
 
 func TestMainDebugFlagHonored(t *testing.T) {
-	res := runHelper(t, 20*time.Second, "--mock", "--debug", "--plain")
+	res := runHelper(t, 20*time.Second, "--mock", "--debug", "--output", "plain")
 	if res.err != nil {
 		t.Fatalf("expected debug CLI run to succeed, got err: %v\noutput:\n%s", res.err, res.output)
 	}
 	if !strings.Contains(res.output, `"level":"DEBUG"`) {
 		t.Fatalf("expected debug logs in output when --debug is used, got:\n%s", res.output)
+	}
+}
+
+func TestMainFormatJSONOverridesServiceMode(t *testing.T) {
+	res := runHelper(t, 20*time.Second, "--mock", "--service", "--output", "json")
+	if res.err != nil {
+		t.Fatalf("expected --output json to run one-shot output mode, got err: %v\noutput:\n%s", res.err, res.output)
+	}
+	if !strings.Contains(res.output, `"apiVersion":"v1"`) {
+		t.Fatalf("expected JSON output, got:\n%s", res.output)
+	}
+}
+
+func TestMainFormatHTMLPrintsDocument(t *testing.T) {
+	res := runHelper(t, 20*time.Second, "--mock", "--output", "html")
+	if res.err != nil {
+		t.Fatalf("expected --output html to succeed, got err: %v\noutput:\n%s", res.err, res.output)
+	}
+	if !strings.Contains(res.output, "<html") {
+		t.Fatalf("expected HTML output, got:\n%s", res.output)
+	}
+}
+
+func TestResolveExecutionMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		service     bool
+		tui         bool
+		format      outputFormat
+		interactive bool
+		want        executionMode
+	}{
+		{name: "cli", service: false, tui: false, format: outputFormatUnset, interactive: false, want: modeCLI},
+		{name: "service", service: true, tui: false, format: outputFormatUnset, interactive: false, want: modeService},
+		{name: "tui selector explicit", service: false, tui: true, format: outputFormatUnset, interactive: false, want: modeTUISelector},
+		{name: "tui selector interactive default", service: false, tui: false, format: outputFormatUnset, interactive: true, want: modeTUISelector},
+		{name: "service and tui", service: true, tui: true, format: outputFormatUnset, interactive: false, want: modeServiceAndTUI},
+		{name: "output overrides service", service: true, tui: false, format: outputFormatJSON, interactive: true, want: modeCLI},
+		{name: "output overrides service and tui", service: true, tui: true, format: outputFormatJSON, interactive: false, want: modeCLI},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveExecutionMode(tc.service, tc.tui, tc.format, tc.interactive)
+			if got != tc.want {
+				t.Fatalf("resolveExecutionMode(service=%t, tui=%t, format=%v, interactive=%t)=%v, want %v", tc.service, tc.tui, tc.format, tc.interactive, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveOutputFormat(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    outputFormat
+		wantErr bool
+	}{
+		{name: "empty", raw: "", want: outputFormatUnset},
+		{name: "json", raw: "json", want: outputFormatJSON},
+		{name: "text", raw: "text", want: outputFormatText},
+		{name: "plain", raw: "plain", want: outputFormatPlain},
+		{name: "html", raw: "html", want: outputFormatHTML},
+		{name: "invalid", raw: "xml", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveOutputFormat(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolveOutputFormat(%q)=%v, want %v", tc.raw, got, tc.want)
+			}
+		})
 	}
 }
 

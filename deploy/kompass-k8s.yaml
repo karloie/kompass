@@ -17,6 +17,11 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts", "endpoints", "namespaces", "nodes", "persistentvolumes", "persistentvolumeclaims"]
   verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  # Required only for interactive diagnostics paths that trigger hubble relay
+  # auto-port-forward from inside the running pod.
+  resources: ["pods/portforward"]
+  verbs: ["create"]
 - apiGroups: ["apps"]
   resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
   verbs: ["get", "list", "watch"]
@@ -90,7 +95,7 @@ spec:
       serviceAccountName: kompass
       containers:
       - name: kompass
-        image: karloie/kompass:v0.0.10
+        image: karloie/kompass:latest
         imagePullPolicy: IfNotPresent
         args:
         - --service

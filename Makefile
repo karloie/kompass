@@ -61,6 +61,7 @@ dev:
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)
 real:    ; @$(GO_RUN) $(ARGS)
+tui:     ; @$(GO_RUN) --tui $(ARGS)
 service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:

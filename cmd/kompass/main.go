@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
 	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
+	"github.com/karloie/kompass/pkg/tui"
 )
 
 var (
@@ -23,6 +25,25 @@ type serviceFlag struct {
 	set  bool
 	addr string
 }
+
+type executionMode int
+
+const (
+	modeCLI executionMode = iota
+	modeService
+	modeTUISelector
+	modeServiceAndTUI
+)
+
+type outputFormat int
+
+const (
+	outputFormatUnset outputFormat = iota
+	outputFormatJSON
+	outputFormatText
+	outputFormatPlain
+	outputFormatHTML
+)
 
 func (s *serviceFlag) String() string {
 	if s == nil {
@@ -49,7 +70,7 @@ func (s *serviceFlag) IsBoolFlag() bool { return true }
 func normalizeServiceArgs(args []string) []string {
 	normalized := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--service" && i+1 < len(args) {
+		if (args[i] == "--service" || args[i] == "-s") && i+1 < len(args) {
 			next := args[i+1]
 			if next != "" && !strings.HasPrefix(next, "-") {
 				normalized = append(normalized, "--service="+next)
@@ -72,8 +93,8 @@ func main() {
 	namespaceArg := flag.String("namespace", "", "Kubernetes namespace (defaults to current namespace or 'default')")
 	mockArg := flag.Bool("mock", false, "Use mock provider")
 	debugArg := flag.Bool("debug", false, "Enable debug logging")
-	jsonArg := flag.Bool("json", false, "JSON output")
-	plainArg := flag.Bool("plain", false, "Plain output without ANSI colors")
+	outputArg := flag.String("output", "", "Output format: json|text|plain|html")
+	tuiArg := flag.Bool("tui", false, "Start interactive terminal UI")
 	serviceArg := &serviceFlag{}
 	flag.Var(serviceArg, "service", "Start web server (format: host:port, default localhost:8080)")
 	helpArg := flag.Bool("help", false, "Show help message")
@@ -81,6 +102,10 @@ func main() {
 	flag.BoolVar(helpArg, "h", false, "Shorthand for --help")
 	flag.BoolVar(versionArg, "v", false, "Shorthand for --version")
 	flag.BoolVar(debugArg, "d", false, "Shorthand for --debug")
+	flag.BoolVar(mockArg, "m", false, "Shorthand for --mock")
+	flag.BoolVar(tuiArg, "t", false, "Shorthand for --tui")
+	flag.Var(serviceArg, "s", "Shorthand for --service")
+	flag.StringVar(outputArg, "o", "", "Shorthand for --output")
 	flag.StringVar(contextArg, "c", "", "Shorthand for --context")
 	flag.StringVar(namespaceArg, "n", "", "Shorthand for --namespace")
 	_ = flag.CommandLine.Parse(normalizeServiceArgs(os.Args[1:]))
@@ -100,8 +125,16 @@ func main() {
 		printHelp()
 		os.Exit(0)
 	}
+	format, err := resolveOutputFormat(*outputArg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 	selectors := flag.Args()
-	if serviceArg.set {
+
+	mode := resolveExecutionMode(serviceArg.set, *tuiArg, format, isInteractiveTerminal())
+
+	if mode == modeService || mode == modeServiceAndTUI {
 		addr := serviceArg.addr
 		if addr == "" {
 			addr = "localhost:8080"
@@ -110,8 +143,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: --service address must be in format 'host:port' (e.g., localhost:8080 or 0.0.0.0:8080)\n")
 			os.Exit(1)
 		}
-		startServer(addr, *contextArg, *namespaceArg, *mockArg)
-		return
+		if mode == modeServiceAndTUI {
+			go startServer(addr, *contextArg, *namespaceArg, *mockArg)
+		} else {
+			startServer(addr, *contextArg, *namespaceArg, *mockArg)
+			return
+		}
 	}
 
 	provider, _, _, err := initProvider(*mockArg, *contextArg, *namespaceArg)
@@ -133,11 +170,102 @@ func main() {
 	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
 	slog.Debug("graphs inferred", "cluster", context_, "namespace", namespace_, "selectors", selectors, "components", len(result.Components), "nodes", totalNodes, "edges", totalEdges)
 
-	if *jsonArg {
-		printGraphs(result, context_, namespace_, configPath, selectors)
-	} else {
-		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg)
+	if mode == modeTUISelector || mode == modeServiceAndTUI {
+		selectorResult := tree.BuildResponseTree(result)
+		if err := tui.Run(tui.Options{
+			Mode:  tui.ModeSelector,
+			Trees: selectorResult,
+			Reload: func() (*kube.Response, error) {
+				next, err := pipeline.InferGraphs(provider, selectors)
+				if err != nil {
+					return nil, err
+				}
+				return tree.BuildResponseTree(next), nil
+			},
+			RefreshInterval: 15 * time.Second,
+			Context:         context_,
+			Namespace:       namespace_,
+			OutputJSON:      false,
+			Plain:           false,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
+
+	effectiveFormat := format
+	if effectiveFormat == outputFormatUnset {
+		effectiveFormat = outputFormatText
+	}
+
+	switch effectiveFormat {
+	case outputFormatJSON:
+		printJsonGraphs(result, context_, namespace_, configPath, selectors)
+	case outputFormatHTML:
+		printTreesHtml(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors)
+	case outputFormatPlain:
+		printTreesText(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, true)
+	default:
+		printTreesText(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, false)
+	}
+}
+
+// resolveExecutionMode applies flag precedence in order:
+//  1. --output (-o): forces one-shot CLI output; overrides --service and --tui
+//  2. --service + --tui: starts the server in background, then launches TUI
+//  3. --service:     starts the server (foreground, blocking)
+//  4. --tui (-t):    interactive TUI; also the default when stdout is a terminal
+//  5. default:       one-shot text output (non-interactive fallback)
+//
+// -d/--debug, -c/--context, -n/--namespace always apply in every mode.
+func resolveExecutionMode(serviceEnabled, tuiEnabled bool, format outputFormat, interactive bool) executionMode {
+	if format != outputFormatUnset {
+		return modeCLI
+	}
+	if serviceEnabled && tuiEnabled {
+		return modeServiceAndTUI
+	}
+	if serviceEnabled {
+		return modeService
+	}
+	if tuiEnabled || interactive {
+		return modeTUISelector
+	}
+	return modeCLI
+}
+
+func resolveOutputFormat(raw string) (outputFormat, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "":
+		return outputFormatUnset, nil
+	case "json":
+		return outputFormatJSON, nil
+	case "text":
+		return outputFormatText, nil
+	case "plain":
+		return outputFormatPlain, nil
+	case "html":
+		return outputFormatHTML, nil
+	default:
+		return outputFormatUnset, fmt.Errorf("invalid --output value %q (allowed: json|text|plain|html)", raw)
+	}
+}
+
+func isInteractiveTerminal() bool {
+	return isCharDevice(os.Stdin) && isCharDevice(os.Stdout)
+}
+
+func isCharDevice(file *os.File) bool {
+	if file == nil {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
 func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
