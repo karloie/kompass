@@ -91,8 +91,8 @@ func TestHandleAppHubbleCombinesNetpolAndHubble(t *testing.T) {
 	if !strings.Contains(out.Content, "Captured mock flows for petshop/"+appTestPodName) {
 		t.Fatalf("expected combined hubble view to include hubble output, got %q", out.Content)
 	}
-	if out.Title != "Hubble" {
-		t.Fatalf("expected Hubble title, got %q", out.Title)
+	if out.Title != "Cilium" {
+		t.Fatalf("expected Cilium title, got %q", out.Title)
 	}
 }
 

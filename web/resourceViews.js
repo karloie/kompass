@@ -19,7 +19,7 @@ export function viewLabel(view) {
     describe: 'Describe',
     logs: 'Logs',
     events: 'Events',
-    hubble: 'Hubble',
+    hubble: 'Cilium',
     yaml: 'YAML',
   }[view] || view
 }
@@ -29,7 +29,7 @@ export function viewShortLabel(view) {
     describe: 'D',
     logs: 'L',
     events: 'E',
-    hubble: 'H',
+    hubble: 'C',
     yaml: 'Y',
   }[view] || '?'
 }

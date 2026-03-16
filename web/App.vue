@@ -29,6 +29,8 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light the
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
+const brandedContextTitle = computed(() => formatKompassTitle(contextTitle.value))
+const viewContextName = computed(() => String(contextTitle.value || '').trim() || 'mock-cluster')
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
@@ -69,12 +71,20 @@ function openResourceView(payload) {
 function closeResourceView() {
   activeResourceView.value = null
 }
+
+function formatKompassTitle(raw) {
+  const context = String(raw || '').trim() || 'mock-cluster'
+  if (context.startsWith('🧭 Kompass - ')) {
+    return context
+  }
+  return `🧭 Kompass - ${context}`
+}
 </script>
 
 <template>
   <main class="app">
     <Menu
-      :title="contextTitle"
+      :title="brandedContextTitle"
       :theme-icon="themeIcon"
       :theme-label="themeLabel"
       :on-toggle-theme="toggleTheme"
@@ -107,6 +117,8 @@ function closeResourceView() {
       :node="activeResourceView.node"
       :initial-view="activeResourceView.view"
       :api-base="appApiBase"
+      :chrome-title="brandedContextTitle"
+      :context-name="viewContextName"
       @close="closeResourceView"
     />
   </main>

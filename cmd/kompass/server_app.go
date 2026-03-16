@@ -94,7 +94,7 @@ func (s *server) handleAppHubble(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	writeAppView(w, appViewResponse{Title: "Hubble", Content: body})
+	writeAppView(w, appViewResponse{Title: "Cilium", Content: body})
 }
 
 func (s *server) handleAppYAML(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +341,7 @@ func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.
 		sections = append(sections, "NetworkPolicy\n"+strings.TrimSpace(netpolBody))
 	}
 	if strings.TrimSpace(hubbleBody) != "" {
-		sections = append(sections, "Hubble\n"+strings.TrimSpace(hubbleBody))
+		sections = append(sections, "Cilium\n"+strings.TrimSpace(hubbleBody))
 	}
 	if len(sections) == 0 {
 		if netpolErr != nil {
@@ -350,7 +350,7 @@ func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.
 		if hubbleErr != nil {
 			return "", hubbleErr
 		}
-		return "(no hubble data available)", nil
+		return "(no cilium data available)", nil
 	}
 	return strings.Join(sections, "\n\n"), nil
 }

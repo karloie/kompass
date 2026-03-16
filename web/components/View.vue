@@ -1,84 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { availableViewsForNode, nodeDisplayTitle, nodeRequestParams, viewLabel } from '../resourceViews'
+import { availableViewsForNode, nodeRequestParams, viewLabel } from '../resourceViews'
 
-const HTML_ESCAPE_MAP = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
-const TOKEN_PATTERNS = {
-  yaml: [
-    {
-      className: 'view__token--yaml-key',
-      regex: /(^|[\s\-\[{,])([A-Za-z_][\w.-]*)(?=:\s|:$)/gm,
-      replacer: (match, prefix, value) => `${prefix}<span class="view__token view__token--yaml-key">${escapeHtml(value)}</span>`,
-    },
-    {
-      className: 'view__token--string',
-      regex: /("[^"]*"|'[^']*')/g,
-    },
-    {
-      className: 'view__token--bool',
-      regex: /\b(?:true|false)\b/gi,
-    },
-    {
-      className: 'view__token--null',
-      regex: /\bnull\b/gi,
-    },
-    {
-      className: 'view__token--number',
-      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
-    },
-    {
-      className: 'view__token--date',
-      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
-    },
-  ],
-  logs: [
-    {
-      className: 'view__token--date',
-      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
-    },
-    {
-      className: 'view__token--level-debug',
-      regex: /\bDEBUG\b/g,
-    },
-    {
-      className: 'view__token--level-info',
-      regex: /\bINFO\b/g,
-    },
-    {
-      className: 'view__token--level-warn',
-      regex: /\bWARN\b/g,
-    },
-    {
-      className: 'view__token--number',
-      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
-    },
-    {
-      className: 'view__token--log-prefix',
-      regex: /^(\s*\[?\w+\]?[:\-])\s+/gm,
-    },
-    {
-      className: 'view__token--stacktrace',
-      regex: /^\s+at\s+.*$/gm,
-    },
-  ],
-  default: [
-    {
-      className: 'view__token--date',
-      regex: /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
-    },
-    {
-      className: 'view__token--number',
-      regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g,
-    },
-  ],
-}
+import { highlightContent } from '../highlighter'
 
 const props = defineProps({
   node: {
@@ -93,6 +17,14 @@ const props = defineProps({
     type: String,
     default: '/api/app',
   },
+  chromeTitle: {
+    type: String,
+    default: '🧭 Kompass - mock-cluster',
+  },
+  contextName: {
+    type: String,
+    default: 'mock-cluster',
+  },
 })
 
 const emit = defineEmits(['close'])
@@ -101,8 +33,10 @@ const activeView = ref('')
 const loading = ref(false)
 const error = ref('')
 const cache = ref({})
+const copiedCommand = ref(false)
 
 let currentController = null
+let copiedCommandTimer = null
 
 const views = computed(() => availableViewsForNode(props.node))
 const endpointMap = {
@@ -114,17 +48,20 @@ const endpointMap = {
 }
 
 const currentPayload = computed(() => cache.value[activeView.value] || null)
-const title = computed(() => currentPayload.value?.title || nodeDisplayTitle(props.node))
+const title = computed(() => String(props.node?.key || '').trim() || currentPayload.value?.title || '(unknown resource)')
 const content = computed(() => currentPayload.value?.content || '')
+const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
 const highlightedContent = computed(() => {
   const view = (activeView.value || '').toLowerCase()
-  let patterns = TOKEN_PATTERNS.default
-  if (view === 'yaml' || view === 'describe' || view === 'events') {
-    patterns = TOKEN_PATTERNS.yaml
-  } else if (view === 'logs' || view === 'hubble') {
-    patterns = TOKEN_PATTERNS.logs
+  let mode = 'default'
+  if (view === 'yaml' || view === 'describe') {
+    mode = 'yaml'
+  } else if (view === 'logs' || view === 'events') {
+    mode = 'logs'
+  } else if (view === 'hubble') {
+    mode = 'cilium'
   }
-  return highlightContent(content.value, patterns)
+  return highlightContent(content.value, mode)
 })
 
 watch(
@@ -156,6 +93,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   if (currentController) {
     currentController.abort()
+  }
+  if (copiedCommandTimer) {
+    clearTimeout(copiedCommandTimer)
   }
 })
 
@@ -219,23 +159,91 @@ function onKeydown(event) {
   }
 }
 
-function highlightContent(source, patterns) {
-  const text = String(source || '')
-  if (!text) return ''
-  const escaped = escapeHtml(text)
-  return (patterns || []).reduce((value, token) => {
-    return value.replace(token.regex, (...args) => {
-      if (token.replacer) {
-        return token.replacer(...args)
-      }
-      const match = args[0]
-      return `<span class=\"view__token ${token.className}\">${match}</span>`
-    })
-  }, escaped)
+async function copyFallbackCommand() {
+  const command = fallbackCommand.value
+  if (!command) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(command)
+  } catch {
+    return
+  }
+  copiedCommand.value = true
+  if (copiedCommandTimer) {
+    clearTimeout(copiedCommandTimer)
+  }
+  copiedCommandTimer = setTimeout(() => {
+    copiedCommand.value = false
+  }, 1200)
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char])
+function buildFallbackCommand(view, node, contextName) {
+  const target = parseNodeTarget(node)
+  if (!target.type || !target.name) {
+    return ''
+  }
+
+  const kubectl = kubectlPrefix(contextName)
+  const nsFlag = target.namespace ? ` -n ${shellQuote(target.namespace)}` : ''
+  const kind = shellQuote(target.type)
+  const name = shellQuote(target.name)
+
+  switch (String(view || '').toLowerCase()) {
+    case 'describe':
+      return `${kubectl} describe ${kind} ${name}${nsFlag}`
+    case 'logs':
+      if (target.type !== 'pod') {
+        return `${kubectl} describe ${kind} ${name}${nsFlag}`
+      }
+      return `${kubectl} logs ${name}${nsFlag} --tail=200`
+    case 'events':
+      return `${kubectl} get events${nsFlag} --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp`
+    case 'yaml':
+      return `${kubectl} get ${kind} ${name}${nsFlag} -o yaml`
+    case 'hubble': {
+      if (target.type !== 'pod' || !target.namespace) {
+        return `${kubectl} get netpol${nsFlag}`
+      }
+      const ctx = String(contextName || '').trim()
+      const hubbleCtx = ctx ? ` --context ${shellQuote(ctx)}` : ''
+      const ciliumCtx = ctx ? ` --context ${shellQuote(ctx)}` : ''
+      const podRef = `${target.namespace}/${target.name}`
+      return `hubble observe${hubbleCtx} --namespace ${shellQuote(target.namespace)} --pod ${name} --last 100 || cilium monitor${ciliumCtx} --related-to ${shellQuote(podRef)}`
+    }
+    default:
+      return `${kubectl} describe ${kind} ${name}${nsFlag}`
+  }
+}
+
+function kubectlPrefix(contextName) {
+  const ctx = String(contextName || '').trim()
+  if (!ctx) {
+    return 'kubectl'
+  }
+  return `kubectl --context ${shellQuote(ctx)}`
+}
+
+function parseNodeTarget(node) {
+  const key = String(node?.key || '').trim()
+  const parsed = key.split('/').filter(Boolean)
+
+  const type = String(node?.type || parsed[0] || '').trim().toLowerCase()
+  const namespace = String(node?.metadata?.namespace || (parsed.length >= 3 ? parsed[1] : '') || '').trim()
+  const name = String(node?.metadata?.name || (parsed.length >= 3 ? parsed.slice(2).join('/') : parsed[1] || '') || '').trim()
+
+  return { type, namespace, name }
+}
+
+function shellQuote(value) {
+  const text = String(value || '')
+  if (!text) {
+    return "''"
+  }
+  if (/^[A-Za-z0-9_./:-]+$/.test(text)) {
+    return text
+  }
+  return `'${text.replace(/'/g, `'"'"'`)}'`
 }
 </script>
 
@@ -244,12 +252,28 @@ function escapeHtml(value) {
     <article class="view__panel">
       <header class="view__header">
         <div>
-          <p class="view__eyebrow">Resource View</p>
+          <p class="view__eyebrow">{{ chromeTitle }}</p>
           <h2 class="view__title">{{ title }}</h2>
         </div>
 
         <button class="view__close" type="button" @click="closeView">Close</button>
       </header>
+
+      <div v-if="fallbackCommand" class="view__command-row">
+        <div class="view__command-wrap">
+          <input
+            id="view-fallback-command"
+            class="view__command-input"
+            type="text"
+            :value="fallbackCommand"
+            readonly
+            @focus="$event.target.select()"
+          />
+          <button class="view__command-copy" type="button" @click="copyFallbackCommand">
+            {{ copiedCommand ? 'Copied' : 'Copy' }}
+          </button>
+        </div>
+      </div>
 
       <nav v-if="views.length" class="view__tabs" aria-label="Resource views">
         <button
@@ -346,9 +370,46 @@ function escapeHtml(value) {
 }
 
 .view__tab--active {
-  background: var(--text-main);
+  background: var(--accent-color);
   color: var(--panel-bg);
-  border-color: var(--text-main);
+  border-color: var(--accent-color);
+}
+
+.view__command-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.view__command-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.view__command-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.view__command-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: 0.82rem/1.4 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.view__command-copy {
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
 }
 
 .view__hint,
@@ -380,11 +441,23 @@ function escapeHtml(value) {
 }
 
 .view__content :deep(.view__token--yaml-key) {
-  color: #5a3aa1;
+  color: var(--accent-color);
 }
 
 .view__content :deep(.view__token--date) {
-  color: #0d6b4d;
+  color: var(--accent-color);
+}
+
+.view__content :deep(.view__token--date-main) {
+  color: var(--accent-color);
+}
+
+.view__content :deep(.view__token--time-main) {
+  color: var(--accent-strong);
+}
+
+.view__content :deep(.view__token--time-meta) {
+  color: var(--accent-cyan);
 }
 
 .view__content :deep(.view__token--number) {
@@ -392,15 +465,15 @@ function escapeHtml(value) {
 }
 
 .view__content :deep(.view__token--level-debug) {
-  color: #3b5ccc;
+  color: var(--accent-color);
 }
 
 .view__content :deep(.view__token--level-info) {
-  color: #0b7a57;
+  color: var(--accent-strong);
 }
 
 .view__content :deep(.view__token--level-warn) {
-  color: #b25a00;
+  color: var(--accent-cyan);
 }
 
 .view__content :deep(.view__token--string) {
@@ -422,22 +495,11 @@ function escapeHtml(value) {
   font-style: italic;
 }
 
-.view__content :deep(.view__token--string) {
-  color: #b23a7a;
+.view__content :deep(.view__token--allow) {
+  color: #8ed8ff;
 }
-.view__content :deep(.view__token--bool) {
-  color: #1a7a1a;
-}
-.view__content :deep(.view__token--null) {
-  color: #888;
-  font-style: italic;
-}
-.view__content :deep(.view__token--log-prefix) {
-  color: #888;
-  font-weight: 400;
-}
-.view__content :deep(.view__token--stacktrace) {
-  color: #888;
-  font-style: italic;
+
+.view__content :deep(.view__token--deny) {
+  color: #ff9c91;
 }
 </style>
