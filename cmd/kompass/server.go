@@ -43,7 +43,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
 	port := ":" + parts[len(parts)-1]
-	provider, _, _, err := initProvider(useMock, contextArg, namespaceArg)
+	provider, resolvedContext, resolvedNamespace, err := initProvider(useMock, contextArg, namespaceArg)
 	if err != nil {
 		fatalStart("Failed to create provider", err)
 	}
@@ -61,8 +61,8 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	}
 	slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
 	srv := &server{
-		contextArg:   contextArg,
-		namespaceArg: namespaceArg,
+		contextArg:   resolvedContext,
+		namespaceArg: resolvedNamespace,
 		client:       client,
 		webRoot:      tree.ResolveAppWebRoot(),
 	}

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import Menu from './components/Menu.vue'
-import Tree from './components/Tree.vue'
+import Trees from './components/Trees.vue'
 import View from './components/View.vue'
 
 const props = defineProps({
@@ -18,7 +18,7 @@ const props = defineProps({
 const theme = ref('light')
 const contextTitle = ref('Context')
 const namespaces = ref([])
-const selectedNamespace = ref('')
+const selectedNamespace = ref(resolveInitialNamespace())
 const searchQuery = ref('')
 const loading = ref(false)
 const refreshKey = ref(0)
@@ -56,6 +56,10 @@ function applySuggestedNamespace(namespace) {
   if (!selectedNamespace.value && namespace) {
     selectedNamespace.value = namespace
   }
+}
+
+function resolveInitialNamespace() {
+  return String(props.bootstrapConfig?.namespace || props.bootstrapData?.request?.namespace || '').trim()
 }
 
 function openResourceView(payload) {
@@ -99,7 +103,7 @@ function formatKompassTitle(raw) {
       @update:query="searchQuery = $event"
     />
 
-    <Tree
+    <Trees
       :namespace="selectedNamespace"
       :query="searchQuery"
       :refresh-key="refreshKey"

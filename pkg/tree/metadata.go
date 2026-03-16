@@ -8,6 +8,24 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
+// enrichTreeMeta walks a built tree and populates empty Meta maps with
+// structured resource metadata. This is the data the text renderer extracted
+// in its own second pass; here we expose it directly on the tree object so
+// web clients have display labels without any ASCII-tree formatting.
+func enrichTreeMeta(node *kube.Tree, nodeMap map[string]*kube.Resource) {
+	if node == nil {
+		return
+	}
+	if len(node.Meta) == 0 {
+		if resource, ok := nodeMap[node.Key]; ok {
+			node.Meta = extractMetadataFromResource(*resource, nodeMap)
+		}
+	}
+	for _, child := range node.Children {
+		enrichTreeMeta(child, nodeMap)
+	}
+}
+
 func extractMetadataFromResource(resource kube.Resource, nodeMap map[string]*kube.Resource) map[string]any {
 
 	metadata := ApplyMetadataRules(resource, nodeMap)

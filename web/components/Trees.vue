@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import TreeNode from './TreeNode.vue'
 
 const props = defineProps({
@@ -84,6 +84,46 @@ const filteredRoots = computed(() => {
     .map((node) => filterTree(node, { matcher, namespace }))
     .filter(Boolean)
 })
+
+// ── Expand/collapse state ──────────────────────────────────────────────────────
+// Map<key, boolean>: explicit user overrides (true=open, false=closed)
+const expandOverride = reactive(new Map())
+const queryFilterActive = computed(() => buildMatcher(props.query.trim()).hasTerms)
+
+function defaultOpenByDepth(depth, _nodeType) {
+  if (depth === 0) return false   // top-level nodes collapsed by default
+  return true                     // all deeper nodes start expanded
+}
+
+function isNodeOpen(key, depth, nodeType) {
+  if (queryFilterActive.value) return true              // filter: auto-expand all paths
+  if (expandOverride.has(key)) return expandOverride.get(key)
+  return defaultOpenByDepth(depth, nodeType)
+}
+
+function toggleNode(key, node, depth, nodeType) {
+  const open = isNodeOpen(key, depth, nodeType)
+  if (open) {
+    expandOverride.set(key, false)
+  } else {
+    expandOverride.set(key, true)
+    // Expanding a top-level node should reveal the whole subtree.
+    if (!queryFilterActive.value && depth === 0) {
+      expandAllDescendants(node.children || [])
+    }
+  }
+}
+
+function expandAllDescendants(children) {
+  for (const child of children || []) {
+    if (child?.key) {
+      expandOverride.set(child.key, true)
+    }
+    expandAllDescendants(child?.children || [])
+  }
+}
+
+provide('treeExpand', { isNodeOpen, toggleNode, queryFilterActive })
 
 async function fetchTree() {
 	if (debounceTimer) {
@@ -192,6 +232,9 @@ watch(namespaces, (value) => {
 watch(loading, (value) => {
   emit('update:loading', value)
 }, { immediate: true })
+
+// Reset user overrides whenever fresh tree data arrives
+watch(payload, () => { expandOverride.clear() })
 
 function treeURL() {
   const base = apiBase.value
@@ -478,6 +521,7 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
         v-for="(node, index) in filteredRoots"
         :key="node?.key || `root-${index}`"
         :node="node"
+        :depth="0"
         :view-actions-enabled="appViewsEnabled"
         @open-view="emit('open-view', $event)"
       />

@@ -315,7 +315,7 @@ function shellQuote(value) {
   min-height: min(18rem, calc(100dvh - 2.4rem));
   max-height: calc(100dvh - 2.4rem);
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 0.9rem;
   padding: 1.1rem;
   margin: 0 auto;
@@ -348,25 +348,37 @@ function shellQuote(value) {
 
 .view__close,
 .view__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: max-content;
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);
-  border-radius: 999px;
+  border-radius: 10px;
   cursor: pointer;
 }
 
 .view__close {
-  padding: 0.45rem 0.8rem;
+  padding: 0.42rem 0.78rem;
+  font-size: 0.92rem;
+  line-height: 1.2;
 }
 
 .view__tabs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
 }
 
 .view__tab {
-  padding: 0.4rem 0.8rem;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.92rem;
+  line-height: 1.2;
 }
 
 .view__tab--active {
@@ -424,6 +436,7 @@ function shellQuote(value) {
 
 .view__content {
   margin: 0;
+  height: 100%;
   min-height: 0;
   overflow: auto;
   padding: 1rem;
