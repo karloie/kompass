@@ -41,7 +41,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading', 'update:query', 'apply-query', 'open-view'])
+const emit = defineEmits(['update:context-title', 'update:loading', 'update:query', 'apply-query', 'open-view'])
 
 const loading = ref(false)
 const error = ref('')
@@ -49,7 +49,6 @@ const payload = ref(null)
 
 let currentController = null
 let fetchSeq = 0
-let debounceTimer = null
 
 const roots = computed(() => payload.value?.trees || [])
 const contextTitle = computed(() => String(payload.value?.request?.context || '').trim())
@@ -71,29 +70,6 @@ const appViewsEnabled = computed(() => {
 const matcher = computed(() => buildMatcher(props.query.trim()))
 const searchIndex = ref(new Map())
 
-const namespaces = computed(() => {
-  const values = new Set()
-
-  const requestNamespace = String(payload.value?.request?.namespace || '').trim()
-  if (requestNamespace) {
-    values.add(requestNamespace)
-  }
-  if (props.namespace) {
-    values.add(props.namespace)
-  }
-
-  collectNamespaces(roots.value, values)
-
-  for (const resource of payload.value?.nodes || []) {
-    const ns = resourceNamespace(resource)
-    if (ns) {
-      values.add(ns)
-    }
-  }
-
-  return [...values].sort((a, b) => a.localeCompare(b))
-})
-
 const filteredRoots = computed(() => {
   const activeMatcher = matcher.value
   const namespace = props.namespace
@@ -104,9 +80,13 @@ const filteredRoots = computed(() => {
 })
 
 // ── Expand/collapse state ──────────────────────────────────────────────────────
-// Map<key, boolean>: explicit user overrides (true=open, false=closed)
-const expandOverride = reactive(new Map())
+// User overrides persist across refreshes for nodes that still exist.
+const userExpandOverride = reactive(new Map())
+// Auto-open state is rebuilt from the latest payload.
+const autoExpandState = reactive(new Map())
 const queryFilterActive = computed(() => matcher.value.hasTerms)
+const activeScopeKey = computed(() => `${String(props.context || '').trim()}::${String(props.namespace || '').trim()}`)
+const lastPayloadScopeKey = ref('')
 
 function defaultOpenByDepth(depth, _nodeType) {
   if (depth === 0) return false
@@ -114,17 +94,14 @@ function defaultOpenByDepth(depth, _nodeType) {
 }
 
 function isNodeOpen(key, depth, nodeType) {
-  if (expandOverride.has(key)) return expandOverride.get(key)
+  if (userExpandOverride.has(key)) return userExpandOverride.get(key)
+  if (autoExpandState.has(key)) return autoExpandState.get(key)
   return defaultOpenByDepth(depth, nodeType)
 }
 
 function toggleNode(key, node, depth, nodeType) {
   const open = isNodeOpen(key, depth, nodeType)
-  if (open) {
-    expandOverride.set(key, false)
-  } else {
-    expandOverride.set(key, true)
-  }
+  userExpandOverride.set(key, !open)
 }
 
 provide('treeExpand', { isNodeOpen, toggleNode, queryFilterActive })
@@ -132,23 +109,19 @@ provide('treeNamespace', computed(() => String(props.namespace || '').trim()))
 
 async function fetchTree() {
   if (!props.context.trim() || !props.namespace.trim()) {
+    payload.value = null
     error.value = ''
     loading.value = false
     return
   }
 
-	if (debounceTimer) {
-		clearTimeout(debounceTimer)
-		debounceTimer = null
-	}
+  if (currentController) {
+    currentController.abort()
+  }
 
-	if (currentController) {
-		currentController.abort()
-	}
-
-	const requestId = ++fetchSeq
-	const controller = new AbortController()
-	currentController = controller
+  const requestId = ++fetchSeq
+  const controller = new AbortController()
+  currentController = controller
 
   loading.value = true
   error.value = ''
@@ -185,47 +158,31 @@ onMounted(() => {
   if (props.bootstrapData && typeof props.bootstrapData === 'object') {
     payload.value = props.bootstrapData
   }
-  if (dynamicEnabled.value) {
-    fetchTree()
-  }
 })
 
 onBeforeUnmount(() => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-  }
   if (currentController) {
     currentController.abort()
   }
 })
 
-watch(() => props.namespace, () => {
-  if (!dynamicEnabled.value) {
-    return
-  }
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-  }
-  debounceTimer = setTimeout(() => {
-    fetchTree()
-  }, 250)
-})
-
-watch(() => props.context, () => {
-  if (!dynamicEnabled.value) {
-    return
-  }
-  fetchTree()
-})
+watch(
+  () => [dynamicEnabled.value, props.context, props.namespace, props.selectors],
+  ([enabled], _previous, onCleanup) => {
+    if (!enabled) {
+      return
+    }
+    const timer = setTimeout(() => {
+      fetchTree()
+    }, 180)
+    onCleanup(() => {
+      clearTimeout(timer)
+    })
+  },
+  { immediate: true },
+)
 
 watch(() => props.refreshKey, () => {
-  if (!dynamicEnabled.value) {
-    return
-  }
-  fetchTree()
-})
-
-watch(() => props.selectors, () => {
   if (!dynamicEnabled.value) {
     return
   }
@@ -236,49 +193,78 @@ watch(contextTitle, (value) => {
   emit('update:context-title', value)
 }, { immediate: true })
 
-watch(namespaces, (value) => {
-  emit('update:namespaces', value)
-}, { immediate: true })
-
 watch(loading, (value) => {
   emit('update:loading', value)
 }, { immediate: true })
 
 // Reset user overrides and rebuild search index whenever tree data changes.
 watch(payload, (nextPayload) => {
-  expandOverride.clear()
+  reconcileExpandOverrides(nextPayload?.trees || [], activeScopeKey.value)
   searchIndex.value = buildSearchIndex(nextPayload?.trees || [])
-  openPodPaths(nextPayload?.trees || [])
+  rebuildAutoExpandState(nextPayload?.trees || [])
 })
 
-function openPodPaths(nodes) {
-  markPodPathsOpen(nodes, 0)
+function reconcileExpandOverrides(nodes, scopeKey) {
+  if (lastPayloadScopeKey.value !== scopeKey) {
+    userExpandOverride.clear()
+    lastPayloadScopeKey.value = scopeKey
+    return
+  }
+
+  const liveKeys = collectTreeKeys(nodes)
+  for (const key of [...userExpandOverride.keys()]) {
+    if (!liveKeys.has(key)) {
+      userExpandOverride.delete(key)
+    }
+  }
 }
 
-function markPodPathsOpen(nodes, depth) {
+function rebuildAutoExpandState(nodes) {
+  autoExpandState.clear()
+  markPodPathsOpen(nodes, 0, autoExpandState)
+}
+
+function markPodPathsOpen(nodes, depth, targetMap) {
   let hasPodInBranch = false
 
   for (const node of nodes || []) {
     const type = String(node?.type || '').trim().toLowerCase()
-    const childHasPod = markPodPathsOpen(workloadPathChildren(node), depth + 1)
+    const childHasPod = markPodPathsOpen(workloadPathChildren(node), depth + 1, targetMap)
     const includesPod = type === 'pod' || childHasPod
 
     if (includesPod) {
       hasPodInBranch = true
       const key = String(node?.key || '').trim()
       if (type === 'pod') {
-        // Pod nodes stay collapsed by default — use the existing override map to pin them closed.
+        // Pod nodes stay collapsed by default.
         if (key) {
-          expandOverride.set(key, false)
+          targetMap.set(key, false)
         }
       } else if (depth >= 1 && key && Array.isArray(node?.children) && node.children.length > 0) {
         // Keep rendered roots collapsed; allow one-level-below roots (e.g. ReplicaSets) to auto-open.
-        expandOverride.set(key, true)
+        targetMap.set(key, true)
       }
     }
   }
 
   return hasPodInBranch
+}
+
+function collectTreeKeys(nodes) {
+  const keys = new Set()
+
+  function walk(list) {
+    for (const node of list || []) {
+      const key = String(node?.key || '').trim()
+      if (key) {
+        keys.add(key)
+      }
+      walk(node?.children || [])
+    }
+  }
+
+  walk(nodes)
+  return keys
 }
 
 function workloadPathChildren(node) {
@@ -340,16 +326,6 @@ function clearQuery() {
   emit('apply-query')
 }
 
-function collectNamespaces(nodes, out) {
-  for (const node of nodes || []) {
-    const ns = nodeNamespace(node)
-    if (ns) {
-      out.add(ns)
-    }
-    collectNamespaces(node?.children || [], out)
-  }
-}
-
 function nodeNamespace(node) {
   const ns = node?.metadata?.namespace
   if (typeof ns === 'string' && ns.trim() !== '') {
@@ -361,26 +337,6 @@ function nodeNamespace(node) {
   if (parts.length >= 3 && parts[1]) {
     return parts[1]
   }
-  return ''
-}
-
-function resourceNamespace(resource) {
-  const ns = resource?.namespace
-  if (typeof ns === 'string' && ns.trim() !== '') {
-    return ns.trim()
-  }
-
-  const metaNS = resource?.resource?.metadata?.namespace
-  if (typeof metaNS === 'string' && metaNS.trim() !== '') {
-    return metaNS.trim()
-  }
-
-  const key = resource?.key || ''
-  const parts = key.split('/')
-  if (parts.length >= 3 && parts[1]) {
-    return parts[1]
-  }
-
   return ''
 }
 
@@ -594,17 +550,6 @@ function filterTree(node, filters) {
   return null
 }
 
-function firstNamespace(nodes) {
-  const values = new Set()
-  collectNamespaces(nodes, values)
-  for (const ns of values) {
-    if (ns) {
-      return ns
-    }
-  }
-  return ''
-}
-
 const noisyMetadataKeys = new Set([
   '__nodetype',
   'annotations',
@@ -674,6 +619,7 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
         :view-actions-enabled="appViewsEnabled"
         @open-view="emit('open-view', $event)"
       />
+      <li v-if="filteredRoots.length" class="tree__spacer" aria-hidden="true"></li>
     </ul>
   </section>
 </template>
@@ -773,5 +719,10 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
   color: var(--text-muted);
   font-size: 0.86rem;
   background: color-mix(in srgb, var(--button-bg) 55%, transparent);
+}
+
+.tree__spacer {
+  list-style: none;
+  height: 1rem;
 }
 </style>

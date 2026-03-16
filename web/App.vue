@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import Menu from './components/Menu.vue'
+import MenuHeader from './components/MenuHeader.vue'
 import Trees from './components/Trees.vue'
 import Views from './components/Views.vue'
 
@@ -34,7 +34,6 @@ const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light the
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
-const brandedContextTitle = computed(() => formatKompassTitle(viewContextName.value))
 const viewContextName = computed(() => String(selectedContext.value || contextTitle.value || '').trim())
 const contextOptions = computed(() => {
   const values = new Set(contexts.value.map((item) => String(item || '').trim()).filter(Boolean))
@@ -45,6 +44,13 @@ const contextOptions = computed(() => {
   return [...values]
 })
 const filtering = computed(() => searchDraftQuery.value !== appliedSearchQuery.value)
+const scopeQueryParams = computed(() => ({
+  context: String(selectedContext.value || '').trim(),
+  namespace: String(selectedNamespace.value || '').trim(),
+  selectors: String(selectors.value || '').trim(),
+  resource: String(activeResourceView.value?.node?.key || '').trim(),
+  view: String(activeResourceView.value?.view || '').trim(),
+}))
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
@@ -53,13 +59,7 @@ onMounted(() => {
   initializeScope()
 })
 
-watch(
-  () => [selectedContext.value, selectedNamespace.value, selectors.value],
-  () => {
-    syncScopeQueryParams()
-  },
-  { immediate: true },
-)
+watch(scopeQueryParams, syncScopeQueryParams, { immediate: true })
 
 function applyTheme(nextTheme) {
   theme.value = nextTheme
@@ -261,12 +261,10 @@ function openResourceView(payload) {
     node: payload.node,
     view: payload.view || 'describe',
   }
-  syncScopeQueryParams()
 }
 
 function closeResourceView() {
   activeResourceView.value = null
-  syncScopeQueryParams()
 }
 
 function updateResourceViewTab(nextView) {
@@ -281,27 +279,18 @@ function updateResourceViewTab(nextView) {
     ...activeResourceView.value,
     view,
   }
-  syncScopeQueryParams()
-}
-
-function formatKompassTitle(raw) {
-  const context = String(raw || '').trim() || 'Context'
-  if (context.startsWith('🧭 Kompass ')) {
-    return context
-  }
-  return `🧭 Kompass ${context}`
 }
 </script>
 
 <template>
   <main class="app">
     <section v-show="!activeResourceView" class="app__tree-screen">
-      <Menu
+      <MenuHeader
+        class="app__menu-header"
         :context-name="viewContextName"
         :contexts="contextOptions"
         :theme-icon="themeIcon"
         :theme-label="themeLabel"
-        :on-toggle-theme="toggleTheme"
         :refresh-disabled="isStaticMode"
         :loading="loading"
         :namespaces="namespaces"
@@ -309,6 +298,7 @@ function formatKompassTitle(raw) {
         :selectors="selectors"
         :disabled="false"
         @refresh="refreshTree"
+        @toggle-theme="toggleTheme"
         @update:namespace="selectedNamespace = $event"
         @update:context="updateContext"
         @update:selectors="selectors = $event"
@@ -337,7 +327,6 @@ function formatKompassTitle(raw) {
       :node="activeResourceView.node"
       :initial-view="activeResourceView.view"
       :api-base="appApiBase"
-      :chrome-title="brandedContextTitle"
       :context-name="viewContextName"
       :contexts="contextOptions"
       :namespaces="namespaces"
@@ -375,5 +364,9 @@ function formatKompassTitle(raw) {
   flex-direction: column;
   gap: 0.75rem;
   overflow: hidden;
+}
+
+.app__menu-header {
+  flex-shrink: 0;
 }
 </style>

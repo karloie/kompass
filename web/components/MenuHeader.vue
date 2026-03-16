@@ -73,7 +73,7 @@ function onSelectorsInput(event) {
 <template>
   <header class="shared-header">
     <div class="shared-header__left">
-      <span class="shared-header__brand">🧭 Kompasss </span>
+      <span class="shared-header__brand">🧭 Kompass</span>
       <select
         class="shared-header__select"
         :value="contextName"

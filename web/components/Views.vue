@@ -18,10 +18,6 @@ const props = defineProps({
     type: String,
     default: '/api/app',
   },
-  chromeTitle: {
-    type: String,
-    default: '🧭 Kompass mock-01',
-  },
   contextName: {
     type: String,
     default: 'mock-01',
@@ -98,6 +94,11 @@ const supportsContentFilter = computed(() => {
   const view = String(activeView.value || '').toLowerCase()
   return view === 'logs' || view === 'events' || view === 'hubble' || view === 'yaml'
 })
+const viewRequestScope = computed(() => [
+  String(props.contextName || '').trim(),
+  String(props.namespace || '').trim(),
+  String(props.selectors || '').trim(),
+])
 const normalizedContentFilter = computed(() => String(contentFilter.value || '').trim().toLowerCase())
 const filteredContent = computed(() => {
   const source = String(content.value || '')
@@ -169,7 +170,7 @@ watch(
   { immediate: true },
 )
 
-watch(() => props.selectors, () => {
+watch(viewRequestScope, () => {
   const view = String(activeView.value || '').trim()
   if (!view) {
     return
@@ -769,15 +770,15 @@ function shellQuote(value) {
   color: var(--accent-cyan);
 }
 .view__content :deep(.view__token--null) {
-  color: #888;
+  color: #7f7f7f;
   font-style: italic;
 }
 .view__content :deep(.view__token--log-prefix) {
-  color: #888;
+  color: #7f7f7f;
   font-weight: 400;
 }
 .view__content :deep(.view__token--stacktrace) {
-  color: #888;
+  color: #7f7f7f;
   font-style: italic;
 }
 

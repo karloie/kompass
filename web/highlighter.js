@@ -91,11 +91,67 @@ function formatISOBasic(match, yyyy, mm, dd, hh, mi, ss, ms, zone, ...rest) {
   return out
 }
 
-const TOKEN_PATTERNS = {
-  yaml: [
+function createMarkedPattern(className, regex, transform = (match) => match) {
+  return {
+    className,
+    regex,
+    replacer: (match, ...rest) => {
+      const mark = rest[rest.length - 1]
+      return mark(transform(match), className)
+    },
+  }
+}
+
+function createTemporalPatterns() {
+  return [
+    {
+      className: 'view__token--datetime',
+      regex: /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})?)?\b/g,
+      replacer: formatISODate,
+    },
+    {
+      className: 'view__token--datetime-pretty',
+      regex: /\b(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?)?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
+      replacer: formatPrettyDate,
+    },
+    {
+      className: 'view__token--time-only',
+      regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
+      replacer: formatTimeOnly,
+    },
+  ]
+}
+
+function createExtendedLogTimePatterns() {
+  return [
+    {
+      className: 'view__token--datetime-rfc1123',
+      regex: /\b((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)\s+(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))?\b/g,
+      replacer: formatRFCDateTime,
+    },
+    {
+      className: 'view__token--datetime-rfc822',
+      regex: /\b(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))\b/g,
+      replacer: (match, datePart, hh, mi, ss, zone, ...rest) => formatRFCDateTime(match, '', datePart, hh, mi, ss, zone, ...rest),
+    },
+    {
+      className: 'view__token--datetime-iso-basic',
+      regex: /\b(\d{4})(\d{2})(\d{2})[T ](\d{2})(\d{2})(\d{2})(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})\b/g,
+      replacer: formatISOBasic,
+    },
+    ...createTemporalPatterns(),
+    createMarkedPattern('view__token--time-meta', /\b\d{10}(?:\d{3})?\b/g),
+  ]
+}
+
+function createNumberPattern() {
+  return { className: 'view__token--number', regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g }
+}
+
+function createYamlPatterns() {
+  return [
     {
       className: 'view__token--yaml-key',
-      // Match YAML keys at line start only.
       regex: /^([ ]*)([A-Za-z_][\w.-]*):/gm,
       replacer: (match, indent, key, ...rest) => {
         const mark = rest[rest.length - 1]
@@ -105,148 +161,47 @@ const TOKEN_PATTERNS = {
     { className: 'view__token--string', regex: /("[^"]*"|'[^']*')/g },
     { className: 'view__token--bool', regex: /\b(?:true|false)\b/gi },
     { className: 'view__token--null', regex: /\bnull\b/gi },
-    { className: 'view__token--number', regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g },
-    {
-      className: 'view__token--datetime',
-      regex: /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})?)?\b/g,
-      replacer: formatISODate,
-    },
-    {
-      className: 'view__token--datetime-pretty',
-      regex: /\b(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?)?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatPrettyDate,
-    },
-    {
-      className: 'view__token--time-only',
-      regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatTimeOnly,
-    },
-  ],
-  logs: [
-    {
-      className: 'view__token--datetime-rfc1123',
-      regex: /\b((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)\s+(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))?\b/g,
-      replacer: formatRFCDateTime,
-    },
-    {
-      className: 'view__token--datetime-rfc822',
-      regex: /\b(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))\b/g,
-      replacer: (match, datePart, hh, mi, ss, zone, ...rest) => formatRFCDateTime(match, '', datePart, hh, mi, ss, zone, ...rest),
-    },
-    {
-      className: 'view__token--datetime-iso-basic',
-      regex: /\b(\d{4})(\d{2})(\d{2})[T ](\d{2})(\d{2})(\d{2})(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})\b/g,
-      replacer: formatISOBasic,
-    },
-    {
-      className: 'view__token--datetime',
-      regex: /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})?)?\b/g,
-      replacer: formatISODate,
-    },
-    {
-      className: 'view__token--datetime-pretty',
-      regex: /\b(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?)?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatPrettyDate,
-    },
-    {
-      className: 'view__token--time-only',
-      regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatTimeOnly,
-    },
+    createNumberPattern(),
+    ...createTemporalPatterns(),
+  ]
+}
+
+function createLogLevelPatterns() {
+  return [
     { className: 'view__token--level-trace', regex: /\b(?:TRACE|VERBOSE)\b/g },
     { className: 'view__token--level-debug', regex: /\bDEBUG\b/g },
     { className: 'view__token--level-info', regex: /\bINFO\b/g },
     { className: 'view__token--level-warn', regex: /\b(?:WARN|WARNING)\b/g },
     { className: 'view__token--level-error', regex: /\b(?:ERROR|ERR)\b/g },
     { className: 'view__token--level-fatal', regex: /\b(?:FATAL|PANIC|CRITICAL)\b/g },
-    {
-      className: 'view__token--time-meta',
-      regex: /\b\d{10}(?:\d{3})?\b/g,
-      replacer: (match, ...rest) => {
-        const mark = rest[rest.length - 1]
-        return mark(match, 'view__token--time-meta')
-      },
-    },
-    { className: 'view__token--number', regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g },
+  ]
+}
+
+function createLogPatterns() {
+  return [
+    ...createExtendedLogTimePatterns(),
+    ...createLogLevelPatterns(),
+    createNumberPattern(),
     { className: 'view__token--log-prefix', regex: /^(\s*\[?\w+\]?[:\-])\s+/gm },
     { className: 'view__token--stacktrace', regex: /^\s+at\s+.*$/gm },
-  ],
-  cilium: [
-    {
-      className: 'view__token--datetime-rfc1123',
-      regex: /\b((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)\s+(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\s+(\d{2}):(\d{2}):(\d{2})(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))?\b/g,
-      replacer: formatRFCDateTime,
-    },
-    {
-      className: 'view__token--datetime-rfc822',
-      regex: /\b(\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\s+([A-Za-z]{2,5}|[+-]\d{4}))\b/g,
-      replacer: (match, datePart, hh, mi, ss, zone, ...rest) => formatRFCDateTime(match, '', datePart, hh, mi, ss, zone, ...rest),
-    },
-    {
-      className: 'view__token--datetime-iso-basic',
-      regex: /\b(\d{4})(\d{2})(\d{2})[T ](\d{2})(\d{2})(\d{2})(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})\b/g,
-      replacer: formatISOBasic,
-    },
-    {
-      className: 'view__token--datetime',
-      regex: /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})?)?\b/g,
-      replacer: formatISODate,
-    },
-    {
-      className: 'view__token--datetime-pretty',
-      regex: /\b(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?)?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatPrettyDate,
-    },
-    {
-      className: 'view__token--time-only',
-      regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatTimeOnly,
-    },
-    {
-      className: 'view__token--allow',
-      regex: /\b(?:ALLOW|ALLOWED|OPEN|FORWARDED|PERMIT)\b/g,
-      replacer: (match, ...rest) => {
-        const mark = rest[rest.length - 1]
-        return mark(`✅ ${match}`, 'view__token--allow')
-      },
-    },
-    {
-      className: 'view__token--deny',
-      regex: /\b(?:DENY|DENIED|DROP|DROPPED|BLOCKED)\b/g,
-      replacer: (match, ...rest) => {
-        const mark = rest[rest.length - 1]
-        return mark(`⛔ ${match}`, 'view__token--deny')
-      },
-    },
-    {
-      className: 'view__token--time-meta',
-      regex: /\b\d{10}(?:\d{3})?\b/g,
-      replacer: (match, ...rest) => {
-        const mark = rest[rest.length - 1]
-        return mark(match, 'view__token--time-meta')
-      },
-    },
-    { className: 'view__token--number', regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g },
+  ]
+}
+
+function createCiliumPatterns() {
+  return [
+    ...createExtendedLogTimePatterns(),
+    createMarkedPattern('view__token--allow', /\b(?:ALLOW|ALLOWED|OPEN|FORWARDED|PERMIT)\b/g, (match) => `✅ ${match}`),
+    createMarkedPattern('view__token--deny', /\b(?:DENY|DENIED|DROP|DROPPED|BLOCKED)\b/g, (match) => `⛔ ${match}`),
+    createNumberPattern(),
     { className: 'view__token--log-prefix', regex: /^([A-Z]+:)\s+/gm },
-  ],
-  default: [
-    {
-      className: 'view__token--datetime',
-      regex: /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?([zZ]|[+-]\d{2}:?\d{2})?)?\b/g,
-      replacer: formatISODate,
-    },
-    {
-      className: 'view__token--datetime-pretty',
-      regex: /\b(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?)?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatPrettyDate,
-    },
-    {
-      className: 'view__token--time-only',
-      regex: /\b(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([zZ]|[+-]\d{2}:?\d{2}))?\b/g,
-      replacer: formatTimeOnly,
-    },
-    { className: 'view__token--number', regex: /\b(?:0x[0-9A-Fa-f]+|\d+(?:\.\d+)?)\b/g },
-  ],
+  ]
+}
+
+const TOKEN_PATTERNS = {
+  yaml: createYamlPatterns(),
+  logs: createLogPatterns(),
+  cilium: createCiliumPatterns(),
+  default: [...createTemporalPatterns(), createNumberPattern()],
 }
 
 function escapeHtml(value) {

@@ -70,10 +70,6 @@ const isOpen = computed(() => {
   return treeExpand.isNodeOpen(nodeKey.value, props.depth, nodeType.value)
 })
 
-const metadataLines = computed(() => {
-  return visibleMetadataEntries.value.map((entry) => `${entry.key}: ${entry.value}`)
-})
-
 const statusBadge = computed(() => {
   const meta = props.node?.metadata || {}
   const raw = pickStatusValue(meta)
@@ -257,6 +253,7 @@ const hiddenMetadataKeys = new Set([
   'count',
   'creationtimestamp',
   'displayprefix',
+  'expiresin',
   'index',
   'kind',
   'labels',
@@ -267,6 +264,7 @@ const hiddenMetadataKeys = new Set([
   'ownerreferences',
   'policytype',
   'livenessstatus',
+  'readyreason',
   'readinessstatus',
   'startupstatus',
   'resourceversion',
@@ -359,9 +357,6 @@ const visibleMetadataEntries = computed(() => {
             {{ viewShortLabel(view) }}
           </button>
         </span>
-        <div v-if="metadataLines.length" class="tree-node__metadata-popup">
-          <div v-for="(line, idx) in metadataLines" :key="idx" class="tree-node__metadata-line">{{ line }}</div>
-        </div>
       </div>
       <ul v-show="isOpen" class="tree-node__children">
         <TreeNode
@@ -402,9 +397,6 @@ const visibleMetadataEntries = computed(() => {
           {{ viewShortLabel(view) }}
         </button>
       </span>
-      <div v-if="metadataLines.length" class="tree-node__metadata-popup">
-        <div v-for="(line, idx) in metadataLines" :key="idx" class="tree-node__metadata-line">{{ line }}</div>
-      </div>
     </div>
   </li>
 </template>
@@ -412,14 +404,17 @@ const visibleMetadataEntries = computed(() => {
 <style scoped>
 .tree-node {
   list-style: none;
+  width: max-content;
+  min-width: 100%;
 }
 
 .tree-node__summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   white-space: nowrap;
-  overflow: hidden;
+  width: max-content;
+  min-width: 100%;
   user-select: none;
   position: relative;
 }
@@ -447,14 +442,11 @@ const visibleMetadataEntries = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
+  min-width: max-content;
 }
 
 .tree-node__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -515,9 +507,6 @@ const visibleMetadataEntries = computed(() => {
   font-size: 0.74rem;
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
 }
 
 .tree-node__icon {
@@ -535,10 +524,13 @@ const visibleMetadataEntries = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  flex-shrink: 0;
-  margin-left: 0.5rem;
+  position: sticky;
+  right: 0.35rem;
+  margin-left: auto;
+  padding-left: 0.5rem;
   opacity: 0;
   transition: opacity 120ms ease;
+  z-index: 1;
 }
 
 .tree-node__summary:hover > .tree-node__actions,
@@ -558,42 +550,5 @@ const visibleMetadataEntries = computed(() => {
   font-weight: 700;
   line-height: 1.4;
   cursor: pointer;
-}
-
-.tree-node__metadata-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  display: none;
-  background: var(--button-bg);
-  border: 1px solid var(--button-border);
-  border-radius: 6px;
-  padding: 0.5rem;
-  margin-top: 0.25rem;
-  min-width: 200px;
-  max-width: 400px;
-  z-index: 10;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-}
-
-.tree-node__summary:hover > .tree-node__metadata-popup {
-  display: block;
-}
-
-.tree-node__metadata-line {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0.25rem 0;
-  word-break: break-word;
-  font-family: monospace;
-}
-
-.tree-node__metadata-line:first-child {
-  margin-top: 0;
-}
-
-.tree-node__metadata-line:last-child {
-  margin-bottom: 0;
 }
 </style>
