@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import Menu from './components/Menu.vue'
 import Tree from './components/Tree.vue'
+import View from './components/View.vue'
 
 const props = defineProps({
   bootstrapConfig: {
@@ -21,11 +22,13 @@ const selectedNamespace = ref('')
 const searchQuery = ref('')
 const loading = ref(false)
 const refreshKey = ref(0)
+const activeResourceView = ref(null)
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
+const appApiBase = computed(() => '/api/app')
 
 onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
@@ -51,6 +54,20 @@ function applySuggestedNamespace(namespace) {
   if (!selectedNamespace.value && namespace) {
     selectedNamespace.value = namespace
   }
+}
+
+function openResourceView(payload) {
+  if (!payload?.node) {
+    return
+  }
+  activeResourceView.value = {
+    node: payload.node,
+    view: payload.view || 'describe',
+  }
+}
+
+function closeResourceView() {
+  activeResourceView.value = null
 }
 </script>
 
@@ -82,6 +99,15 @@ function applySuggestedNamespace(namespace) {
       @update:namespaces="namespaces = $event"
       @suggest-namespace="applySuggestedNamespace"
       @update:loading="loading = $event"
+      @open-view="openResourceView"
+    />
+
+    <View
+      v-if="activeResourceView"
+      :node="activeResourceView.node"
+      :initial-view="activeResourceView.view"
+      :api-base="appApiBase"
+      @close="closeResourceView"
     />
   </main>
 </template>

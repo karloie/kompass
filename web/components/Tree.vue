@@ -25,7 +25,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading'])
+const emit = defineEmits(['update:context-title', 'update:namespaces', 'suggest-namespace', 'update:loading', 'open-view'])
 
 const loading = ref(false)
 const error = ref('')
@@ -47,6 +47,10 @@ const dynamicEnabled = computed(() => {
     return true
   }
   return apiBase.value !== ''
+})
+const appViewsEnabled = computed(() => {
+  const mode = String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase()
+  return mode !== 'static'
 })
 
 const namespaces = computed(() => {
@@ -474,6 +478,8 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
         v-for="(node, index) in filteredRoots"
         :key="node?.key || `root-${index}`"
         :node="node"
+        :view-actions-enabled="appViewsEnabled"
+        @open-view="emit('open-view', $event)"
       />
     </ul>
   </section>
