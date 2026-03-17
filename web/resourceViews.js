@@ -1,19 +1,32 @@
+// Kubernetes API resource types that support kubectl operations
+const kubernetesApiTypes = new Set([
+  'pod', 'pod', 'deployment', 'service', 'replicaset', 'statefulset', 'daemonset',
+  'job', 'cronjob', 'certificate', 'issuer', 'clusterissuer', 'configmap', 'secret',
+  'persistentvolume', 'persistentvolumeclaim', 'namespace', 'networkpolicy',
+  'ciliumnetworkpolicy', 'ciliumclusterwidenetworkpolicy', 'ingress', 'ingressclass',
+  'node', 'endpoints', 'endpointslice', 'service', 'serviceaccount', 'storageclass',
+  'csidriver', 'csinode', 'horizontalpodautoscaler', 'nats', 'jetstream', 'streamtemplate'
+])
+
 export function availableViewsForNode(node, options = {}) {
   const appViewsEnabled = options.appViewsEnabled !== false
   const type = nodeType(node)
   if (!type) {
     return []
   }
+  if (!kubernetesApiTypes.has(type)) {
+    return []
+  }
   if (!appViewsEnabled) {
-    return ['tree']
+    return []
   }
   if (type === 'pod') {
-    return ['describe', 'logs', 'events', 'hubble', 'yaml', 'tree']
+    return ['describe', 'logs', 'events', 'hubble', 'yaml']
   }
   if (type === 'certificate') {
-    return ['cert', 'describe', 'events', 'yaml', 'tree']
+    return ['cert', 'describe', 'events', 'yaml']
   }
-  return ['describe', 'events', 'yaml', 'tree']
+  return ['describe', 'events', 'yaml']
 }
 
 export function viewLabel(view) {
@@ -34,7 +47,7 @@ export function viewShortLabel(view) {
     logs: 'L',
     events: 'E',
     hubble: 'C',
-    cert: 'Ct',
+    cert: 'C',
     yaml: 'Y',
     tree: 'T',
   }[view] || '?'

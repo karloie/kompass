@@ -198,7 +198,7 @@ func listDynamicResourceObjects(dc dynamic.Interface, gvr schema.GroupVersionRes
 
 	if err != nil {
 		slog.Debug("provider cluster call failed", "resource", gvr.Resource, "namespace", namespace, "selector", opts.LabelSelector, "duration", time.Since(start).String(), "error", err)
-		return []map[string]any{}, nil
+		return nil, err
 	}
 
 	result := make([]map[string]any, 0, len(list.Items))

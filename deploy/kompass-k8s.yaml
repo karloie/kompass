@@ -14,58 +14,22 @@ kind: ClusterRole
 metadata:
   name: kompass-read-only
 rules:
-- apiGroups: [""]
-  # Optional: remove "secrets" to harden access. Kompass will still run and infer
-  # most relationships, but secret nodes/details will not be available.
-  resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts", "endpoints", "namespaces", "nodes", "persistentvolumes", "persistentvolumeclaims"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "cronjobs"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses", "networkpolicies"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["discovery.k8s.io"]
-  resources: ["endpointslices"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["autoscaling"]
-  resources: ["horizontalpodautoscalers"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["storage.k8s.io"]
-  resources: ["storageclasses", "csidrivers", "csinodes", "volumeattachments"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["scheduling.k8s.io"]
-  resources: ["priorityclasses"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["cert-manager.io"]
-  resources: ["certificates", "issuers", "clusterissuers"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["gateway.networking.k8s.io"]
-  resources: ["gateways", "httproutes"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["cilium.io"]
-  resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["secrets-store.csi.x-k8s.io"]
-  resources: ["secretproviderclasses"]
-  verbs: ["get", "list", "watch"]
-- nonResourceURLs: ["/api", "/api/*", "/apis", "/apis/*", "/version"]
-  verbs: ["get"]
+  # Kompass redacts secret contents. Operators can still narrow RBAC if they
+  # prefer to hide secret-backed nodes and related relationships entirely.
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/api", "/api/*", "/apis", "/apis/*", "/version"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: kompass-read-only
 subjects:
-- kind: ServiceAccount
-  name: kompass
-  namespace: kompass
+  - kind: ServiceAccount
+    name: kompass
+    namespace: kompass
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -90,43 +54,66 @@ spec:
         app.kubernetes.io/name: kompass
     spec:
       serviceAccountName: kompass
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
       containers:
-      - name: kompass
-        image: karloie/kompass:v0.0.10
-        imagePullPolicy: IfNotPresent
-        args:
-        - --service
-        - 0.0.0.0:8080
-        ports:
-        - name: http
-          containerPort: 8080
-          protocol: TCP
-        env:
-        - name: KOMPASS_K8S_TIMEOUT
-          value: 30s
-        readinessProbe:
-          httpGet:
-            path: /api/readyz
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 3
-          failureThreshold: 6
-        livenessProbe:
-          httpGet:
-            path: /api/healthz
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 20
-          timeoutSeconds: 3
-          failureThreshold: 3
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
+        - name: kompass
+          image: karloie/kompass:0.0.13
+          imagePullPolicy: Always
+          args:
+            - --service
+            - 0.0.0.0:8080
+            - --namespace
+            - kompass
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: KOMPASS_K8S_TIMEOUT
+              value: 30s
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /api/readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            timeoutSeconds: 3
+          startupProbe:
+            httpGet:
+              path: /api/readyz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
@@ -139,8 +126,8 @@ spec:
   selector:
     app.kubernetes.io/name: kompass
   ports:
-  - name: http
-    port: 8080
-    targetPort: http
-    protocol: TCP
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
   type: ClusterIP
