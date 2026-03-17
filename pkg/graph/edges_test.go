@@ -7,7 +7,9 @@ import (
 
 	kube "github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestIsWorkloadType(t *testing.T) {
@@ -365,5 +367,47 @@ func TestInferGraphsLoadsGatewayAndCertificateFromHTTPRouteParentNamespace(t *te
 	}
 	if resp.Node("clusterissuer/letsencrypt-prod") == nil {
 		t.Fatalf("expected clusterissuer node")
+	}
+}
+
+func TestInferGraphsSkipsForbiddenSecrets(t *testing.T) {
+	original := ResourceTypes
+	t.Cleanup(func() { ResourceTypes = original })
+
+	ResourceTypes = map[string]ResourceType{
+		"pod": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				if ns != "petshop" {
+					return nil, nil
+				}
+				return []kube.Resource{{
+					Key:  "pod/petshop/api-0",
+					Type: "pod",
+					Resource: map[string]any{"metadata": map[string]any{
+						"namespace": "petshop",
+						"name":      "api-0",
+					}},
+				}}, nil
+			},
+			Handler: inferPod,
+		},
+		"secret": {
+			Loader: func(_ kube.Kube, _ string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "secrets"}, "", nil)
+			},
+			Handler: inferSimpleNode("secret"),
+		},
+	}
+
+	provider := kube.NewMockClient(mock.GenerateMock())
+	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"pod/petshop/*"}})
+	if err != nil {
+		t.Fatalf("expected forbidden secrets to be skipped, got error: %v", err)
+	}
+	if resp == nil {
+		t.Fatalf("expected non-nil response")
+	}
+	if resp.Node("pod/petshop/api-0") == nil {
+		t.Fatalf("expected pod node in response")
 	}
 }
