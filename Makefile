@@ -1,10 +1,13 @@
-.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 VERSION_LDFLAGS := -X main.version=$(GIT_VERSION) -X main.commit=$(GIT_COMMIT) -X main.date=$(GIT_DATE)
 RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
+DOCKER ?= docker
+DOCKER_IMAGE ?= karloie/kompass
+DOCKER_DEV_TAG ?= dev
 LDFLAGS ?=
 ARGS    ?=
 COVERPKG ?= ./...
@@ -27,6 +30,10 @@ build-release: test
 	go build -tags release $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
+
+docker-dev:
+	$(DOCKER) build -f Containerfile -t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
+	$(DOCKER) push $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
 
 test:
 	go test -count=1 ./...
