@@ -75,7 +75,7 @@ const filteredRoots = computed(() => {
   const namespace = props.namespace
 
   return roots.value
-    .map((node) => filterTree(node, { matcher: activeMatcher, namespace }))
+    .map((node) => filterTree(node, { matcher: activeMatcher, namespace }, 0))
     .filter(Boolean)
 })
 
@@ -189,6 +189,19 @@ watch(() => props.refreshKey, () => {
   }
   fetchTree()
 })
+
+watch(
+  () => [props.context, props.namespace],
+  ([nextContext, nextNamespace], [prevContext, prevNamespace]) => {
+    if (nextContext === prevContext && nextNamespace === prevNamespace) {
+      return
+    }
+
+    // Prevent stale tree rows from a previous scope while the new request is in flight.
+    payload.value = null
+    error.value = ''
+  },
+)
 
 watch(contextTitle, (value) => {
   emit('update:context-title', value)
@@ -348,11 +361,20 @@ function nodeText(node) {
 }
 
 function nodeSearchText(node) {
+  if (isExcludedFromDirectFilterMatch(node)) {
+    return ''
+  }
+
   const key = String(node?.key || '')
   if (key && searchIndex.value.has(key)) {
     return searchIndex.value.get(key)
   }
   return nodeText(node)
+}
+
+function isExcludedFromDirectFilterMatch(node) {
+  const type = String(node?.type || '').trim().toLowerCase()
+  return excludedDirectFilterTypes.has(type)
 }
 
 function buildSearchIndex(nodes) {
@@ -528,19 +550,33 @@ function buildMatcher(rawQuery) {
   }
 }
 
-function filterTree(node, filters) {
+function filterTree(node, filters, depth = 0) {
   if (!node) {
     return null
   }
 
-  const filteredChildren = (node.children || [])
-    .map((child) => filterTree(child, filters))
-    .filter(Boolean)
-
-  const queryMatches = !filters.matcher.hasTerms || filters.matcher.test(nodeSearchText(node))
+  const excludedFromMatch = filters.matcher.hasTerms && depth > 0 && isExcludedFromDirectFilterMatch(node)
+  const queryMatches = !filters.matcher.hasTerms || (!excludedFromMatch && filters.matcher.test(nodeSearchText(node)))
   const matchesSelf = queryMatches
 
-  if (matchesSelf || filteredChildren.length > 0) {
+  // If this node matches the query, keep the full branch as context.
+  if (matchesSelf) {
+    return {
+      ...node,
+      children: node.children || [],
+    }
+  }
+
+  // Excluded nodes should not be used as filter pass-through when they don't match.
+  if (excludedFromMatch) {
+    return null
+  }
+
+  const filteredChildren = (node.children || [])
+    .map((child) => filterTree(child, filters, depth + 1))
+    .filter(Boolean)
+
+  if (filteredChildren.length > 0) {
     return {
       ...node,
       children: filteredChildren,
@@ -563,6 +599,10 @@ const noisyMetadataKeys = new Set([
 ])
 
 const hashLikeToken = /^[a-f0-9]{24,}$/
+
+const excludedDirectFilterTypes = new Set([
+  'ciliumclusterwidenetworkpolicy',
+])
 
 </script>
 

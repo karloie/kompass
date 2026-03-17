@@ -437,6 +437,7 @@ function shellQuote(value) {
       :refresh-disabled="refreshDisabled"
       :theme-icon="themeIcon"
       :theme-label="themeLabel"
+      :disabled="loading || props.loading"
       @refresh="emit('refresh')"
       @toggle-theme="emit('toggle-theme')"
       @update:namespace="emit('update:namespace', $event)"

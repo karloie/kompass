@@ -85,15 +85,6 @@ function onSelectorsInput(event) {
     <select class="shared-header__select" :value="namespace" :disabled="disabled" @change="onNamespaceChange">
       <option v-for="item in namespaces" :key="item" :value="item">{{ item }}</option>
     </select>
-    <input
-      class="shared-header__selectors"
-      type="text"
-      placeholder="selectors: */petshop/petshop* */kafka*/*"
-      :value="selectors"
-      :disabled="disabled"
-      @input="onSelectorsInput"
-    />
-
     <button
       class="shared-header__btn shared-header__btn--icon"
       type="button"

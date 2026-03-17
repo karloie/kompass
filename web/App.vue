@@ -21,6 +21,7 @@ const contexts = ref([])
 const selectedContext = ref(resolveInitialContext())
 const namespaces = ref([])
 const selectedNamespace = ref(resolveInitialNamespace())
+const contextNamespacePrefs = ref(loadContextNamespacePrefs())
 const selectors = ref(resolveInitialSelectors())
 const searchDraftQuery = ref('')
 const appliedSearchQuery = ref('')
@@ -61,6 +62,29 @@ onMounted(() => {
 
 watch(scopeQueryParams, syncScopeQueryParams, { immediate: true })
 
+watch(selectedContext, (value) => {
+  const contextName = String(value || '').trim()
+  if (!contextName) {
+    return
+  }
+  setCookie('kompass-last-context', contextName)
+})
+
+watch([selectedContext, selectedNamespace], ([contextValue, namespaceValue]) => {
+  const contextName = String(contextValue || '').trim()
+  const namespaceName = String(namespaceValue || '').trim()
+  if (!contextName || !namespaceName) {
+    return
+  }
+
+  const next = {
+    ...(contextNamespacePrefs.value || {}),
+    [contextName]: namespaceName,
+  }
+  contextNamespacePrefs.value = next
+  persistContextNamespacePrefs(next)
+})
+
 function applyTheme(nextTheme) {
   theme.value = nextTheme
   document.documentElement.setAttribute('data-theme', nextTheme)
@@ -89,7 +113,11 @@ async function updateContext(next) {
     return
   }
   selectedContext.value = value
-  await syncScopeForContext(value, { resetNamespace: true, preferCurrent: false })
+  await syncScopeForContext(value, {
+    resetNamespace: true,
+    preferCurrent: false,
+    preferredNamespace: String(contextNamespacePrefs.value?.[value] || '').trim(),
+  })
   refreshTree()
 }
 
@@ -102,7 +130,12 @@ async function initializeScope() {
     if (!selectedContext.value && current) {
       selectedContext.value = current
     }
-    await syncScopeForContext(selectedContext.value || current, { resetNamespace: !selectedNamespace.value, scopePayload: payload })
+    const activeContext = selectedContext.value || current
+    await syncScopeForContext(activeContext, {
+      resetNamespace: !selectedNamespace.value,
+      scopePayload: payload,
+      preferredNamespace: String(contextNamespacePrefs.value?.[activeContext] || '').trim(),
+    })
   } catch {
     // Scope endpoint may be unavailable in static mode; keep bootstrap scope only.
   }
@@ -155,6 +188,12 @@ async function syncScopeForContext(context, options = {}) {
 
   const currentSelection = String(selectedNamespace.value || '').trim()
   if (!options.resetNamespace && currentSelection && entry.namespaces.includes(currentSelection)) {
+    return
+  }
+
+  const preferredNamespace = String(options.preferredNamespace || '').trim()
+  if (preferredNamespace && entry.namespaces.includes(preferredNamespace)) {
+    selectedNamespace.value = preferredNamespace
     return
   }
 
@@ -235,6 +274,11 @@ function resolveInitialNamespace() {
   if (fromURL) {
     return fromURL
   }
+  const context = resolveInitialContext()
+  const fromCookieMap = String(loadContextNamespacePrefs()?.[context] || '').trim()
+  if (fromCookieMap) {
+    return fromCookieMap
+  }
   return String(props.bootstrapConfig?.namespace || props.bootstrapData?.request?.namespace || '').trim()
 }
 
@@ -242,6 +286,10 @@ function resolveInitialContext() {
   const fromURL = resolveInitialScopeParam('context')
   if (fromURL) {
     return fromURL
+  }
+  const fromCookie = String(getCookie('kompass-last-context') || '').trim()
+  if (fromCookie) {
+    return fromCookie
   }
   return String(props.bootstrapConfig?.context || props.bootstrapData?.request?.context || '').trim()
 }
@@ -281,6 +329,70 @@ function updateResourceViewTab(nextView) {
     view,
   }
 }
+
+function loadContextNamespacePrefs() {
+  const raw = String(getCookie('kompass-context-namespace-map') || '').trim()
+  if (!raw) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+    const out = {}
+    for (const [key, value] of Object.entries(parsed)) {
+      const contextName = String(key || '').trim()
+      const namespaceName = String(value || '').trim()
+      if (!contextName || !namespaceName) {
+        continue
+      }
+      out[contextName] = namespaceName
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function persistContextNamespacePrefs(map) {
+  const safe = {}
+  for (const [key, value] of Object.entries(map || {})) {
+    const contextName = String(key || '').trim()
+    const namespaceName = String(value || '').trim()
+    if (!contextName || !namespaceName) {
+      continue
+    }
+    safe[contextName] = namespaceName
+  }
+  setCookie('kompass-context-namespace-map', JSON.stringify(safe))
+}
+
+function getCookie(name) {
+  if (typeof document === 'undefined') {
+    return ''
+  }
+  const needle = `${encodeURIComponent(String(name || '').trim())}=`
+  const parts = String(document.cookie || '').split(';')
+  for (const part of parts) {
+    const item = part.trim()
+    if (!item || !item.startsWith(needle)) {
+      continue
+    }
+    return decodeURIComponent(item.slice(needle.length))
+  }
+  return ''
+}
+
+function setCookie(name, value) {
+  if (typeof document === 'undefined') {
+    return
+  }
+  const encodedName = encodeURIComponent(String(name || '').trim())
+  const encodedValue = encodeURIComponent(String(value || ''))
+  const oneYear = 60 * 60 * 24 * 365
+  document.cookie = `${encodedName}=${encodedValue}; Max-Age=${oneYear}; Path=/; SameSite=Lax`
+}
 </script>
 
 <template>
@@ -297,7 +409,7 @@ function updateResourceViewTab(nextView) {
         :namespaces="namespaces"
         :namespace="selectedNamespace"
         :selectors="selectors"
-        :disabled="false"
+        :disabled="loading"
         @refresh="refreshTree"
         @toggle-theme="toggleTheme"
         @update:namespace="selectedNamespace = $event"
