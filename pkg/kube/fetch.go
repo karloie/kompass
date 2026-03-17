@@ -110,6 +110,9 @@ func (c *Client) FetchResource(resourceType, namespace, name string, ctx context
 		return nil, err
 	}
 	trimVerboseMetadata(obj.Object)
+	if resourceType == "secret" {
+		redactSecretMap(obj.Object)
+	}
 
 	key := buildResourceKey(resourceType, namespace, name)
 	return &Resource{Key: key, Type: resourceType, Resource: obj.Object}, nil
@@ -307,6 +310,10 @@ func (c *Client) fetchResourceMock(resourceType, namespace, name string) (*Resou
 	if m == nil {
 		return nil, fmt.Errorf("resource %s/%s not found", resourceType, name)
 	}
+	if resourceType == "secret" {
+		m = cloneMap(m)
+		redactSecretMap(m)
+	}
 
 	key := buildResourceKey(resourceType, namespace, name)
 	return &Resource{Key: key, Type: resourceType, Resource: m}, nil
@@ -333,4 +340,20 @@ func findInMockItems(items []map[string]any, namespace, name string) map[string]
 		}
 	}
 	return nil
+}
+
+func cloneMap(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		child, ok := value.(map[string]any)
+		if ok {
+			out[key] = cloneMap(child)
+			continue
+		}
+		out[key] = value
+	}
+	return out
 }

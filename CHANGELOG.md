@@ -7,11 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.13] - 2026-03-17
 
+### Added
+- Added the web app interface for interactive cluster exploration in server mode.
+
 ### Changed
 - Reworked the JSON DTO contract to use structured `request.selectors` plus flat graph-level `nodes`, `edges`, and `components` payloads.
 - Added interactive HTML rendering for `/api/tree` with template-based markup and external JavaScript assets.
 - Updated `make service` to run through `gow` for a faster local service dev loop.
 - Updated snapshot workflow so `make snapshot` writes deterministic mock fixtures by default; real-cluster fixtures moved to `make snapshot-real`.
+
+## [0.0.12] - 2026-03-15
+
+### Fixed
+- Improved HTML rendering stability.
+
+### Changed
+- Internal cleanup and maintenance updates.
 
 ## [0.0.9] - 2026-03-13
 
@@ -93,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-v` flag for version information
 - `--help` / `-h` flag for usage information
 
-[0.0.10]: https://github.com/karloie/kompass/releases/tag/v0.0.10
+[0.0.13]: https://github.com/karloie/kompass/releases/tag/v0.0.13
+[0.0.12]: https://github.com/karloie/kompass/releases/tag/v0.0.12
 [0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9
 [0.0.8]: https://github.com/karloie/kompass/releases/tag/v0.0.8
 [0.0.7]: https://github.com/karloie/kompass/releases/tag/v0.0.7

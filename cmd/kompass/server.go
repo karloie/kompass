@@ -13,6 +13,7 @@ import (
 	"path"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -38,6 +39,10 @@ type server struct {
 	providerMu     sync.Mutex
 	webRoot        fs.FS
 	fullGraphCache map[string]*cachedGraphEntry // keyed by context|namespace
+
+	providerGetCalls int64
+	providerReuse    int64
+	providerInit     int64
 }
 
 type scopeResponse struct {
@@ -151,6 +156,9 @@ func (s *server) startDebugStatsLogger() func() {
 					"cacheHits", meta.CacheHits,
 					"cacheMisses", meta.CacheMisses,
 					"cacheHitRate", meta.CacheHitRate,
+					"providerGetCalls", atomic.LoadInt64(&s.providerGetCalls),
+					"providerReuse", atomic.LoadInt64(&s.providerReuse),
+					"providerInit", atomic.LoadInt64(&s.providerInit),
 				)
 			}
 		}
@@ -465,7 +473,11 @@ func graphOnlyResponse(result *kube.Response) *kube.Response {
 }
 
 func (s *server) getProvider(mockProvider, contextArg, namespace string) (kube.Kube, error) {
+	atomic.AddInt64(&s.providerGetCalls, 1)
+
 	if s.clientFactory != nil {
+		atomic.AddInt64(&s.providerInit, 1)
+		slog.Debug("provider resolve", "path", "clientFactory", "context", contextArg, "namespace", namespace, "mockProvider", mockProvider)
 		if mockProvider != "" {
 			return s.clientFactory("", namespace)
 		}
@@ -477,15 +489,23 @@ func (s *server) getProvider(mockProvider, contextArg, namespace string) (kube.K
 		}
 		if s.client != nil && s.client.IsMockMode() {
 			s.client.SetNamespace(namespace)
+			atomic.AddInt64(&s.providerReuse, 1)
+			slog.Debug("provider resolve", "path", "reuse-mock-server-client", "context", contextArg, "namespace", namespace)
 			return s.client, nil
 		}
+		atomic.AddInt64(&s.providerInit, 1)
+		slog.Debug("provider resolve", "path", "init-mock-client", "context", contextArg, "namespace", namespace)
 		provider, _, _, err := initProvider(true, "", namespace)
 		return provider, err
 	}
 	if s.client != nil && !s.client.IsMockMode() && (contextArg == "" || contextArg == s.contextArg) {
 		s.client.SetNamespace(namespace)
+		atomic.AddInt64(&s.providerReuse, 1)
+		slog.Debug("provider resolve", "path", "reuse-server-client", "context", contextArg, "namespace", namespace, "serverContext", s.contextArg)
 		return s.client, nil
 	}
+	atomic.AddInt64(&s.providerInit, 1)
+	slog.Debug("provider resolve", "path", "init-cluster-client", "context", contextArg, "namespace", namespace, "serverContext", s.contextArg)
 	provider, _, _, err := initProvider(false, contextArg, namespace)
 	return provider, err
 }
