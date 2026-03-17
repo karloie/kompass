@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.13] - 2026-03-17
 
 ### Added
-- Added the web app interface for interactive cluster exploration in server mode.
+- Added web app interface for interactive cluster exploration in service mode.
+
+### Fixed
+- Improved api call strategy for large clusters
+
+## [0.0.12] - 2026-03-15
 
 ### Changed
 - Reworked the JSON DTO contract to use structured `request.selectors` plus flat graph-level `nodes`, `edges`, and `components` payloads.
@@ -16,13 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `make service` to run through `gow` for a faster local service dev loop.
 - Updated snapshot workflow so `make snapshot` writes deterministic mock fixtures by default; real-cluster fixtures moved to `make snapshot-real`.
 
-## [0.0.12] - 2026-03-15
-
-### Fixed
-- Improved HTML rendering stability.
+## [0.0.10] - 2026-03-16
 
 ### Changed
-- Internal cleanup and maintenance updates.
+- Reworked the JSON DTO contract to use structured `request.selectors` plus flat graph-level `nodes`, `edges`, and `components` payloads.
+- Added interactive HTML rendering for `/api/tree` with template-based markup and external JavaScript assets.
+- Updated `make service` to run through `gow` for a faster local service dev loop.
+- Updated snapshot workflow so `make snapshot` writes deterministic mock fixtures by default; real-cluster fixtures moved to `make snapshot-real`.
 
 ## [0.0.9] - 2026-03-13
 
