@@ -79,6 +79,10 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 
 	sb.WriteString(fmt.Sprintf("%s%s%s\n", prefix, treeBranch, displayKey))
 
+	if isCollapsedTextNodeType(treeNode.Type) {
+		return
+	}
+
 	numChildren := len(treeNode.Children)
 	for i, child := range treeNode.Children {
 		childIsLast := i == numChildren-1
@@ -122,4 +126,8 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 		}
 		renderTreeNode(sb, child, childPrefix, childIsLast, false, nodeMap, visited, plain, childParentMeta)
 	}
+}
+
+func isCollapsedTextNodeType(nodeType string) bool {
+	return nodeType == "ciliumclusterwidenetworkpolicy"
 }

@@ -8,11 +8,14 @@ import (
 
 func TestInferCertificateIssuedByIssuer(t *testing.T) {
 	edges := []kube.ResourceEdge{}
-	nodes := map[string]kube.Resource{}
+	nodes := map[string]kube.Resource{
+		"secret/petshop/api-cert": {Key: "secret/petshop/api-cert", Type: "secret"},
+	}
 	item := &kube.Resource{Resource: map[string]any{
 		"metadata": map[string]any{"namespace": "petshop", "name": "api-cert"},
 		"spec": map[string]any{
-			"issuerRef": map[string]any{"kind": "Issuer", "name": "letsencrypt"},
+			"secretName": "api-cert",
+			"issuerRef":  map[string]any{"kind": "Issuer", "name": "letsencrypt"},
 		},
 	}}
 
@@ -24,14 +27,20 @@ func TestInferCertificateIssuedByIssuer(t *testing.T) {
 	}
 
 	found := false
+	foundSecret := false
 	for _, e := range edges {
 		if e.Source == "certificate/petshop/api-cert" && e.Target == "issuer/petshop/letsencrypt" && e.Label == "issued-by" {
 			found = true
-			break
+		}
+		if e.Source == "certificate/petshop/api-cert" && e.Target == "secret/petshop/api-cert" && e.Label == "stores" {
+			foundSecret = true
 		}
 	}
 	if !found {
 		t.Fatalf("expected issued-by edge to issuer, got %#v", edges)
+	}
+	if !foundSecret {
+		t.Fatalf("expected stores edge to backing secret, got %#v", edges)
 	}
 }
 

@@ -979,7 +979,11 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 	builder.Extend(buildRuntimeContainerChildren(podKey, spec, status))
 	builder.Add(specNode)
 
-	builder.Extend(appendGraphChildren(podKey, graphChildren, state, nodeMap))
+	excludedChildTypes := map[string]bool{
+		"ciliumnetworkpolicy":            true,
+		"ciliumclusterwidenetworkpolicy": true,
+	}
+	builder.Extend(appendFilteredGraphChildren(nil, podKey, excludedChildTypes, graphChildren, state, nodeMap))
 
 	return builder.Build()
 }
@@ -1035,10 +1039,10 @@ func buildRuntimeContainerNode(podKey string, idx int, containerSpec map[string]
 	applyContainerStatusMetadata(metadata, containerStatus)
 
 	containerNode := NewTree(containerKey, "container", metadata)
-	if imageMeta, ok := runtimeImageMetadata(containerStatus); ok {
+	if imageMeta, ok := runtimeImageMetadata(containerSpec, containerStatus); ok {
 		containerNode.Children = append(containerNode.Children, NewTree(containerKey+"/image", "image", imageMeta))
 	}
-	if resourcesNode := buildRuntimeResourcesNode(containerKey, containerStatus); resourcesNode != nil {
+	if resourcesNode := buildRuntimeResourcesNode(containerKey, containerSpec, containerStatus); resourcesNode != nil {
 		containerNode.Children = append(containerNode.Children, resourcesNode)
 	}
 
@@ -1209,13 +1213,16 @@ func applyContainerStatusMetadata(metadata map[string]any, containerStatus map[s
 	}
 }
 
-func runtimeImageMetadata(containerStatus map[string]any) (map[string]any, bool) {
-	if containerStatus == nil {
-		return nil, false
+func runtimeImageMetadata(containerSpec map[string]any, containerStatus map[string]any) (map[string]any, bool) {
+	rawImage := ""
+	rawImageID := ""
+	if containerStatus != nil {
+		rawImage, _ = containerStatus["image"].(string)
+		rawImageID, _ = containerStatus["imageID"].(string)
 	}
-
-	rawImage, _ := containerStatus["image"].(string)
-	rawImageID, _ := containerStatus["imageID"].(string)
+	if rawImage == "" && containerSpec != nil {
+		rawImage, _ = containerSpec["image"].(string)
+	}
 
 	image := normalizeRuntimeImageRef(rawImage)
 	imageID := normalizeRuntimeImageRef(rawImageID)
@@ -1231,20 +1238,53 @@ func runtimeImageMetadata(containerStatus map[string]any) (map[string]any, bool)
 	return map[string]any{"name": image}, true
 }
 
-func buildRuntimeResourcesNode(containerKey string, containerStatus map[string]any) *kube.Tree {
-	if containerStatus == nil {
-		return nil
-	}
-
+func buildRuntimeResourcesNode(containerKey string, containerSpec map[string]any, containerStatus map[string]any) *kube.Tree {
 	runtimeResources := map[string]any{}
 
-	if resources, ok := containerStatus["resources"].(map[string]any); ok {
+	mergeResources := func(resources map[string]any) {
+		if resources == nil {
+			return
+		}
 		if limits, ok := resources["limits"].(map[string]any); ok && len(limits) > 0 {
-			runtimeResources["limits"] = limits
+			mergedLimits := map[string]any{}
+			if existing, ok := runtimeResources["limits"].(map[string]any); ok {
+				for k, v := range existing {
+					mergedLimits[k] = v
+				}
+			}
+			for k, v := range limits {
+				if _, exists := mergedLimits[k]; !exists {
+					mergedLimits[k] = v
+				}
+			}
+			if len(mergedLimits) > 0 {
+				runtimeResources["limits"] = mergedLimits
+			}
 		}
 		if requests, ok := resources["requests"].(map[string]any); ok && len(requests) > 0 {
-			runtimeResources["requests"] = requests
+			mergedRequests := map[string]any{}
+			if existing, ok := runtimeResources["requests"].(map[string]any); ok {
+				for k, v := range existing {
+					mergedRequests[k] = v
+				}
+			}
+			for k, v := range requests {
+				if _, exists := mergedRequests[k]; !exists {
+					mergedRequests[k] = v
+				}
+			}
+			if len(mergedRequests) > 0 {
+				runtimeResources["requests"] = mergedRequests
+			}
 		}
+	}
+
+	if resources, ok := containerStatus["resources"].(map[string]any); ok {
+		mergeResources(resources)
+	}
+
+	if specResources, ok := containerSpec["resources"].(map[string]any); ok {
+		mergeResources(specResources)
 	}
 
 	if allocated, ok := containerStatus["allocatedResources"].(map[string]any); ok && len(allocated) > 0 {

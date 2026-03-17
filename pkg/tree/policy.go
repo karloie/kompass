@@ -22,14 +22,17 @@ var reverseEdgeBlockedPairs = map[string]map[string]bool{
 }
 
 var workloadFilteredChildTypes = map[string]bool{
-	"replicaset":          true,
-	"pod":                 true,
-	"service":             true,
-	"ciliumnetworkpolicy": true,
+	"replicaset":                     true,
+	"pod":                            true,
+	"service":                        true,
+	"ciliumnetworkpolicy":            true,
+	"ciliumclusterwidenetworkpolicy": true,
 }
 
 var replicaSetFilteredChildTypes = map[string]bool{
-	"pod": true,
+	"pod":                            true,
+	"ciliumnetworkpolicy":            true,
+	"ciliumclusterwidenetworkpolicy": true,
 }
 
 var jobFilteredChildTypes = map[string]bool{
@@ -37,8 +40,9 @@ var jobFilteredChildTypes = map[string]bool{
 }
 
 var workloadHoistMatchers = map[string]func(childKey, namespace string, podLabels map[string]any, nodeMap map[string]kube.Resource) bool{
-	"service":             serviceSelectsWorkload,
-	"ciliumnetworkpolicy": policyAppliesToWorkload,
+	"service":                        serviceSelectsWorkload,
+	"ciliumnetworkpolicy":            policyAppliesToWorkload,
+	"ciliumclusterwidenetworkpolicy": policyAppliesToWorkload,
 }
 
 func shouldAddReverseEdge(sourceType, targetType string) bool {

@@ -8,6 +8,24 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
+// enrichTreeMeta walks a built tree and populates empty Meta maps with
+// structured resource metadata. This is the data the text renderer extracted
+// in its own second pass; here we expose it directly on the tree object so
+// web clients have display labels without any ASCII-tree formatting.
+func enrichTreeMeta(node *kube.Tree, nodeMap map[string]*kube.Resource) {
+	if node == nil {
+		return
+	}
+	if len(node.Meta) == 0 {
+		if resource, ok := nodeMap[node.Key]; ok {
+			node.Meta = extractMetadataFromResource(*resource, nodeMap)
+		}
+	}
+	for _, child := range node.Children {
+		enrichTreeMeta(child, nodeMap)
+	}
+}
+
 func extractMetadataFromResource(resource kube.Resource, nodeMap map[string]*kube.Resource) map[string]any {
 
 	metadata := ApplyMetadataRules(resource, nodeMap)
@@ -167,7 +185,113 @@ func extractMetadataFromResource(resource kube.Resource, nodeMap map[string]*kub
 		}
 	}
 
+	annotateOperatorMetadata(resource.AsMap(), resource.Type, metadata)
+
 	return metadata
+}
+
+func annotateOperatorMetadata(resourceMap map[string]any, resourceType string, metadata map[string]any) {
+	if resourceMap == nil || metadata == nil {
+		return
+	}
+
+	if resourceType != "deployment" && resourceType != "statefulset" && resourceType != "daemonset" {
+		return
+	}
+
+	isOperator, framework := detectOperatorWorkload(resourceMap)
+	if !isOperator {
+		return
+	}
+
+	metadata["displayPrefix"] = "operator"
+	if framework != "" {
+		metadata["operatorFramework"] = framework
+	}
+}
+
+func detectOperatorWorkload(resourceMap map[string]any) (bool, string) {
+	labelHit := false
+	imageHit := false
+	nameHit := false
+	framework := ""
+
+	metadataMap, _ := resourceMap["metadata"].(map[string]any)
+	name, _ := metadataMap["name"].(string)
+	labels, _ := metadataMap["labels"].(map[string]any)
+
+	if strings.Contains(strings.ToLower(name), "operator") {
+		nameHit = true
+	}
+
+	if len(labels) > 0 {
+		if v, ok := labels["app.kubernetes.io/component"].(string); ok {
+			lv := strings.ToLower(v)
+			if lv == "operator" || lv == "controller" || lv == "controller-manager" {
+				labelHit = true
+			}
+		}
+
+		if v, ok := labels["app.kubernetes.io/name"].(string); ok && strings.Contains(strings.ToLower(v), "operator") {
+			labelHit = true
+		}
+
+		for key := range labels {
+			if strings.HasPrefix(key, "operators.coreos.com/") {
+				labelHit = true
+				framework = "olm"
+			}
+		}
+
+		if v, ok := labels["olm.owner.kind"].(string); ok && v != "" {
+			labelHit = true
+			framework = "olm"
+		}
+	}
+
+	for _, image := range workloadContainerImages(resourceMap) {
+		if strings.Contains(strings.ToLower(image), "operator") {
+			imageHit = true
+			break
+		}
+	}
+
+	isOperator := (labelHit && (nameHit || imageHit)) || (labelHit && framework == "olm") || (nameHit && imageHit)
+	if !isOperator {
+		return false, ""
+	}
+
+	return true, framework
+}
+
+func workloadContainerImages(resourceMap map[string]any) []string {
+	spec, _ := resourceMap["spec"].(map[string]any)
+	if spec == nil {
+		return nil
+	}
+
+	template, _ := spec["template"].(map[string]any)
+	if template == nil {
+		return nil
+	}
+
+	templateSpec, _ := template["spec"].(map[string]any)
+	if templateSpec == nil {
+		return nil
+	}
+
+	containers, _ := templateSpec["containers"].([]any)
+	images := make([]string, 0, len(containers))
+	for _, c := range containers {
+		containerMap, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		if image, ok := containerMap["image"].(string); ok && image != "" {
+			images = append(images, image)
+		}
+	}
+	return images
 }
 
 func extractRuntimeStatus(resourceMap map[string]any, resourceType string) string {

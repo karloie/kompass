@@ -3,6 +3,8 @@ version: 2
 before:
   hooks:
     - go mod tidy
+    - npm ci
+    - npm run build
 
 builds:
   - id: kompass
@@ -10,6 +12,8 @@ builds:
     binary: kompass
     env:
       - CGO_ENABLED=0
+    tags:
+      - release
     goos:
       - linux
       - darwin

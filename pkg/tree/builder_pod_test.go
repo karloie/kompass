@@ -153,6 +153,118 @@ func TestBuildPodChildren_RuntimeContainerFlattensProbeStatus(t *testing.T) {
 	}
 }
 
+func TestBuildPodWithSimplifiedContainers_RuntimeFallsBackToSpecImageAndResources(t *testing.T) {
+	podKey := "pod/ns/app-0"
+	pod := kube.Resource{
+		Key:  podKey,
+		Type: "pod",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "app-0", "namespace": "ns"},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{
+						"name":  "app",
+						"image": "repo/app:v1",
+						"resources": map[string]any{
+							"requests": map[string]any{"cpu": "100m", "memory": "128Mi"},
+							"limits":   map[string]any{"cpu": "500m", "memory": "512Mi"},
+						},
+					},
+				},
+			},
+			"status": map[string]any{
+				"phase": "Running",
+				"containerStatuses": []any{
+					map[string]any{
+						"name": "app",
+						"state": map[string]any{
+							"running": map[string]any{"startedAt": "2026-03-12T10:00:00Z"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	node := buildPodWithSimplifiedContainers(podKey, pod)
+	if node == nil || len(node.Children) != 1 {
+		t.Fatalf("expected one container node, got %#v", node)
+	}
+
+	container := node.Children[0]
+	hasImage := false
+	hasResources := false
+	for _, child := range container.Children {
+		if child.Type == "image" {
+			hasImage = true
+		}
+		if child.Type == "resources" {
+			hasResources = true
+		}
+	}
+
+	if !hasImage {
+		t.Fatalf("expected runtime image node from spec fallback")
+	}
+	if !hasResources {
+		t.Fatalf("expected runtime resources node from spec fallback")
+	}
+}
+
+func TestBuildPodWithSimplifiedContainers_RuntimeHidesEmptyResources(t *testing.T) {
+	podKey := "pod/monitoring/alertmanager-kube-prometheus-stack-alertmanager-0"
+	pod := kube.Resource{
+		Key:  podKey,
+		Type: "pod",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "alertmanager-kube-prometheus-stack-alertmanager-0", "namespace": "monitoring"},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{
+						"name":      "config-reloader",
+						"image":     "quay.io/prometheus-operator/prometheus-config-reloader:v0.83.0",
+						"resources": map[string]any{},
+					},
+				},
+			},
+			"status": map[string]any{
+				"phase": "Running",
+				"containerStatuses": []any{
+					map[string]any{
+						"name":      "config-reloader",
+						"image":     "quay.io/prometheus-operator/prometheus-config-reloader:v0.83.0",
+						"imageID":   "quay.io/prometheus-operator/prometheus-config-reloader@sha256:78aec597",
+						"ready":     true,
+						"started":   true,
+						"resources": map[string]any{},
+						"state": map[string]any{
+							"running": map[string]any{"startedAt": "2026-03-17T10:00:00Z"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	node := buildPodWithSimplifiedContainers(podKey, pod)
+	if node == nil || len(node.Children) != 1 {
+		t.Fatalf("expected one container node, got %#v", node)
+	}
+
+	container := node.Children[0]
+	hasResources := false
+	for _, child := range container.Children {
+		if child.Type == "resources" {
+			hasResources = true
+			break
+		}
+	}
+
+	if hasResources {
+		t.Fatalf("expected empty runtime resources node to be hidden")
+	}
+}
+
 func TestExpandVolumesAsResources_IncludesCSIStorage(t *testing.T) {
 	parentKey := "pod/ns/app/spec"
 	namespace := "ns"

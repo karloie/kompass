@@ -271,6 +271,94 @@ func TestInferCiliumNetworkPolicyAppliesToAndIngressEgressInference(t *testing.T
 	}
 }
 
+func TestInferCiliumNetworkPolicyAppliesToWithCiliumNamespaceSelector(t *testing.T) {
+	edges := []kube.ResourceEdge{}
+	nodes := map[string]kube.Resource{
+		"pod/utv/api-0": {
+			Key:  "pod/utv/api-0",
+			Type: "pod",
+			Resource: map[string]any{
+				"metadata": map[string]any{"namespace": "utv", "labels": map[string]any{"app": "api"}},
+			},
+		},
+		"pod/other/api-1": {
+			Key:  "pod/other/api-1",
+			Type: "pod",
+			Resource: map[string]any{
+				"metadata": map[string]any{"namespace": "other", "labels": map[string]any{"app": "api"}},
+			},
+		},
+	}
+	item := &kube.Resource{Key: "ciliumnetworkpolicy/utv/temp-egress", Resource: map[string]any{
+		"metadata": map[string]any{"namespace": "utv", "name": "temp-egress"},
+		"spec": map[string]any{
+			"endpointSelector": map[string]any{"matchLabels": map[string]any{"k8s:io.kubernetes.pod.namespace": "utv"}},
+			"egress":           []any{map[string]any{"toFQDNs": []any{map[string]any{"matchPattern": "**.utv.spk.no"}}}},
+		},
+	}}
+
+	if err := inferCiliumNetworkPolicy(&edges, item, &nodes, nil); err != nil {
+		t.Fatalf("inferCiliumNetworkPolicy error: %v", err)
+	}
+
+	foundUTV := false
+	foundOther := false
+	for _, e := range edges {
+		if e.Source == item.Key && e.Target == "pod/utv/api-0" && e.Label == "applies-to" {
+			foundUTV = true
+		}
+		if e.Source == item.Key && e.Target == "pod/other/api-1" && e.Label == "applies-to" {
+			foundOther = true
+		}
+	}
+	if !foundUTV || foundOther {
+		t.Fatalf("expected applies-to only for utv pod, got edges=%#v", edges)
+	}
+}
+
+func TestInferCiliumNetworkPolicyEmptyMatchLabelsAppliesToNamespacePods(t *testing.T) {
+	edges := []kube.ResourceEdge{}
+	nodes := map[string]kube.Resource{
+		"pod/petshop/api-0": {
+			Key:  "pod/petshop/api-0",
+			Type: "pod",
+			Resource: map[string]any{
+				"metadata": map[string]any{"namespace": "petshop", "labels": map[string]any{"app": "api"}},
+			},
+		},
+		"pod/management/api-1": {
+			Key:  "pod/management/api-1",
+			Type: "pod",
+			Resource: map[string]any{
+				"metadata": map[string]any{"namespace": "management", "labels": map[string]any{"app": "api"}},
+			},
+		},
+	}
+	item := &kube.Resource{Key: "ciliumnetworkpolicy/petshop/default", Resource: map[string]any{
+		"metadata": map[string]any{"namespace": "petshop", "name": "default"},
+		"spec": map[string]any{
+			"endpointSelector": map[string]any{"matchLabels": map[string]any{}},
+		},
+	}}
+
+	if err := inferCiliumNetworkPolicy(&edges, item, &nodes, nil); err != nil {
+		t.Fatalf("inferCiliumNetworkPolicy error: %v", err)
+	}
+
+	applies := 0
+	for _, e := range edges {
+		if e.Source == item.Key && e.Label == "applies-to" {
+			applies++
+			if e.Target != "pod/petshop/api-0" {
+				t.Fatalf("unexpected applies-to target %q in edges=%#v", e.Target, edges)
+			}
+		}
+	}
+	if applies != 1 {
+		t.Fatalf("expected one applies-to edge in namespace, got %d edges=%#v", applies, edges)
+	}
+}
+
 func TestMatchesCiliumLabelsVariants(t *testing.T) {
 	meta := map[string]any{
 		"namespace": "petshop",

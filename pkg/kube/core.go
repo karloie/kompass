@@ -337,6 +337,10 @@ type Kube interface {
 	GetPriorityClasses(ctx context.Context, opts metav1.ListOptions) (*schedulingv1.PriorityClassList, error)
 
 	GetCustomResourceDefinitions(ctx context.Context, opts metav1.ListOptions) (*apiextensionsv1.CustomResourceDefinitionList, error)
+
+	// FetchResource retrieves a single resource by resource-type, namespace and name.
+	// Namespace may be empty for cluster-scoped resources.
+	FetchResource(resourceType, namespace, name string, ctx context.Context) (*Resource, error)
 }
 
 func (c *Client) IsMockMode() bool {
@@ -359,7 +363,7 @@ func NewMockClient(model *InMemoryModel, configs ...MockConfig) *Client {
 		mockMode:       true,
 		mockConfig:     config,
 		mockModel:      model,
-		context:        "mock-cluster",
+		context:        "mock-01",
 		namespace:      "default",
 		kubeconfig:     "mock",
 		cache:          newResourceCache(),

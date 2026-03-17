@@ -7,7 +7,9 @@ import (
 
 	kube "github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestIsWorkloadType(t *testing.T) {
@@ -255,5 +257,157 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 	}
 	if !foundPodGraph {
 		t.Fatalf("expected workload component rooted at selected pod, got %#v", resp.Components)
+	}
+}
+
+func TestInferGraphsLoadsGatewayAndCertificateFromHTTPRouteParentNamespace(t *testing.T) {
+	original := ResourceTypes
+	t.Cleanup(func() { ResourceTypes = original })
+
+	callCount := map[string]int{}
+	mk := func(key, typ, ns, name string) kube.Resource {
+		return kube.Resource{Key: key, Type: typ, Resource: map[string]any{"metadata": map[string]any{"namespace": ns, "name": name}}}
+	}
+
+	ResourceTypes = map[string]ResourceType{
+		"service": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["service"]++
+				if ns == "applikasjonsplattform" {
+					svc := mk("service/applikasjonsplattform/ad-explore-web", "service", ns, "ad-explore-web")
+					svcMap, _ := svc.Resource.(map[string]any)
+					svcMap["spec"] = map[string]any{"selector": map[string]any{"app": "ad-explore-web"}, "ports": []any{map[string]any{"port": float64(8080)}}}
+					svc.Resource = svcMap
+					return []kube.Resource{svc}, nil
+				}
+				return nil, nil
+			},
+			Handler: inferService,
+		},
+		"httproute": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["httproute"]++
+				if ns == "applikasjonsplattform" {
+					route := mk("httproute/applikasjonsplattform/ad-explore-web", "httproute", ns, "ad-explore-web")
+					routeMap, _ := route.Resource.(map[string]any)
+					routeMap["spec"] = map[string]any{
+						"parentRefs": []any{map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"}},
+						"rules":      []any{map[string]any{"backendRefs": []any{map[string]any{"name": "ad-explore-web"}}}},
+					}
+					route.Resource = routeMap
+					return []kube.Resource{route}, nil
+				}
+				return nil, nil
+			},
+			Handler: inferHTTPRoute,
+		},
+		"gateway": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["gateway"]++
+				if ns == "los-platform" {
+					gw := mk("gateway/los-platform/internal-gateway", "gateway", ns, "internal-gateway")
+					gwMap, _ := gw.Resource.(map[string]any)
+					gwMap["spec"] = map[string]any{
+						"listeners": []any{map[string]any{"tls": map[string]any{"certificateRefs": []any{map[string]any{"name": "internal-gateway-tls"}}}}},
+					}
+					gw.Resource = gwMap
+					return []kube.Resource{gw}, nil
+				}
+				return nil, nil
+			},
+			Handler: inferGateway,
+		},
+		"certificate": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["certificate"]++
+				if ns == "los-platform" {
+					cert := mk("certificate/los-platform/internal-gateway-cert", "certificate", ns, "internal-gateway-cert")
+					certMap, _ := cert.Resource.(map[string]any)
+					certMap["spec"] = map[string]any{
+						"secretName": "internal-gateway-tls",
+						"issuerRef":  map[string]any{"kind": "ClusterIssuer", "name": "letsencrypt-prod"},
+					}
+					cert.Resource = certMap
+					return []kube.Resource{cert}, nil
+				}
+				return nil, nil
+			},
+			Handler: inferCertificate,
+		},
+		"clusterissuer": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				callCount["clusterissuer"]++
+				if ns == "" {
+					return []kube.Resource{{Key: "clusterissuer/letsencrypt-prod", Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt-prod"}}}}, nil
+				}
+				return nil, nil
+			},
+			Handler: inferClusterIssuer,
+		},
+	}
+
+	provider := kube.NewMockClient(mock.GenerateMock())
+	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"service/applikasjonsplattform/ad-explore-web"}})
+	if err != nil {
+		t.Fatalf("InferGraphs error: %v", err)
+	}
+
+	if callCount["gateway"] == 0 {
+		t.Fatalf("expected gateway loader to run for parentRef namespace")
+	}
+	if callCount["certificate"] == 0 {
+		t.Fatalf("expected certificate loader to run for gateway certificate namespace")
+	}
+
+	if resp.Node("gateway/los-platform/internal-gateway") == nil {
+		t.Fatalf("expected inferred cross-namespace gateway node")
+	}
+	if resp.Node("certificate/los-platform/internal-gateway-cert") == nil {
+		t.Fatalf("expected inferred certificate node for gateway")
+	}
+	if resp.Node("clusterissuer/letsencrypt-prod") == nil {
+		t.Fatalf("expected clusterissuer node")
+	}
+}
+
+func TestInferGraphsSkipsForbiddenSecrets(t *testing.T) {
+	original := ResourceTypes
+	t.Cleanup(func() { ResourceTypes = original })
+
+	ResourceTypes = map[string]ResourceType{
+		"pod": {
+			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				if ns != "petshop" {
+					return nil, nil
+				}
+				return []kube.Resource{{
+					Key:  "pod/petshop/api-0",
+					Type: "pod",
+					Resource: map[string]any{"metadata": map[string]any{
+						"namespace": "petshop",
+						"name":      "api-0",
+					}},
+				}}, nil
+			},
+			Handler: inferPod,
+		},
+		"secret": {
+			Loader: func(_ kube.Kube, _ string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+				return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "secrets"}, "", nil)
+			},
+			Handler: inferSimpleNode("secret"),
+		},
+	}
+
+	provider := kube.NewMockClient(mock.GenerateMock())
+	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"pod/petshop/*"}})
+	if err != nil {
+		t.Fatalf("expected forbidden secrets to be skipped, got error: %v", err)
+	}
+	if resp == nil {
+		t.Fatalf("expected non-nil response")
+	}
+	if resp.Node("pod/petshop/api-0") == nil {
+		t.Fatalf("expected pod node in response")
 	}
 }

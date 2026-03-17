@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -55,6 +56,59 @@ func TestTrimVerboseMetadataRemovesEmptyAnnotations(t *testing.T) {
 	meta := obj["metadata"].(map[string]any)
 	if _, ok := meta["annotations"]; ok {
 		t.Fatalf("expected empty annotations map to be removed")
+	}
+}
+
+func TestRedactSecretMap(t *testing.T) {
+	obj := map[string]any{
+		"data": map[string]any{
+			"password": "c3VwZXItc2VjcmV0",
+		},
+		"stringData": map[string]any{
+			"token": "raw-token",
+		},
+	}
+
+	redactSecretMap(obj)
+
+	if obj["keyCount"] != 2 {
+		t.Fatalf("expected keyCount=2, got %#v", obj["keyCount"])
+	}
+	data, _ := obj["data"].(map[string]any)
+	if data["password"] != "<SECRET>" || data["token"] != "<SECRET>" {
+		t.Fatalf("expected redacted keys, got %#v", data)
+	}
+	if _, ok := obj["stringData"]; ok {
+		t.Fatalf("expected stringData to be removed after redaction")
+	}
+}
+
+func TestFetchResourceRedactsSecretValues(t *testing.T) {
+	model := NewModel()
+	model.Secrets = []*corev1.Secret{{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "petshop", Name: "db-creds"},
+		Data:       map[string][]byte{"password": []byte("super-secret")},
+		StringData: map[string]string{"token": "raw-token"},
+	}}
+	provider := NewMockClient(model)
+
+	res, err := provider.FetchResource("secret", "petshop", "db-creds", context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := res.AsMap()
+	if m["keyCount"] != 2 {
+		t.Fatalf("expected keyCount=2, got %#v", m["keyCount"])
+	}
+	data, _ := m["data"].(map[string]any)
+	if data["password"] != "<SECRET>" || data["token"] != "<SECRET>" {
+		t.Fatalf("expected redacted data map, got %#v", data)
+	}
+	if _, ok := m["stringData"]; ok {
+		t.Fatalf("expected stringData to be removed")
+	}
+	if got := model.Secrets[0].StringData["token"]; got != "raw-token" {
+		t.Fatalf("expected mock model to remain unchanged, got %q", got)
 	}
 }
 

@@ -187,6 +187,21 @@ func forEachPodMatchingSelector(nodes map[string]kube.Resource, namespace string
 	})
 }
 
+func forEachPodMatchingCiliumSelector(nodes map[string]kube.Resource, namespace string, selector map[string]any, fn func(kube.Resource)) {
+	forEachNodeOfType(nodes, "pod", func(node kube.Resource) {
+		meta := M(node.AsMap()).Map("metadata").Raw()
+		if meta == nil {
+			return
+		}
+		if namespace != "" && M(meta).String("namespace") != namespace {
+			return
+		}
+		if matchesCiliumLabels(selector, meta) {
+			fn(node)
+		}
+	})
+}
+
 func hasOwnerKind(meta M, ownerKind string) bool {
 	for _, owner := range extractOwnerReferences(meta) {
 		if M(owner).String("kind") == ownerKind {
@@ -281,14 +296,17 @@ func matchesSegment(segment, pattern string) bool {
 }
 
 func ParseSelectors(s string) []string {
-	if s == "" {
+	if strings.TrimSpace(s) == "" {
 		return []string{}
 	}
+	normalized := strings.NewReplacer(",", " ", "|", " ").Replace(s)
+	tokens := strings.Fields(normalized)
 	var result []string
-	for _, p := range strings.Split(s, ",") {
-		if t := strings.TrimSpace(p); t != "" {
-			result = append(result, t)
+	for _, token := range tokens {
+		if strings.EqualFold(token, "or") {
+			continue
 		}
+		result = append(result, token)
 	}
 	return result
 }

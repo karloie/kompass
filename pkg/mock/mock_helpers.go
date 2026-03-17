@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"fmt"
 	"time"
 
 	kube "github.com/karloie/kompass/pkg/kube"
@@ -165,7 +166,7 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 		},
 	})
 
-	model.Pods = append(model.Pods, &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
 			Namespace: namespace,
@@ -205,7 +206,9 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 				},
 			},
 		},
-	})
+	}
+	model.Pods = append(model.Pods, pod)
+	addPodRuntimeData(model, pod, spec.name)
 
 	model.Services = append(model.Services, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -300,6 +303,93 @@ func addAppWithSpecs(model *kube.InMemoryModel, spec appSpec) {
 			},
 		},
 	})
+}
+
+func addPodRuntimeData(model *kube.InMemoryModel, pod *corev1.Pod, appName string) {
+	if model == nil || pod == nil {
+		return
+	}
+	if model.PodLogs == nil {
+		model.PodLogs = map[string]string{}
+	}
+
+	containerName := "app"
+	image := "unknown"
+	if len(pod.Spec.Containers) > 0 {
+		containerName = pod.Spec.Containers[0].Name
+		image = pod.Spec.Containers[0].Image
+	}
+	if appName == "" {
+		appName = pod.Labels["app.kubernetes.io/name"]
+	}
+	if appName == "" {
+		appName = pod.Name
+	}
+
+	podRef := pod.Namespace + "/" + pod.Name
+	model.PodLogs[podRef] = fmt.Sprintf(
+		"2026-03-12T10:00:00Z starting %s\n2026-03-12T10:00:02Z loaded configuration for %s\n2026-03-12T10:00:04Z listening on :8080\n",
+		containerName,
+		appName,
+	)
+
+	startedAt := metav1.NewTime(time.Date(2026, time.March, 12, 10, 0, 0, 0, time.UTC))
+	model.Events = append(model.Events,
+		&corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: pod.Namespace,
+				Name:      pod.Name + ".scheduled",
+			},
+			InvolvedObject: corev1.ObjectReference{
+				Kind:      "Pod",
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				UID:       pod.UID,
+			},
+			Type:           "Normal",
+			Reason:         "Scheduled",
+			Message:        "Successfully assigned " + pod.Namespace + "/" + pod.Name + " to psb-01-worker-055ceed2",
+			FirstTimestamp: startedAt,
+			LastTimestamp:  startedAt,
+			Count:          1,
+		},
+		&corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: pod.Namespace,
+				Name:      pod.Name + ".pulled",
+			},
+			InvolvedObject: corev1.ObjectReference{
+				Kind:      "Pod",
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				UID:       pod.UID,
+			},
+			Type:           "Normal",
+			Reason:         "Pulled",
+			Message:        fmt.Sprintf("Container image %q already present on machine", image),
+			FirstTimestamp: startedAt,
+			LastTimestamp:  startedAt,
+			Count:          1,
+		},
+		&corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: pod.Namespace,
+				Name:      pod.Name + ".started",
+			},
+			InvolvedObject: corev1.ObjectReference{
+				Kind:      "Pod",
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				UID:       pod.UID,
+			},
+			Type:           "Normal",
+			Reason:         "Started",
+			Message:        "Started container " + containerName,
+			FirstTimestamp: startedAt,
+			LastTimestamp:  startedAt,
+			Count:          1,
+		},
+	)
 }
 
 func appLabels(name string) map[string]string {

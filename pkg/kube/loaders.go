@@ -231,25 +231,8 @@ func LoadSecret(provider Kube, namespace string, ctx context.Context, opts metav
 	}
 	out := make([]Resource, 0, len(list.Items))
 	for _, secret := range list.Items {
-
-		keyCount := len(secret.Data) + len(secret.StringData)
-		keyNames := make(map[string]any)
-		for keyName := range secret.Data {
-			keyNames[keyName] = "<SECRET>"
-		}
-		for keyName := range secret.StringData {
-			keyNames[keyName] = "<SECRET>"
-		}
-
-		secret.Data = nil
-		secret.StringData = nil
-
 		secretMap := toMap(secret)
-
-		if keyCount > 0 {
-			secretMap["keyCount"] = keyCount
-			secretMap["data"] = keyNames
-		}
+		redactSecretMap(secretMap)
 
 		r := Resource{
 			Key:      "secret/" + secret.Namespace + "/" + secret.Name,

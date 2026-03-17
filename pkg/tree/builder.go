@@ -85,8 +85,15 @@ func BuildResponseTree(graphSet *kube.Response) *kube.Response {
 		graphNodes := graphNodesForTree(graphSet)
 		treeNode := BuildTree(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
 		if treeNode != nil {
+			normalizePolicyPlacement(treeNode)
 			out.Trees = append(out.Trees, *treeNode)
 		}
+	}
+	// Enrich each tree node with structured metadata so web clients don't need
+	// to run the ASCII-text rendering pass just to get display labels.
+	nodeMap := out.NodeMap()
+	for i := range out.Trees {
+		enrichTreeMeta(&out.Trees[i], nodeMap)
 	}
 	return out
 }

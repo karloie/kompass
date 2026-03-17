@@ -1,9 +1,13 @@
-.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
-RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS) -X github.com/karloie/kompass/pkg/tree.BuildMode=release
+GIT_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+VERSION_LDFLAGS := -X main.version=$(GIT_VERSION) -X main.commit=$(GIT_COMMIT) -X main.date=$(GIT_DATE)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
+DOCKER ?= docker
+DOCKER_IMAGE ?= karloie/kompass
+DOCKER_DEV_TAG ?= dev
 LDFLAGS ?=
 ARGS    ?=
 COVERPKG ?= ./...
@@ -22,9 +26,14 @@ build: test
 
 build-release: LDFLAGS := $(RELEASE_LDFLAGS)
 build-release: test
-	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
+	npm run build
+	go build -tags release $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
+
+docker-dev:
+	$(DOCKER) build -f Containerfile -t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
+	$(DOCKER) push $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
 
 test:
 	go test -count=1 ./...
@@ -56,7 +65,11 @@ coverage-func: build
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
 dev:
-	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
+	@set -e; \
+	trap 'kill $$gow_pid $$vite_pid 2>/dev/null || true' INT TERM EXIT; \
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --debug --mock --service $(ARGS) & gow_pid=$$!; \
+	npm run dev & vite_pid=$$!; \
+	wait $$gow_pid $$vite_pid
 
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)

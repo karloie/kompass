@@ -3,113 +3,45 @@ package tree
 import (
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func TestBuildNodeSearchText_IncludesTypeLabelAndMetadata(t *testing.T) {
-	meta := map[string]any{
-		"name":   "DB_PASSWORD",
-		"source": "secretKeyRef",
-		"key":    "PSB-DATABASE-PASSWORD",
-		"nested": map[string]any{
-			"service": "petshop-db",
-		},
-		"keys": []any{"alpha", "beta"},
+func TestRenderAppHTML_IncludesBootstrapScripts(t *testing.T) {
+	root := fstest.MapFS{
+		"index.html": {Data: []byte("<html><body><div id=\"app\"></div></body></html>")},
 	}
+	result := &kube.Response{APIVersion: "v1"}
 
-	searchText := buildNodeSearchText("env", "ENV DB_PASSWORD", meta)
+	html := RenderAppHTML(root, result, HTMLBootstrapConfig{Mode: "dynamic", APIBase: "/api/tree"})
 
-	mustContain := []string{
-		"env",
-		"ENV DB_PASSWORD",
-		"name",
-		"DB_PASSWORD",
-		"source",
-		"secretKeyRef",
-		"service",
-		"petshop-db",
-		"alpha",
-		"beta",
+	if !strings.Contains(html, `id="kompass-config"`) {
+		t.Fatalf("expected kompass-config script in output")
 	}
-
-	for _, want := range mustContain {
-		if !strings.Contains(searchText, want) {
-			t.Fatalf("expected search text to contain %q, got %q", want, searchText)
-		}
+	if !strings.Contains(html, `id="kompass-data"`) {
+		t.Fatalf("expected kompass-data script in output")
+	}
+	if !strings.Contains(html, `"mode":"dynamic"`) {
+		t.Fatalf("expected dynamic mode in config payload")
+	}
+	if !strings.Contains(html, `"apiVersion":"v1"`) {
+		t.Fatalf("expected payload json in data bootstrap")
 	}
 }
 
-func TestBuildNodeSearchText_HandlesNilMetadata(t *testing.T) {
-	searchText := buildNodeSearchText("mount", "mount /tmp", nil)
-	if !strings.Contains(searchText, "mount") {
-		t.Fatalf("expected search text to contain node type, got %q", searchText)
+func TestRenderAppHTML_EscapesScriptBreakingCharacters(t *testing.T) {
+	root := fstest.MapFS{
+		"index.html": {Data: []byte("<html><body><div id=\"app\"></div></body></html>")},
 	}
-	if !strings.Contains(searchText, "mount /tmp") {
-		t.Fatalf("expected search text to contain label, got %q", searchText)
-	}
-}
+	result := &kube.Response{Request: kube.Request{Context: `ctx-</script><script>alert(1)</script>`}}
 
-func TestBuildNodeSearchText_ExcludesNoisyMetadataAndHashes(t *testing.T) {
-	meta := map[string]any{
-		"uid":                 "123e4567-e89b-12d3-a456-426614174000",
-		"resourceVersion":     "987654321",
-		"name":                "kafka-runtime-config",
-		"image":               "docker-hub/confluentinc/cp-kafka:7.5.0@sha256:abcdef",
-		"containerID":         "containerd://d34db33fd34db33fd34db33fd34db33f",
-		"secretProviderClass": "petshop-kafka-petshopvault",
-	}
+	html := RenderAppHTML(root, result, HTMLBootstrapConfig{Mode: "static", Context: `ctx-</script>`})
 
-	searchText := strings.ToLower(buildNodeSearchText("configmap", "configmap kafka-runtime-config", meta))
-
-	if strings.Contains(searchText, "uid") {
-		t.Fatalf("expected noisy key uid to be excluded, got %q", searchText)
+	if strings.Contains(html, "</script><script>") {
+		t.Fatalf("expected script breakers to be escaped in bootstrap json")
 	}
-	if strings.Contains(searchText, "resourceversion") {
-		t.Fatalf("expected noisy key resourceVersion to be excluded, got %q", searchText)
-	}
-	if strings.Contains(searchText, "sha256:") {
-		t.Fatalf("expected sha256 digest token to be excluded, got %q", searchText)
-	}
-	if !strings.Contains(searchText, "secretproviderclass") {
-		t.Fatalf("expected relevant metadata key to remain searchable, got %q", searchText)
-	}
-	if !strings.Contains(searchText, "petshop-kafka-petshopvault") {
-		t.Fatalf("expected relevant metadata value to remain searchable, got %q", searchText)
-	}
-}
-
-func TestRenderHTML_DoesNotIncludeLiveReloadMetadata(t *testing.T) {
-	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, false)
-	if strings.Contains(html, `data-live-reload-poll-ms=`) {
-		t.Fatalf("expected html to omit live reload poll metadata, got %q", html)
-	}
-	if strings.Contains(html, `data-process-stamp=`) {
-		t.Fatalf("expected html to omit process stamp metadata, got %q", html)
-	}
-}
-
-func TestRenderHTML_StaticModeDoesNotIncludeLiveReloadMetadata(t *testing.T) {
-	html := RenderHTML(&kube.Response{}, "ctx", "petshop", "mock", nil, true)
-	if strings.Contains(html, `data-live-reload-poll-ms=`) {
-		t.Fatalf("expected static html to omit live reload poll metadata, got %q", html)
-	}
-	if strings.Contains(html, `data-process-stamp=`) {
-		t.Fatalf("expected static html to omit process stamp metadata, got %q", html)
-	}
-}
-
-func TestShouldUseRuntimeTemplateFiles(t *testing.T) {
-	original := BuildMode
-	t.Cleanup(func() { BuildMode = original })
-
-	BuildMode = "release"
-	if shouldUseRuntimeTemplateFiles() {
-		t.Fatalf("expected release mode to disable runtime template files")
-	}
-
-	BuildMode = "dev"
-	if !shouldUseRuntimeTemplateFiles() {
-		t.Fatalf("expected non-release mode to enable runtime template files")
+	if !strings.Contains(html, `\u003c/script\u003e`) {
+		t.Fatalf("expected html special chars to be escaped in bootstrap json")
 	}
 }

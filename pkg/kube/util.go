@@ -50,6 +50,35 @@ func trimVerboseMetadata(obj map[string]any) {
 	}
 }
 
+func redactSecretMap(obj map[string]any) {
+	if obj == nil {
+		return
+	}
+
+	keyNames := make(map[string]any)
+
+	if data, ok := obj["data"].(map[string]any); ok {
+		for keyName := range data {
+			keyNames[keyName] = "<SECRET>"
+		}
+	}
+	if stringData, ok := obj["stringData"].(map[string]any); ok {
+		for keyName := range stringData {
+			keyNames[keyName] = "<SECRET>"
+		}
+	}
+
+	delete(obj, "stringData")
+	if len(keyNames) == 0 {
+		delete(obj, "data")
+		delete(obj, "keyCount")
+		return
+	}
+
+	obj["keyCount"] = len(keyNames)
+	obj["data"] = keyNames
+}
+
 func (r Request) NormalizedSelectors() []string {
 	if len(r.Selectors) == 0 {
 		return nil

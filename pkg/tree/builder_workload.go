@@ -59,6 +59,13 @@ func collectHoistedWorkloadKeys(podKeys []string, namespace string, podLabels ma
 	for _, podKey := range podKeys {
 		for _, childKey := range graphChildren[podKey] {
 			childType := getTypeFromKey(childKey, nodeMap)
+			// Policy-to-pod relationships are already inferred in graph construction.
+			// Trusting those edges avoids missing policies due to selector syntax variants
+			// (for example k8s: label keys) in this secondary hoist pass.
+			if childType == "ciliumnetworkpolicy" || childType == "ciliumclusterwidenetworkpolicy" {
+				hoistedKeys[childKey] = true
+				continue
+			}
 			matcher, exists := workloadHoistMatchers[childType]
 			if exists && matcher(childKey, namespace, podLabels, nodeMap) {
 				hoistedKeys[childKey] = true
@@ -107,13 +114,14 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	templateSpec, podLabels := extractTemplateSpecAndLabels(spec)
 	podKeys := workloadPodKeys(workloadKey, workload.Type, graphChildren, nodeMap)
 	hoistedKeys := collectHoistedWorkloadKeys(podKeys, namespace, podLabels, graphChildren, nodeMap)
+	var specNode *kube.Tree
 	markSuppressedSet(state, hoistedKeys)
 	markSuppressedKeys(state, podKeys)
 
 	if workload.Type == "deployment" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode := NewTree(specKey, "spec", map[string]any{})
+			specNode = NewTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
@@ -121,22 +129,29 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	} else if workload.Type == "daemonset" || workload.Type == "statefulset" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode := NewTree(specKey, "spec", map[string]any{})
+			specNode = NewTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
 
 		for _, podKey := range podKeys {
 			if podRes, exists := nodeMap[podKey]; exists {
-				simplifiedPod := buildSimplifiedPodNode(podKey, podRes)
-				if simplifiedPod != nil {
-					children = append(children, simplifiedPod)
+				podNode := buildPodWithSimplifiedContainers(podKey, podRes)
+				if podNode != nil {
+					children = append(children, podNode)
 				}
 			}
 		}
 	}
 
-	children = appendHoistedChildren(children, hoistedKeys, "ciliumnetworkpolicy", graphChildren, state, nodeMap)
+	if specNode != nil {
+		specNode.Children = appendHoistedChildren(specNode.Children, hoistedKeys, "ciliumnetworkpolicy", graphChildren, state, nodeMap)
+		specNode.Children = appendHoistedChildren(specNode.Children, hoistedKeys, "ciliumclusterwidenetworkpolicy", graphChildren, state, nodeMap)
+		sortChildren(specNode.Children)
+	} else {
+		children = appendHoistedChildren(children, hoistedKeys, "ciliumnetworkpolicy", graphChildren, state, nodeMap)
+		children = appendHoistedChildren(children, hoistedKeys, "ciliumclusterwidenetworkpolicy", graphChildren, state, nodeMap)
+	}
 	children = appendHoistedChildren(children, hoistedKeys, "service", graphChildren, state, nodeMap)
 	children = appendFilteredGraphChildren(children, workloadKey, workloadFilteredChildTypes, graphChildren, state, nodeMap)
 
@@ -193,6 +208,17 @@ func buildJobChildren(jobKey string, job kube.Resource, graphChildren map[string
 func buildCronJobChildren(cronJobKey string, cronJob kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	children := []*kube.Tree{}
 
+	metadata := graph.M(cronJob.AsMap()).Map("metadata").Raw()
+	spec := graph.M(cronJob.AsMap()).Map("spec").Raw()
+	namespace := graph.M(metadata).String("namespace")
+	templateSpec := graph.M(spec).Map("jobTemplate").Map("spec").Map("template").Map("spec").Raw()
+	if templateSpec != nil {
+		specKey := cronJobKey + "/spec"
+		specNode := NewTree(specKey, "spec", map[string]any{})
+		specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
+		children = append(children, specNode)
+	}
+
 	jobKeys := childKeysOfType(cronJobKey, "job", graphChildren, nodeMap)
 	focusJobKey := selectCronJobFocusJob(jobKeys, nodeMap)
 
@@ -224,9 +250,9 @@ func buildCronJobChildren(cronJobKey string, cronJob kube.Resource, graphChildre
 			if !exists {
 				continue
 			}
-			podLeaf := buildSimplifiedPodNode(podKey, podRes)
-			if podLeaf != nil {
-				jobNode.Children = append(jobNode.Children, podLeaf)
+			podNode := buildPodWithSimplifiedContainers(podKey, podRes)
+			if podNode != nil {
+				jobNode.Children = append(jobNode.Children, podNode)
 				state.MarkSeen(podKey)
 			}
 		}
@@ -315,7 +341,8 @@ func resourceMatchesSelector(resourceKey string, workloadNamespace string, podLa
 	}
 
 	if meta := graph.M(resource.AsMap()).Map("metadata"); meta != nil {
-		if meta.String("namespace") != workloadNamespace {
+		resourceNamespace := meta.String("namespace")
+		if resourceNamespace != "" && resourceNamespace != workloadNamespace {
 			return false
 		}
 	} else {
