@@ -299,3 +299,65 @@ func TestBuildWorkloadChildren_DaemonSetAndStatefulSet_ExpandPodContainers(t *te
 		})
 	}
 }
+
+func TestBuildWorkloadChildren_SpecKeepsContainerNodeForSingleContainer(t *testing.T) {
+	workloadKey := "deployment/ns/app"
+	podKey := "pod/ns/app-0"
+
+	nodeMap := map[string]kube.Resource{
+		workloadKey: {
+			Key:  workloadKey,
+			Type: "deployment",
+			Resource: map[string]any{
+				"metadata": map[string]any{"name": "app", "namespace": "ns"},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"metadata": map[string]any{"labels": map[string]any{"app": "app"}},
+						"spec": map[string]any{
+							"containers": []any{map[string]any{"name": "app", "image": "repo/app:v1"}},
+						},
+					},
+				},
+			},
+		},
+		podKey: {
+			Key:  podKey,
+			Type: "pod",
+			Resource: map[string]any{
+				"metadata": map[string]any{"name": "app-0", "namespace": "ns"},
+				"spec": map[string]any{
+					"containers": []any{map[string]any{"name": "app", "image": "repo/app:v1"}},
+				},
+			},
+		},
+	}
+
+	graphChildren := map[string][]string{
+		workloadKey: {podKey},
+		podKey:      {workloadKey},
+	}
+
+	children := buildWorkloadChildren(workloadKey, nodeMap[workloadKey], graphChildren, newTreeBuildState(), nodeMap)
+
+	var specNode *kube.Tree
+	for _, child := range children {
+		if child.Type == "spec" {
+			specNode = child
+			break
+		}
+	}
+	if specNode == nil {
+		t.Fatalf("expected spec node under workload")
+	}
+
+	var containerNode *kube.Tree
+	for _, child := range specNode.Children {
+		if child.Type == "container" {
+			containerNode = child
+			break
+		}
+	}
+	if containerNode == nil {
+		t.Fatalf("expected single-container workload spec to keep container intermediary node")
+	}
+}

@@ -853,7 +853,7 @@ func expandConfigMapsAsResources(namespace string, containers []any, volumes []a
 	return nodes
 }
 
-func buildPodSpecChildren(specKey, namespace string, spec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) ([]*kube.Tree, *kube.Tree) {
+func buildPodSpecChildren(specKey, namespace string, spec map[string]any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource, alwaysWrapContainers bool) ([]*kube.Tree, *kube.Tree) {
 	if spec == nil {
 		return nil, nil
 	}
@@ -867,7 +867,7 @@ func buildPodSpecChildren(specKey, namespace string, spec map[string]any, graphC
 		podSecurityContextNode = buildPodSecurityContextNode(specKey, securityContext)
 	}
 
-	if len(containers) == 1 {
+	if len(containers) == 1 && !alwaysWrapContainers {
 		if containerMap, ok := containers[0].(map[string]any); ok {
 			builder.Extend(buildContainerChildren(specKey, namespace, 0, containerMap, nil, volumes, graphChildren, state, nodeMap))
 		}
@@ -905,7 +905,7 @@ func buildPodTemplateChildren(templateKey string, namespace string, templateSpec
 	}
 
 	builder := NewChildrenBuilder()
-	specChildren, podSecurityContextNode := buildPodSpecChildren(templateKey, namespace, templateSpec, graphChildren, state, nodeMap)
+	specChildren, podSecurityContextNode := buildPodSpecChildren(templateKey, namespace, templateSpec, graphChildren, state, nodeMap, true)
 	builder.Add(podSecurityContextNode)
 	builder.Extend(specChildren)
 
@@ -970,7 +970,7 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 	builder := NewChildrenBuilder()
 	specKey := podKey + "/spec"
 	specNode := NewTree(specKey, "spec", map[string]any{})
-	specChildren, podSecurityContextNode := buildPodSpecChildren(specKey, namespace, spec, graphChildren, state, nodeMap)
+	specChildren, podSecurityContextNode := buildPodSpecChildren(specKey, namespace, spec, graphChildren, state, nodeMap, false)
 	if podSecurityContextNode != nil {
 		podSecurityContextNode.Key = podKey + "/podsecuritycontext"
 	}
