@@ -446,7 +446,7 @@ func TestBuildCertificateChildren_ShowsBackingSecretAsLeaf(t *testing.T) {
 		Type: "certificate",
 		Resource: map[string]any{
 			"metadata": map[string]any{"name": "api-cert", "namespace": "petshop"},
-			"spec": map[string]any{"secretName": "api-cert"},
+			"spec":     map[string]any{"secretName": "api-cert"},
 		},
 	}
 

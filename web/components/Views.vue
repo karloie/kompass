@@ -65,11 +65,14 @@ const cache = ref({})
 const copiedCommand = ref(false)
 const contentFilter = ref('')
 const contentEl = ref(null)
+const hubbleStreamLines = ref([])
+const hubbleWatching = ref(false)
 
-const scrollToBottomViews = new Set(['logs', 'events'])
+const scrollToBottomViews = new Set(['logs', 'events', 'hubble'])
 
 let currentController = null
 let copiedCommandTimer = null
+let hubbleEventSource = null
 
 const views = computed(() => availableViewsForNode(props.node))
 const endpointMap = {
@@ -89,7 +92,12 @@ const titleKindEmoji = computed(() => {
   }
   return ''
 })
-const content = computed(() => currentPayload.value?.content || '')
+const content = computed(() => {
+  if (activeView.value === 'hubble') {
+    return hubbleStreamLines.value.join('\n')
+  }
+  return currentPayload.value?.content || ''
+})
 const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
 const supportsContentFilter = computed(() => {
   const view = String(activeView.value || '').toLowerCase()
@@ -162,7 +170,14 @@ watch(highlightedContent, async () => {
 
 watch(
   activeView,
-  (value) => {
+  (value, oldValue) => {
+    if (oldValue === 'hubble' && value !== 'hubble') {
+      stopHubbleWatch()
+    }
+    if (value === 'hubble') {
+      startHubbleWatch()
+      return
+    }
     if (!value || value === 'tree' || cache.value[value]) {
       return
     }
@@ -174,6 +189,10 @@ watch(
 watch(viewRequestScope, () => {
   const view = String(activeView.value || '').trim()
   if (!view || view === 'tree') {
+    return
+  }
+  if (view === 'hubble') {
+    startHubbleWatch()
     return
   }
   cache.value = {
@@ -195,7 +214,40 @@ onBeforeUnmount(() => {
   if (copiedCommandTimer) {
     clearTimeout(copiedCommandTimer)
   }
+  stopHubbleWatch()
 })
+
+function startHubbleWatch() {
+  stopHubbleWatch()
+  hubbleStreamLines.value = []
+  hubbleWatching.value = true
+
+  const params = nodeRequestParams(props.node)
+  const ctx = String(props.contextName || '').trim()
+  if (ctx) params.set('context', ctx)
+
+  const base = String(props.apiBase || '/api/app').replace(/\/+$/, '')
+  const url = `${base}/hubble/watch?${params.toString()}`
+  hubbleEventSource = new EventSource(url)
+  hubbleEventSource.onmessage = (e) => {
+    hubbleStreamLines.value.push(String(e.data || ''))
+  }
+  hubbleEventSource.onerror = () => {
+    hubbleWatching.value = false
+    if (hubbleEventSource) {
+      hubbleEventSource.close()
+      hubbleEventSource = null
+    }
+  }
+}
+
+function stopHubbleWatch() {
+  hubbleWatching.value = false
+  if (hubbleEventSource) {
+    hubbleEventSource.close()
+    hubbleEventSource = null
+  }
+}
 
 function pickInitialView() {
   if (!views.value.length) {
@@ -232,6 +284,7 @@ async function fetchView(view) {
       headers: {
         Accept: 'application/json',
       },
+      cache: 'no-store',
       signal: controller.signal,
     })
     if (!response.ok) {
@@ -418,7 +471,7 @@ function shellQuote(value) {
           type="button"
           @click="activeView = view"
         >
-          {{ viewLabel(view) }}
+          {{ viewLabel(view) }}<span v-if="view === 'hubble' && hubbleWatching" class="view__tab-live" aria-label="live stream">●</span>
         </button>
 
       </nav>
@@ -594,6 +647,18 @@ function shellQuote(value) {
   color: var(--button-text);
   border-color: var(--button-border);
   border-bottom-color: var(--panel-bg);
+}
+
+.view__tab-live {
+  margin-left: 0.3em;
+  font-size: 0.6em;
+  color: #22c55e;
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 .view__command-row {

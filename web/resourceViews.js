@@ -34,7 +34,7 @@ export function viewShortLabel(view) {
     logs: 'L',
     events: 'E',
     hubble: 'C',
-    cert: 'C',
+    cert: 'Ct',
     yaml: 'Y',
     tree: 'T',
   }[view] || '?'

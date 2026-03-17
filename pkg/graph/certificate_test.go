@@ -15,7 +15,7 @@ func TestInferCertificateIssuedByIssuer(t *testing.T) {
 		"metadata": map[string]any{"namespace": "petshop", "name": "api-cert"},
 		"spec": map[string]any{
 			"secretName": "api-cert",
-			"issuerRef": map[string]any{"kind": "Issuer", "name": "letsencrypt"},
+			"issuerRef":  map[string]any{"kind": "Issuer", "name": "letsencrypt"},
 		},
 	}}
 

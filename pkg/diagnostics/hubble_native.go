@@ -19,6 +19,38 @@ var dialHubbleRelay = func(addr string) (*grpc.ClientConn, error) {
 	return grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
+func watchHubbleNative(ctx context.Context, podRef string, lines chan<- string) error {
+	conn, err := dialHubbleRelay(hubbleRelayAddress())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client := observerpb.NewObserverClient(conn)
+	stream, err := client.GetFlows(ctx, &observerpb.GetFlowsRequest{Number: 20, Follow: true})
+	if err != nil {
+		return err
+	}
+
+	targetNS, targetPod := splitPodRef(podRef)
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return nil
+			}
+			return err
+		}
+		if line, ok := formatNativeHubbleResponse(resp, targetNS, targetPod); ok {
+			select {
+			case lines <- line:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+}
+
 func observeHubbleNative(podRef string, last int, contextName string) (string, error) {
 	_ = contextName
 	if last <= 0 {

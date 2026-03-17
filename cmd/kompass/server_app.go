@@ -105,7 +105,7 @@ func (s *server) handleAppEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleAppHubble(w http.ResponseWriter, r *http.Request) {
-	target, provider, result, _, err := s.inferAppResource(r)
+	target, provider, err := s.resolveAppTarget(r)
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -114,12 +114,140 @@ func (s *server) handleAppHubble(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, badRequest("hubble is only available for pods"))
 		return
 	}
+
+	// Hubble analysis needs the full graph for netpol resolution.
+	// Check the fullGraphCache (populated by /api/tree or /api/graph calls) first.
+	s.providerMu.Lock()
+	contextArg, _ := provider.GetContext()
+	providerNamespace, _ := provider.GetNamespace()
+	cacheKey := contextArg + "|" + providerNamespace
+	var result *kube.Response
+	if entry, ok := s.fullGraphCache[cacheKey]; ok && time.Now().Before(entry.expiresAt) {
+		result = entry.result
+	}
+	s.providerMu.Unlock()
+
+	if result == nil {
+		result, err = pipeline.InferGraphs(provider, nil)
+		if err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
+
 	body, err := buildHubbleView(provider, target, result)
 	if err != nil {
 		writeAppError(w, err)
 		return
 	}
 	writeAppView(w, appViewResponse{Title: "Cilium", Content: body})
+}
+
+func (s *server) handleAppHubbleWatch(w http.ResponseWriter, r *http.Request) {
+	target, provider, _, _, err := s.inferAppResource(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if target.Type != "pod" {
+		http.Error(w, "hubble watch is only available for pods", http.StatusBadRequest)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	lines := make(chan string, 64)
+	go func() {
+		defer close(lines)
+		if isMockProvider(provider) {
+			streamMockHubble(ctx, target, lines)
+			return
+		}
+		contextName, _ := provider.GetContext()
+		podRef := target.Namespace + "/" + target.Name
+		if err := diagnostics.WatchHubbleFlows(ctx, podRef, contextName, lines); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				select {
+				case lines <- "error: " + err.Error():
+				case <-ctx.Done():
+				}
+			}
+		}
+	}()
+
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", line); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+var mockHubbleFlowTemplates = []string{
+	"FORWARDED  %s -> kube-dns:53  DNS Query A api.internal",
+	"DROPPED    %s -> service/payment-gateway:443  policy denied",
+	"FORWARDED  %s -> service/petshop-backend:8080  HTTP GET /api/catalog",
+	"DROPPED    %s -> service/external-api:443  policy denied",
+	"FORWARDED  %s -> service/petshop-backend:8080  HTTP POST /api/order",
+}
+
+func streamMockHubble(ctx context.Context, target appResourceTarget, lines chan<- string) {
+	podRef := target.Namespace + "/" + target.Name
+	now := time.Now()
+	for i, tmpl := range mockHubbleFlowTemplates {
+		ts := now.Add(time.Duration(-len(mockHubbleFlowTemplates)+i) * time.Second).Format("15:04:05")
+		line := ts + "  " + fmt.Sprintf(tmpl, podRef)
+		select {
+		case lines <- line:
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	counter := 0
+	liveTemplates := []string{
+		"FORWARDED  %s -> service/petshop-backend:8080  HTTP GET /api/health",
+		"FORWARDED  %s -> kube-dns:53  DNS Query A metrics.internal",
+		"DROPPED    %s -> service/payment-gateway:443  policy denied",
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case t := <-ticker.C:
+			tmpl := liveTemplates[counter%len(liveTemplates)]
+			line := t.Format("15:04:05") + "  " + fmt.Sprintf(tmpl, podRef)
+			select {
+			case lines <- line:
+			case <-ctx.Done():
+				return
+			}
+			counter++
+		}
+	}
 }
 
 func (s *server) handleAppYAML(w http.ResponseWriter, r *http.Request) {
@@ -155,18 +283,33 @@ func (s *server) handleAppCert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube, *kube.Response, *kube.Resource, error) {
-	target, err := parseAppResourceTarget(r)
+	target, provider, err := s.resolveAppTarget(r)
 	if err != nil {
 		return appResourceTarget{}, nil, nil, nil, err
 	}
 
+	resource, err := provider.FetchResource(target.Type, target.Namespace, target.Name, r.Context())
+	if err != nil {
+		return appResourceTarget{}, nil, nil, nil, notFound("resource not found: " + err.Error())
+	}
+	return target, provider, nil, resource, nil
+}
+
+// resolveAppTarget parses the target from the request and returns the provider.
+// It does not make any Kubernetes API calls.
+func (s *server) resolveAppTarget(r *http.Request) (appResourceTarget, kube.Kube, error) {
+	target, err := parseAppResourceTarget(r)
+	if err != nil {
+		return appResourceTarget{}, nil, err
+	}
+
 	providerContext, err := requireContextArg(r)
 	if err != nil {
-		return appResourceTarget{}, nil, nil, nil, err
+		return appResourceTarget{}, nil, err
 	}
 	providerNamespace, err := requireExplicitNamespace(r)
 	if err != nil {
-		return appResourceTarget{}, nil, nil, nil, err
+		return appResourceTarget{}, nil, err
 	}
 	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
 	if mockProvider == "" && providerContext == "mock-01" {
@@ -178,22 +321,9 @@ func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube
 
 	provider, err := s.getProvider(mockProvider, providerContext, providerNamespace)
 	if err != nil {
-		return appResourceTarget{}, nil, nil, nil, err
+		return appResourceTarget{}, nil, err
 	}
-
-	result, err := pipeline.InferGraphs(provider, []string{target.Key})
-	if err != nil {
-		return appResourceTarget{}, nil, nil, nil, err
-	}
-	if result == nil {
-		return appResourceTarget{}, nil, nil, nil, notFound("resource not found")
-	}
-	resource := result.Node(target.Key)
-	if resource == nil {
-		return appResourceTarget{}, nil, nil, nil, notFound("resource not found")
-	}
-
-	return target, provider, result, resource, nil
+	return target, provider, nil
 }
 
 func parseAppResourceTarget(r *http.Request) (appResourceTarget, error) {

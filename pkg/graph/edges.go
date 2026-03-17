@@ -220,23 +220,12 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 
 	if hasGateways {
 		if httpRouteTask, ok := ResourceTypes["httproute"]; ok && httpRouteTask.Loader != nil {
-
-			nsList, err := provider.GetNamespaces(context.Background(), metav1.ListOptions{})
-			if err == nil && nsList != nil {
-				for _, ns := range nsList.Items {
-					nsName := ns.Name
-
-					if namespaces[nsName] {
-						continue
-					}
-
-					if resources, err := httpRouteTask.Loader(provider, nsName, context.Background(), metav1.ListOptions{}); err == nil {
-						for _, r := range resources {
-							if _, exists := nodeMap[r.Key]; !exists {
-								nodeMap[r.Key] = r
-								hasRoutesOrIngress = true
-							}
-						}
+			// Fetch all HTTPRoutes cluster-wide in one call instead of iterating every namespace.
+			if resources, err := httpRouteTask.Loader(provider, "", context.Background(), metav1.ListOptions{}); err == nil {
+				for _, r := range resources {
+					if _, exists := nodeMap[r.Key]; !exists {
+						nodeMap[r.Key] = r
+						hasRoutesOrIngress = true
 					}
 				}
 			}

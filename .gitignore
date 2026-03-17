@@ -39,3 +39,4 @@ node_modules/
 dist/
 cmd/kompass/dist/
 testdata/fixtures/real.*
+deploy/applikasjonsplattform-deployments/

@@ -1,6 +1,8 @@
 package diagnostics
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -77,6 +79,34 @@ func ObserveHubbleByMode(podRef string, last int, context, mode string) (string,
 		// Only fall back to CLI on actual errors.
 		slog.Warn("hubble provider fallback", "from", "native", "to", "cli", "pod", podRef, "reason", err.Error())
 		return observeHubbleWithCLI(podRef, last, context)
+	}
+}
+
+// WatchHubbleFlows streams live Hubble flows for podRef into lines until ctx is cancelled.
+// It tries the native gRPC path first, falling back to a one-shot CLI snapshot.
+var WatchHubbleFlows = func(ctx context.Context, podRef string, contextName string, lines chan<- string) error {
+	mode := HubbleProviderMode()
+	switch mode {
+	case "native":
+		return watchHubbleNative(ctx, podRef, lines)
+	default: // auto, cli
+		if err := watchHubbleNative(ctx, podRef, lines); err == nil || errors.Is(ctx.Err(), context.Canceled) {
+			return err
+		} else {
+			slog.Warn("hubble watch provider fallback", "from", "native", "to", "cli", "pod", podRef, "reason", err.Error())
+		}
+		body, _ := observeHubbleWithCLI(podRef, 100, contextName)
+		for _, line := range strings.Split(body, "\n") {
+			if line = strings.TrimSpace(line); line == "" {
+				continue
+			}
+			select {
+			case lines <- line:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+		return nil
 	}
 }
 

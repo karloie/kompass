@@ -25,13 +25,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type cachedGraphEntry struct {
+	result    *kube.Response
+	expiresAt time.Time
+}
+
 type server struct {
-	contextArg    string
-	namespaceArg  string
-	client        *kube.Client
-	clientFactory func(contextArg, namespace string) (kube.Kube, error)
-	providerMu    sync.Mutex
-	webRoot       fs.FS
+	contextArg     string
+	namespaceArg   string
+	client         *kube.Client
+	clientFactory  func(contextArg, namespace string) (kube.Kube, error)
+	providerMu     sync.Mutex
+	webRoot        fs.FS
+	fullGraphCache map[string]*cachedGraphEntry // keyed by context|namespace
 }
 
 type scopeResponse struct {
@@ -72,10 +78,11 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	}
 	slog.Info("Cache sync started", "interval", "30s", "namespaces", namespacesToWatch)
 	srv := &server{
-		contextArg:   resolvedContext,
-		namespaceArg: resolvedNamespace,
-		client:       client,
-		webRoot:      tree.ResolveAppWebRoot(),
+		contextArg:     resolvedContext,
+		namespaceArg:   resolvedNamespace,
+		client:         client,
+		webRoot:        tree.ResolveAppWebRoot(),
+		fullGraphCache: make(map[string]*cachedGraphEntry),
 	}
 	stopDebugStats := srv.startDebugStatsLogger()
 	defer stopDebugStats()
@@ -86,6 +93,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/app/logs", srv.handleAppLogs)
 	mux.HandleFunc("/api/app/events", srv.handleAppEvents)
 	mux.HandleFunc("/api/app/hubble", srv.handleAppHubble)
+	mux.HandleFunc("/api/app/hubble/watch", srv.handleAppHubbleWatch)
 	mux.HandleFunc("/api/app/yaml", srv.handleAppYAML)
 	mux.HandleFunc("/api/app/cert", srv.handleAppCert)
 	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
@@ -431,6 +439,12 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	result, err := pipeline.InferGraphs(provider, selectors)
 	if err != nil {
 		return nil, namespace, provider, nil, err
+	}
+
+	// Cache the full (no-selector) graph so app view handlers can reuse it.
+	if len(selectors) == 0 && s.fullGraphCache != nil {
+		cacheKey := contextArg + "|" + namespace
+		s.fullGraphCache[cacheKey] = &cachedGraphEntry{result: result, expiresAt: time.Now().Add(30 * time.Second)}
 	}
 
 	return selectors, namespace, provider, result, nil

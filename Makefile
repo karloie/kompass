@@ -2,8 +2,9 @@
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION_LDFLAGS := -X github.com/karloie/kompass/pkg/graph.GitVersion=$(GIT_VERSION) -X github.com/karloie/kompass/pkg/graph.GitCommit=$(GIT_COMMIT)
-RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS) -X github.com/karloie/kompass/pkg/tree.BuildMode=release
+GIT_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+VERSION_LDFLAGS := -X main.version=$(GIT_VERSION) -X main.commit=$(GIT_COMMIT) -X main.date=$(GIT_DATE)
+RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
 LDFLAGS ?=
 ARGS    ?=
 COVERPKG ?= ./...
