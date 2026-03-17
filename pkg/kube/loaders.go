@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"log/slog"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -9,6 +10,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -189,9 +191,20 @@ func GetLoader(resourceType string) ResourceLoader {
 	return loaders[resourceType]
 }
 
+func skipForbiddenLoad(resourceType, namespace string, err error) bool {
+	if err == nil || !apierrors.IsForbidden(err) {
+		return false
+	}
+	slog.Warn("Skipping forbidden provider call", "resourceType", resourceType, "namespace", namespace, "error", err)
+	return true
+}
+
 func LoadPod(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	pods, err := provider.GetPods(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("pod", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(pods.Items))
@@ -209,6 +222,9 @@ func LoadPod(provider Kube, namespace string, ctx context.Context, opts metav1.L
 func LoadService(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetServices(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("service", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(list.Items))
@@ -227,6 +243,9 @@ func LoadService(provider Kube, namespace string, ctx context.Context, opts meta
 func LoadSecret(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetSecrets(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("secret", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(list.Items))
@@ -247,6 +266,9 @@ func LoadSecret(provider Kube, namespace string, ctx context.Context, opts metav
 func LoadNode(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetNodes(ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("node", "", err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(list.Items))
@@ -264,6 +286,9 @@ func LoadNode(provider Kube, _ string, ctx context.Context, opts metav1.ListOpti
 func LoadJob(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	jobs, err := provider.GetJobs(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("job", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(jobs.Items))
@@ -281,6 +306,9 @@ func LoadJob(provider Kube, namespace string, ctx context.Context, opts metav1.L
 func LoadNetworkPolicy(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	nps, err := provider.GetNetworkPolicies(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("networkpolicy", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(nps.Items))
@@ -302,6 +330,9 @@ func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Contex
 	}
 	cnps, err := cp.GetCiliumNetworkPolicies(namespace, ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("ciliumnetworkpolicy", namespace, err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(cnps))
@@ -329,6 +360,9 @@ func LoadCiliumClusterwideNetworkPolicy(provider Kube, _ string, ctx context.Con
 	}
 	ccnps, err := cp.GetCiliumClusterwideNetworkPolicies(ctx, opts)
 	if err != nil {
+		if skipForbiddenLoad("ciliumclusterwidenetworkpolicy", "", err) {
+			return []Resource{}, nil
+		}
 		return nil, err
 	}
 	out := make([]Resource, 0, len(ccnps))
@@ -422,6 +456,9 @@ func namespacedLoad[T any, PT objectMetaPtr[T], L any](
 	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, namespace, ctx, opts)
 		if err != nil {
+			if skipForbiddenLoad(resourceType, namespace, err) {
+				return []Resource{}, nil
+			}
 			return nil, err
 		}
 		items := extractItems(list)
@@ -444,6 +481,9 @@ func clusterLoad[T any, PT objectMetaPtr[T], L any](
 	return func(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, ctx, opts)
 		if err != nil {
+			if skipForbiddenLoad(resourceType, "", err) {
+				return []Resource{}, nil
+			}
 			return nil, err
 		}
 		items := extractItems(list)
@@ -466,6 +506,9 @@ func conditionBasedLoad(resourceType string, providerCheck func(Kube) (any, bool
 		}
 		items, err := getter(p, namespace, ctx, opts)
 		if err != nil {
+			if skipForbiddenLoad(resourceType, namespace, err) {
+				return []Resource{}, nil
+			}
 			return nil, err
 		}
 		out := make([]Resource, 0, len(items))
@@ -492,6 +535,9 @@ func workloadLoad(resourceType string, getter func(Kube, string, context.Context
 	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, namespace, ctx, opts)
 		if err != nil {
+			if skipForbiddenLoad(resourceType, namespace, err) {
+				return []Resource{}, nil
+			}
 			return nil, err
 		}
 		items := reflect.ValueOf(list).Elem().FieldByName("Items")
