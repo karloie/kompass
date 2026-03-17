@@ -1,6 +1,12 @@
 name: Build and Push Docker Image
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and push (example: v0.0.13). Required for manual runs.'
+        required: true
+        type: string
   push:
     tags: ['v*']
 
@@ -11,7 +17,33 @@ jobs:
       group: docker-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - name: Resolve release tag
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag='${{ inputs.tag }}'
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid tag '$tag'. Expected format v<major>.<minor>.<patch>."
+            exit 1
+          fi
+
+          version="${tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$major.$minor" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -28,10 +60,17 @@ jobs:
         with:
           images: karloie/kompass
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.resolve.outputs.version }}
+            type=raw,value=${{ steps.resolve.outputs.major_minor }}
             type=sha,prefix=sha-
+
+      - name: Publish summary
+        run: |
+          echo "Source ref: ${{ steps.resolve.outputs.tag }}"
+          echo "Image tags:"
+          echo "  - karloie/kompass:${{ steps.resolve.outputs.version }}"
+          echo "  - karloie/kompass:${{ steps.resolve.outputs.major_minor }}"
+          echo "  - karloie/kompass:sha-${GITHUB_SHA::7}"
       
       - name: Build and push
         uses: docker/build-push-action@v6
