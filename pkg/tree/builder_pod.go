@@ -1241,52 +1241,6 @@ func runtimeImageMetadata(containerSpec map[string]any, containerStatus map[stri
 func buildRuntimeResourcesNode(containerKey string, containerSpec map[string]any, containerStatus map[string]any) *kube.Tree {
 	runtimeResources := map[string]any{}
 
-	mergeResources := func(resources map[string]any) {
-		if resources == nil {
-			return
-		}
-		if limits, ok := resources["limits"].(map[string]any); ok && len(limits) > 0 {
-			mergedLimits := map[string]any{}
-			if existing, ok := runtimeResources["limits"].(map[string]any); ok {
-				for k, v := range existing {
-					mergedLimits[k] = v
-				}
-			}
-			for k, v := range limits {
-				if _, exists := mergedLimits[k]; !exists {
-					mergedLimits[k] = v
-				}
-			}
-			if len(mergedLimits) > 0 {
-				runtimeResources["limits"] = mergedLimits
-			}
-		}
-		if requests, ok := resources["requests"].(map[string]any); ok && len(requests) > 0 {
-			mergedRequests := map[string]any{}
-			if existing, ok := runtimeResources["requests"].(map[string]any); ok {
-				for k, v := range existing {
-					mergedRequests[k] = v
-				}
-			}
-			for k, v := range requests {
-				if _, exists := mergedRequests[k]; !exists {
-					mergedRequests[k] = v
-				}
-			}
-			if len(mergedRequests) > 0 {
-				runtimeResources["requests"] = mergedRequests
-			}
-		}
-	}
-
-	if resources, ok := containerStatus["resources"].(map[string]any); ok {
-		mergeResources(resources)
-	}
-
-	if specResources, ok := containerSpec["resources"].(map[string]any); ok {
-		mergeResources(specResources)
-	}
-
 	if allocated, ok := containerStatus["allocatedResources"].(map[string]any); ok && len(allocated) > 0 {
 		runtimeResources["allocated"] = allocated
 	}

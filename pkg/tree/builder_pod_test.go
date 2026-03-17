@@ -55,10 +55,14 @@ func TestBuildPodWithSimplifiedContainers_RuntimeChildrenSorted(t *testing.T) {
 	container := node.Children[0]
 	gotTypes := make([]string, 0, len(container.Children))
 	var runtimeImage *kube.Tree
+	var runtimeResources *kube.Tree
 	for _, child := range container.Children {
 		gotTypes = append(gotTypes, child.Type)
 		if child.Type == "image" {
 			runtimeImage = child
+		}
+		if child.Type == "resources" {
+			runtimeResources = child
 		}
 	}
 
@@ -85,6 +89,18 @@ func TestBuildPodWithSimplifiedContainers_RuntimeChildrenSorted(t *testing.T) {
 	}
 	if _, hasID := runtimeImage.Meta["id"]; hasID {
 		t.Fatalf("expected runtime image metadata to omit id field, got %#v", runtimeImage.Meta)
+	}
+	if runtimeResources == nil {
+		t.Fatalf("expected runtime resources child")
+	}
+	if got, ok := runtimeResources.Meta["allocated"].(map[string]any); !ok || !reflect.DeepEqual(got, map[string]any{"cpu": "200m", "memory": "128Mi"}) {
+		t.Fatalf("expected runtime resources to only expose allocated metadata, got %#v", runtimeResources.Meta)
+	}
+	if _, hasRequests := runtimeResources.Meta["requests"]; hasRequests {
+		t.Fatalf("expected runtime resources metadata to omit requests, got %#v", runtimeResources.Meta)
+	}
+	if _, hasLimits := runtimeResources.Meta["limits"]; hasLimits {
+		t.Fatalf("expected runtime resources metadata to omit limits, got %#v", runtimeResources.Meta)
 	}
 }
 
@@ -153,7 +169,7 @@ func TestBuildPodChildren_RuntimeContainerFlattensProbeStatus(t *testing.T) {
 	}
 }
 
-func TestBuildPodWithSimplifiedContainers_RuntimeFallsBackToSpecImageAndResources(t *testing.T) {
+func TestBuildPodWithSimplifiedContainers_RuntimeFallsBackToSpecImageOnly(t *testing.T) {
 	podKey := "pod/ns/app-0"
 	pod := kube.Resource{
 		Key:  podKey,
@@ -206,8 +222,8 @@ func TestBuildPodWithSimplifiedContainers_RuntimeFallsBackToSpecImageAndResource
 	if !hasImage {
 		t.Fatalf("expected runtime image node from spec fallback")
 	}
-	if !hasResources {
-		t.Fatalf("expected runtime resources node from spec fallback")
+	if hasResources {
+		t.Fatalf("expected runtime resources node to be hidden when there is no allocated runtime data")
 	}
 }
 

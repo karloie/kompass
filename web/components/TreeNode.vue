@@ -204,11 +204,7 @@ const metadataInline = computed(() => {
   if (!pairs.length) {
     return ''
   }
-  const joined = pairs.join(' | ')
-  if (joined.length <= 90) {
-    return joined
-  }
-  return `${joined.slice(0, 87)}...`
+  return pairs.join(' | ')
 })
 
 function pickStatusValue(meta) {
@@ -566,6 +562,8 @@ const visibleMetadataEntries = computed(() => {
   font-size: 0.74rem;
   line-height: 1.2;
   white-space: nowrap;
+  flex-shrink: 0;
+  min-width: max-content;
 }
 
 .tree-node__tail {
@@ -573,7 +571,9 @@ const visibleMetadataEntries = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-width: 0;
+  flex-shrink: 0;
+  min-width: max-content;
+  overflow: visible;
 }
 
 .tree-node__icon {

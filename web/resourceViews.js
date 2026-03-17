@@ -14,20 +14,19 @@ export function availableViewsForNode(node, options = {}) {
   if (!type) {
     return []
   }
-  if (!appViewsEnabled) {
-    return ['tree']
-  }
-  // Only allow kubectl operations for actual Kubernetes API resource types
   if (!kubernetesApiTypes.has(type)) {
-    return ['tree']
+    return []
+  }
+  if (!appViewsEnabled) {
+    return []
   }
   if (type === 'pod') {
-    return ['describe', 'logs', 'events', 'hubble', 'yaml', 'tree']
+    return ['describe', 'logs', 'events', 'hubble', 'yaml']
   }
   if (type === 'certificate') {
-    return ['cert', 'describe', 'events', 'yaml', 'tree']
+    return ['cert', 'describe', 'events', 'yaml']
   }
-  return ['describe', 'events', 'yaml', 'tree']
+  return ['describe', 'events', 'yaml']
 }
 
 export function viewLabel(view) {

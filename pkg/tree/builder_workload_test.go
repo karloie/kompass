@@ -136,8 +136,8 @@ func TestBuildCronJobChildren_ExpandsPodsForFocusAndHistoryJobs(t *testing.T) {
 			break
 		}
 	}
-	if !foundResources {
-		t.Fatalf("expected older container to include runtime resources child")
+	if foundResources {
+		t.Fatalf("expected older container runtime resources child to be hidden without allocated runtime data")
 	}
 
 	if len(activeJobNode.Children) != 1 || activeJobNode.Children[0].Key != activePodKey {
