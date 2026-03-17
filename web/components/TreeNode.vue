@@ -418,29 +418,31 @@ const visibleMetadataEntries = computed(() => {
       <span class="tree-node__expand-icon" aria-hidden="true">{{ hasChildren ? (isOpen ? '▾' : '▸') : '' }}</span>
       <span v-if="icon" class="tree-node__icon" aria-hidden="true">{{ icon }}</span>
       <span class="tree-node__label">{{ title }}</span>
-      <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
-      <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
-      <span
-        v-for="badge in trafficBadges"
-        :key="badge.text"
-        class="tree-node__policy-badge"
-        :class="`tree-node__policy-badge--${badge.tone || 'deny'}`"
-        :title="badge.title"
-      >
-        {{ badge.text }}
-      </span>
-      <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
-      <span v-if="availableViews.length" class="tree-node__actions">
-        <button
-          v-for="view in availableViews"
-          :key="view"
-          class="tree-node__action"
-          type="button"
-          :title="viewLabel(view)"
-          @click.stop.prevent="openView(view)"
+      <span v-if="statusBadge || stateBadge || trafficBadges.length || metadataInline || availableViews.length" class="tree-node__tail">
+        <span v-if="statusBadge" class="tree-node__status" :class="`tree-node__status--${statusBadge.tone}`">{{ statusBadge.text }}</span>
+        <span v-if="stateBadge" class="tree-node__status" :class="`tree-node__status--${stateBadge.tone}`">{{ stateBadge.text }}</span>
+        <span
+          v-for="badge in trafficBadges"
+          :key="badge.text"
+          class="tree-node__policy-badge"
+          :class="`tree-node__policy-badge--${badge.tone || 'deny'}`"
+          :title="badge.title"
         >
-          {{ viewShortLabel(view) }}
-        </button>
+          {{ badge.text }}
+        </span>
+        <span v-if="metadataInline" class="tree-node__meta-inline">{{ metadataInline }}</span>
+        <span v-if="availableViews.length" class="tree-node__actions">
+          <button
+            v-for="view in availableViews"
+            :key="view"
+            class="tree-node__action"
+            type="button"
+            :title="viewLabel(view)"
+            @click.stop.prevent="openView(view)"
+          >
+            {{ viewShortLabel(view) }}
+          </button>
+        </span>
       </span>
     </div>
 
@@ -566,6 +568,14 @@ const visibleMetadataEntries = computed(() => {
   white-space: nowrap;
 }
 
+.tree-node__tail {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
 .tree-node__icon {
   display: inline-block;
   width: 1.4em;
@@ -581,31 +591,43 @@ const visibleMetadataEntries = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  position: sticky;
-  right: 0.35rem;
-  margin-left: auto;
-  padding-left: 0.5rem;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  padding: 0 0.15rem;
+  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  border-radius: 999px;
+  z-index: 1;
   opacity: 0;
   transition: opacity 120ms ease;
-  z-index: 1;
+  pointer-events: none;
 }
 
-.tree-node__summary:hover > .tree-node__actions,
-.tree-node__summary:focus-within > .tree-node__actions,
+.tree-node__summary:hover .tree-node__actions,
+.tree-node__summary:focus-within .tree-node__actions,
 .tree-node__actions:hover,
 .tree-node__actions:focus-within {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .tree-node__action {
-  border: 1px solid var(--button-border);
-  background: var(--button-bg);
-  color: var(--button-text);
+  border: 1px solid #d0a53a;
+  background: color-mix(in srgb, #d0a53a 18%, var(--panel-bg));
+  color: #f2cf6b;
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.4;
   cursor: pointer;
+}
+
+.tree-node__action:hover,
+.tree-node__action:focus-visible {
+  background: color-mix(in srgb, #d0a53a 28%, var(--panel-bg));
+  border-color: #f2cf6b;
+  outline: none;
 }
 </style>
