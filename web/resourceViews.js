@@ -1,17 +1,19 @@
 export function availableViewsForNode(node, options = {}) {
   const appViewsEnabled = options.appViewsEnabled !== false
-  if (!appViewsEnabled) {
-    return []
-  }
-
   const type = nodeType(node)
   if (!type) {
     return []
   }
-  if (type === 'pod') {
-    return ['describe', 'logs', 'events', 'hubble', 'yaml']
+  if (!appViewsEnabled) {
+    return ['tree']
   }
-  return ['describe', 'events', 'yaml']
+  if (type === 'pod') {
+    return ['describe', 'logs', 'events', 'hubble', 'yaml', 'tree']
+  }
+  if (type === 'certificate') {
+    return ['cert', 'describe', 'events', 'yaml', 'tree']
+  }
+  return ['describe', 'events', 'yaml', 'tree']
 }
 
 export function viewLabel(view) {
@@ -20,7 +22,9 @@ export function viewLabel(view) {
     logs: 'Logs',
     events: 'Events',
     hubble: 'Cilium',
+    cert: 'Cert',
     yaml: 'YAML',
+    tree: 'Tree',
   }[view] || view
 }
 
@@ -30,7 +34,9 @@ export function viewShortLabel(view) {
     logs: 'L',
     events: 'E',
     hubble: 'C',
+    cert: 'C',
     yaml: 'Y',
+    tree: 'T',
   }[view] || '?'
 }
 

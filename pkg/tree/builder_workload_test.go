@@ -6,7 +6,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func TestBuildCronJobChildren_ExpandsFocusJobAndKeepsPodLeavesForHistory(t *testing.T) {
+func TestBuildCronJobChildren_ExpandsPodsForFocusAndHistoryJobs(t *testing.T) {
 	cronJobKey := "cronjob/applikasjonsplattform/fiskeoye-repo-update"
 	olderJobKey := "job/applikasjonsplattform/fiskeoye-repo-update-29552220"
 	activeJobKey := "job/applikasjonsplattform/fiskeoye-repo-update-29555460"
@@ -42,8 +42,25 @@ func TestBuildCronJobChildren_ExpandsFocusJobAndKeepsPodLeavesForHistory(t *test
 			Type: "pod",
 			Resource: map[string]any{
 				"metadata": map[string]any{"name": "fiskeoye-repo-update-29552220-nz92p", "namespace": "applikasjonsplattform"},
-				"status":   map[string]any{"phase": "Succeeded", "podIP": "10.244.9.131"},
-				"spec":     map[string]any{"nodeName": "test-01-worker-055ceed2"},
+				"status": map[string]any{
+					"phase": "Succeeded",
+					"podIP": "10.244.9.131",
+					"containerStatuses": []any{
+						map[string]any{"name": "kubectl-exec", "state": map[string]any{"terminated": map[string]any{"exitCode": float64(0), "reason": "Completed"}}},
+					},
+				},
+				"spec": map[string]any{
+					"nodeName": "test-01-worker-055ceed2",
+					"containers": []any{
+						map[string]any{
+							"name":  "kubectl-exec",
+							"image": "bitnami/kubectl:latest",
+							"resources": map[string]any{
+								"requests": map[string]any{"cpu": "100m", "memory": "128Mi"},
+							},
+						},
+					},
+				},
 			},
 		},
 		activePodKey: {
@@ -95,13 +112,32 @@ func TestBuildCronJobChildren_ExpandsFocusJobAndKeepsPodLeavesForHistory(t *test
 	}
 
 	if len(olderJobNode.Children) != 1 || olderJobNode.Children[0].Key != olderPodKey {
-		t.Fatalf("expected older job to keep only one pod leaf")
+		t.Fatalf("expected older job to include one pod")
 	}
-	if len(olderJobNode.Children[0].Children) != 0 {
-		t.Fatalf("expected older pod to be a leaf (no subtree)")
+	if len(olderJobNode.Children[0].Children) == 0 {
+		t.Fatalf("expected older pod to include runtime container subtree")
 	}
 	if name, ok := olderJobNode.Children[0].Meta["name"].(string); !ok || name == "" {
-		t.Fatalf("expected older pod leaf to include name metadata")
+		t.Fatalf("expected older pod to include name metadata")
+	}
+
+	olderContainer := olderJobNode.Children[0].Children[0]
+	if olderContainer.Type != "container" {
+		t.Fatalf("expected older pod child to be container, got %q", olderContainer.Type)
+	}
+	if len(olderContainer.Children) == 0 || olderContainer.Children[0].Type != "image" {
+		t.Fatalf("expected older container to include runtime image child")
+	}
+
+	foundResources := false
+	for _, child := range olderContainer.Children {
+		if child.Type == "resources" {
+			foundResources = true
+			break
+		}
+	}
+	if !foundResources {
+		t.Fatalf("expected older container to include runtime resources child")
 	}
 
 	if len(activeJobNode.Children) != 1 || activeJobNode.Children[0].Key != activePodKey {
@@ -193,5 +229,73 @@ func TestBuildReplicaSetChildren_DeploymentOwned_ExpandsAllPods(t *testing.T) {
 
 	if expandedCount != 2 {
 		t.Fatalf("expected all pods to be expanded, got %d expanded pods", expandedCount)
+	}
+}
+
+func TestBuildWorkloadChildren_DaemonSetAndStatefulSet_ExpandPodContainers(t *testing.T) {
+	for _, workloadType := range []string{"daemonset", "statefulset"} {
+		t.Run(workloadType, func(t *testing.T) {
+			workloadKey := workloadType + "/ns/app"
+			podKey := "pod/ns/app-0"
+
+			nodeMap := map[string]kube.Resource{
+				workloadKey: {
+					Key:  workloadKey,
+					Type: workloadType,
+					Resource: map[string]any{
+						"metadata": map[string]any{"name": "app", "namespace": "ns"},
+						"spec": map[string]any{
+							"template": map[string]any{
+								"metadata": map[string]any{"labels": map[string]any{"app": "app"}},
+								"spec": map[string]any{
+									"containers": []any{map[string]any{"name": "app", "image": "repo/app:v1"}},
+								},
+							},
+						},
+					},
+				},
+				podKey: {
+					Key:  podKey,
+					Type: "pod",
+					Resource: map[string]any{
+						"metadata": map[string]any{"name": "app-0", "namespace": "ns"},
+						"spec": map[string]any{
+							"containers": []any{map[string]any{"name": "app", "image": "repo/app:v1"}},
+						},
+						"status": map[string]any{
+							"phase": "Running",
+							"containerStatuses": []any{
+								map[string]any{"name": "app", "image": "repo/app:v1", "state": map[string]any{"running": map[string]any{"startedAt": "2026-03-17T12:00:00Z"}}},
+							},
+						},
+					},
+				},
+			}
+
+			graphChildren := map[string][]string{
+				workloadKey: {podKey},
+				podKey:      {workloadKey},
+			}
+
+			children := buildWorkloadChildren(workloadKey, nodeMap[workloadKey], graphChildren, newTreeBuildState(), nodeMap)
+			if len(children) < 2 {
+				t.Fatalf("expected spec and pod children, got %d", len(children))
+			}
+
+			var podNode *kube.Tree
+			for _, child := range children {
+				if child.Type == "pod" {
+					podNode = child
+					break
+				}
+			}
+			if podNode == nil {
+				t.Fatalf("expected pod child under %s", workloadType)
+			}
+
+			if len(podNode.Children) == 0 || podNode.Children[0].Type != "container" {
+				t.Fatalf("expected pod container child under %s, got %#v", workloadType, podNode.Children)
+			}
+		})
 	}
 }

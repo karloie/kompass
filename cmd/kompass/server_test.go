@@ -12,6 +12,68 @@ import (
 	"github.com/karloie/kompass/pkg/mock"
 )
 
+func TestInferForRequest_ContextNamespace_NoMockBleedover(t *testing.T) {
+	calledContext := ""
+	calledNamespace := ""
+
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		calledContext = contextArg
+		calledNamespace = namespace
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetContext(contextArg)
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=secretgen-web&context=tool-test-01&namespace=applikasjonsplattform", nil)
+	selectors, namespace, provider, _, err := s.inferForRequest(req)
+	if err != nil {
+		t.Fatalf("inferForRequest returned error: %v", err)
+	}
+
+	if calledContext != "tool-test-01" {
+		t.Fatalf("expected provider context tool-test-01, got %q", calledContext)
+	}
+	if calledNamespace != "applikasjonsplattform" {
+		t.Fatalf("expected provider namespace applikasjonsplattform, got %q", calledNamespace)
+	}
+	if namespace != "applikasjonsplattform" {
+		t.Fatalf("expected returned namespace applikasjonsplattform, got %q", namespace)
+	}
+	if len(selectors) != 1 || selectors[0] != "secretgen-web" {
+		t.Fatalf("expected selectors to round-trip, got %#v", selectors)
+	}
+	if provider == nil {
+		t.Fatalf("expected provider instance")
+	}
+}
+
+func TestInferForRequest_ContextMock01_InfersMockProvider(t *testing.T) {
+	calledContext := ""
+	calledNamespace := ""
+
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+		calledContext = contextArg
+		calledNamespace = namespace
+		c := kube.NewMockClient(mock.GenerateMock())
+		c.SetNamespace(namespace)
+		return c, nil
+	}}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tree?selector=*/petshop/*&context=mock-01&namespace=petshop", nil)
+	_, _, _, _, err := s.inferForRequest(req)
+	if err != nil {
+		t.Fatalf("inferForRequest returned error: %v", err)
+	}
+
+	if calledContext != "" {
+		t.Fatalf("expected empty context passed to clientFactory in inferred mock mode, got %q", calledContext)
+	}
+	if calledNamespace != "petshop" {
+		t.Fatalf("expected provider namespace petshop, got %q", calledNamespace)
+	}
+}
+
 func TestHandleHealthReadyNoClient(t *testing.T) {
 	s := &server{}
 	rr := httptest.NewRecorder()

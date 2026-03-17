@@ -218,6 +218,17 @@ function indexToAlpha(index) {
   return out
 }
 
+export function highlightJSON(source) {
+  const raw = String(source || '')
+  if (!raw) {
+    return ''
+  }
+  return escapeHtml(raw).replace(
+    /(&quot;[^&]+&quot;)(?=\s*:)/g,
+    '<span class="view__token view__token--yaml-key">$1</span>',
+  )
+}
+
 export function highlightContent(source, mode = 'default') {
   const raw = String(source || '')
   if (!raw) {

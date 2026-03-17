@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { availableViewsForNode, nodeRequestParams, viewLabel } from '../resourceViews'
 import MenuHeader from './MenuHeader.vue'
 
-import { highlightContent } from '../highlighter'
+import { highlightContent, highlightJSON } from '../highlighter'
 
 const props = defineProps({
   node: {
@@ -77,6 +77,7 @@ const endpointMap = {
   logs: 'logs',
   events: 'events',
   hubble: 'hubble',
+  cert: 'cert',
   yaml: 'yaml',
 }
 
@@ -92,7 +93,7 @@ const content = computed(() => currentPayload.value?.content || '')
 const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
 const supportsContentFilter = computed(() => {
   const view = String(activeView.value || '').toLowerCase()
-  return view === 'logs' || view === 'events' || view === 'hubble' || view === 'yaml'
+  return view === 'logs' || view === 'events' || view === 'hubble' || view === 'yaml' || view === 'cert'
 })
 const viewRequestScope = computed(() => [
   String(props.contextName || '').trim(),
@@ -121,7 +122,7 @@ const contentFilterStats = computed(() => {
 const highlightedContent = computed(() => {
   const view = (activeView.value || '').toLowerCase()
   let mode = 'default'
-  if (view === 'yaml' || view === 'describe') {
+  if (view === 'yaml' || view === 'describe' || view === 'cert') {
     mode = 'yaml'
   } else if (view === 'logs' || view === 'events') {
     mode = 'logs'
@@ -132,7 +133,7 @@ const highlightedContent = computed(() => {
 })
 
 watch(
-  () => [props.node?.key, props.initialView, views.value.join(',')],
+  () => [props.node?.key, views.value.join(',')],
   () => {
     cache.value = {}
     error.value = ''
@@ -162,7 +163,7 @@ watch(highlightedContent, async () => {
 watch(
   activeView,
   (value) => {
-    if (!value || cache.value[value]) {
+    if (!value || value === 'tree' || cache.value[value]) {
       return
     }
     fetchView(value)
@@ -172,7 +173,7 @@ watch(
 
 watch(viewRequestScope, () => {
   const view = String(activeView.value || '').trim()
-  if (!view) {
+  if (!view || view === 'tree') {
     return
   }
   cache.value = {
@@ -423,12 +424,16 @@ function shellQuote(value) {
       </nav>
 
       <p v-if="error" class="view__error">{{ error }}</p>
-      <p v-else-if="loading && !content" class="view__hint">Loading view...</p>
+      <p v-else-if="loading && !content" class="view__hint view__hint--loading">
+        <span class="view__loader" aria-hidden="true"></span>
+        <span>Loading view...</span>
+      </p>
       <p v-else-if="!views.length" class="view__hint">No backend views available for this resource.</p>
       <p v-else-if="supportsContentFilter && normalizedContentFilter && !filteredContent" class="view__hint">No lines match the filter.</p>
+      <pre v-else-if="activeView === 'tree'" ref="contentEl" class="view__content" v-html="highlightJSON(JSON.stringify(node, null, 2))"></pre>
       <pre v-else ref="contentEl" class="view__content" v-html="highlightedContent"></pre>
 
-      <div v-if="fallbackCommand || supportsContentFilter" class="view__command-row">
+      <div v-if="activeView !== 'tree' && (fallbackCommand || supportsContentFilter)" class="view__command-row">
         <div v-if="fallbackCommand" class="view__command-wrap">
           <input
             id="view-fallback-command"
@@ -688,8 +693,30 @@ function shellQuote(value) {
   color: var(--text-muted);
 }
 
+.view__hint--loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.view__loader {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--button-border) 75%, transparent);
+  border-top-color: var(--accent-color);
+  animation: view-loader-spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+
 .view__error {
   color: var(--danger-text);
+}
+
+@keyframes view-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .view__content {

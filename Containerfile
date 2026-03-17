@@ -18,6 +18,10 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /build/kompass .
+RUN addgroup -g 1000 -S kompass \
+	&& adduser -u 1000 -S -D -G kompass kompass \
+	&& chown -R 1000:1000 /app
+USER 1000:1000
 EXPOSE 8080
 ENTRYPOINT ["/app/kompass"]
 CMD ["--service", "0.0.0.0:8080"]

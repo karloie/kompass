@@ -59,7 +59,7 @@ coverage-func: build
 dev:
 	@set -e; \
 	trap 'kill $$gow_pid $$vite_pid 2>/dev/null || true' INT TERM EXIT; \
-	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS) & gow_pid=$$!; \
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --debug --mock --service $(ARGS) & gow_pid=$$!; \
 	npm run dev & vite_pid=$$!; \
 	wait $$gow_pid $$vite_pid
 

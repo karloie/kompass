@@ -105,6 +105,7 @@ var ResourceTypes = func() map[string]ResourceType {
 		"networking":                 {"🔀", nil, nil, nil},
 		"nodeselector":               {"🎯", nil, nil, nil},
 		"notreadyaddress":            {"📵", nil, nil, nil},
+		"operator":                   {"🤖", nil, nil, nil},
 		"phase":                      {"📍", nil, nil, nil},
 		"pod-ref":                    {"🫛", nil, nil, nil},
 		"podsecuritycontext":         {"🛡️", nil, nil, nil},

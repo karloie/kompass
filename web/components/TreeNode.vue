@@ -71,15 +71,32 @@ const isOpen = computed(() => {
 })
 
 const isPolicyNode = computed(() => nodeType.value.includes('policy'))
-const policyRuleDirection = computed(() => {
-  const key = nodeKey.value
-  if (key.includes('/ingress/rule/')) {
-    return 'in'
+
+const policyRuleBadge = computed(() => {
+  const key = nodeKey.value.toLowerCase()
+  const type = nodeType.value
+  const ruleType = String(props.node?.metadata?.ruleType || props.node?.metadata?.ruletype || '').toLowerCase()
+
+  let direction = ''
+  if (key.includes('/ingress/rule/') || key.includes('/ingressdeny/rule/') || type.includes('ingress')) {
+    direction = 'IN'
+  } else if (key.includes('/egress/rule/') || key.includes('/egressdeny/rule/') || type.includes('egress')) {
+    direction = 'OUT'
   }
-  if (key.includes('/egress/rule/')) {
-    return 'out'
+
+  if (!direction) {
+    return null
   }
-  return ''
+
+  const isDeny =
+    key.includes('/ingressdeny/') ||
+    key.includes('/egressdeny/') ||
+    type.includes('deny') ||
+    ruleType.includes('deny')
+
+  return isDeny
+    ? { text: `${direction} DENY`, title: `${direction === 'IN' ? 'Ingress' : 'Egress'} rule: deny`, tone: 'deny' }
+    : { text: `${direction} ALLOW`, title: `${direction === 'IN' ? 'Ingress' : 'Egress'} rule: allow`, tone: 'allow' }
 })
 
 const statusBadge = computed(() => {
@@ -107,11 +124,8 @@ const stateBadge = computed(() => {
 })
 
 const trafficBadges = computed(() => {
-  if (policyRuleDirection.value === 'in') {
-    return [{ text: 'IN RULE', title: 'Ingress rule', tone: 'rule' }]
-  }
-  if (policyRuleDirection.value === 'out') {
-    return [{ text: 'OUT RULE', title: 'Egress rule', tone: 'rule' }]
+  if (policyRuleBadge.value) {
+    return [policyRuleBadge.value]
   }
 
   if (!isPolicyNode.value) {
@@ -120,23 +134,68 @@ const trafficBadges = computed(() => {
 
   const meta = props.node?.metadata || {}
   const badges = []
+  const keyHints = collectPolicyDirectionHints(childNodes.value)
 
   const ingress = asBool(meta.ingress)
+  const ingressState = ingress !== null ? ingress : keyHints.hasIngressRules
+  const ingressTitle =
+    ingress !== null
+      ? ingressState
+        ? 'Inbound direction: default deny enabled'
+        : 'Inbound direction: default deny not enabled'
+      : ingressState
+        ? 'Inbound direction: default deny inferred from ingress rules'
+        : 'Inbound direction: default deny inferred as disabled (no ingress rules)'
   badges.push(
-    ingress === true
-      ? { text: 'IN DENY', title: 'Inbound direction: default deny enabled', tone: 'deny' }
-      : { text: 'IN ALLOW', title: 'Inbound direction: default deny not enabled', tone: 'allow' },
+    ingressState
+      ? { text: 'IN DENY', title: ingressTitle, tone: 'deny' }
+      : { text: 'IN ALLOW', title: ingressTitle, tone: 'allow' },
   )
 
   const egress = asBool(meta.egress)
+  const egressState = egress !== null ? egress : keyHints.hasEgressRules
+  const egressTitle =
+    egress !== null
+      ? egressState
+        ? 'Outbound direction: default deny enabled'
+        : 'Outbound direction: default deny not enabled'
+      : egressState
+        ? 'Outbound direction: default deny inferred from egress rules'
+        : 'Outbound direction: default deny inferred as disabled (no egress rules)'
   badges.push(
-    egress === true
-      ? { text: 'OUT DENY', title: 'Outbound direction: default deny enabled', tone: 'deny' }
-      : { text: 'OUT ALLOW', title: 'Outbound direction: default deny not enabled', tone: 'allow' },
+    egressState
+      ? { text: 'OUT DENY', title: egressTitle, tone: 'deny' }
+      : { text: 'OUT ALLOW', title: egressTitle, tone: 'allow' },
   )
 
   return badges
 })
+
+function collectPolicyDirectionHints(nodes) {
+  const hints = {
+    hasIngressRules: false,
+    hasEgressRules: false,
+  }
+  for (const child of nodes || []) {
+    const key = String(child?.key || '').toLowerCase()
+    const type = String(child?.type || '').toLowerCase()
+    if (
+      key.includes('/ingress/rule/') ||
+      key.includes('/ingressdeny/rule/') ||
+      type.includes('ingress')
+    ) {
+      hints.hasIngressRules = true
+    }
+    if (
+      key.includes('/egress/rule/') ||
+      key.includes('/egressdeny/rule/') ||
+      type.includes('egress')
+    ) {
+      hints.hasEgressRules = true
+    }
+  }
+  return hints
+}
 
 const metadataInline = computed(() => {
   const pairs = visibleMetadataEntries.value
@@ -498,11 +557,6 @@ const visibleMetadataEntries = computed(() => {
 .tree-node__policy-badge--allow {
   color: #2fb36a;
   background: color-mix(in srgb, #2fb36a 14%, transparent);
-}
-
-.tree-node__policy-badge--rule {
-  color: #4aa6ff;
-  background: color-mix(in srgb, #4aa6ff 16%, transparent);
 }
 
 .tree-node__meta-inline {

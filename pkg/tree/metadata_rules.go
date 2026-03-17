@@ -60,6 +60,8 @@ func init() {
 		{Type: "ciliumnetworkpolicy", Field: "namespace", Path: "$.metadata.namespace", Format: "string"},
 		{Type: "ciliumnetworkpolicy", Field: "ingress", Path: "$.spec.enableDefaultDeny.ingress", Format: "bool"},
 		{Type: "ciliumnetworkpolicy", Field: "egress", Path: "$.spec.enableDefaultDeny.egress", Format: "bool"},
+		{Type: "ciliumclusterwidenetworkpolicy", Field: "ingress", Path: "$.spec.enableDefaultDeny.ingress", Format: "bool"},
+		{Type: "ciliumclusterwidenetworkpolicy", Field: "egress", Path: "$.spec.enableDefaultDeny.egress", Format: "bool"},
 
 		{Type: "persistentvolumeclaim", Field: "namespace", Path: "$.metadata.namespace", Format: "string"},
 		{Type: "persistentvolumeclaim", Field: "accessModes", Path: "$.spec.accessModes", Format: "stringArray", Condition: "notEmpty"},
@@ -189,6 +191,9 @@ func ApplyMetadataRules(resource kube.Resource, nodeMap map[string]*kube.Resourc
 		if name, ok := meta["name"].(string); ok {
 			metadata["name"] = name
 		}
+	}
+	if kind, ok := data["kind"].(string); ok && kind != "" {
+		metadata["kind"] = kind
 	}
 
 	for _, rule := range MetadataRules {

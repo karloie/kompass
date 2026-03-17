@@ -126,6 +126,7 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 
 	labels := collectMetadataLabels(meta, parentMeta, parentNamespace, hiddenFields, nodeType, hasDisplayPrefix)
 	display = appendProbeStatus(display, nodeType, meta, plain)
+	display = appendOperatorBadge(display, meta, plain)
 
 	statusValue := deriveStatusValue(nodeType, meta)
 	if statusValue != "" && !isProbeNode(nodeType) {
@@ -137,6 +138,19 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 	}
 
 	return display
+}
+
+func appendOperatorBadge(display string, meta map[string]any, plain bool) string {
+	if meta == nil {
+		return display
+	}
+	if prefix, ok := meta["displayPrefix"].(string); !ok || prefix != "operator" {
+		return display
+	}
+	if plain {
+		return display + " [OPERATOR]"
+	}
+	return display + " [" + colorYellow + "OPERATOR" + colorReset + "]"
 }
 
 func isProbeNode(nodeType string) bool {

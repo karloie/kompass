@@ -660,11 +660,34 @@ func buildSecretChildren(secretKey string, secret kube.Resource, graphChildren m
 }
 
 func buildCertificateChildren(certKey string, cert kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
-	return appendGraphChildren(certKey, graphChildren, state, nodeMap)
+	children := make([]*kube.Tree, 0)
+	for _, childKey := range graphChildren[certKey] {
+		if !state.CanTraverse(childKey) {
+			continue
+		}
+		childResource, exists := nodeMap[childKey]
+		if !exists {
+			continue
+		}
+		if childResource.Type == "secret" {
+			children = append(children, NewTree(childKey, childResource.Type, map[string]any{}))
+			state.MarkSeen(childKey)
+			continue
+		}
+		childNode := buildTreeNode(childKey, graphChildren, state, nodeMap)
+		if childNode != nil {
+			children = append(children, childNode)
+		}
+	}
+	sortChildren(children)
+	return children
 }
 
 func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
 	builder := NewChildrenBuilder()
+	seenGateway := map[string]bool{}
+	routeNamespace := ParseResourceKeyRef(httpRouteKey).Namespace
+
 	for _, childKey := range graphChildren[httpRouteKey] {
 		if state.CanTraverse(childKey) {
 			childResource, exists := nodeMap[childKey]
@@ -675,8 +698,45 @@ func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphC
 				state.MarkSeen(childKey)
 				continue
 			}
+			if childResource.Type == "gateway" {
+				// Keep gateway visible under HTTPRoute, but do not expand it in this branch.
+				builder.Add(NewTree(childKey, childResource.Type, map[string]any{}))
+				state.MarkSeen(childKey)
+				seenGateway[childKey] = true
+				continue
+			}
 			builder.Add(buildTreeNode(childKey, graphChildren, state, nodeMap))
 		}
 	}
+
+	// Ensure parentRef gateways are represented even when they are not direct graph children.
+	spec := graph.M(httpRoute.AsMap()).Map("spec").Raw()
+	for _, parentRef := range graph.M(spec).MapSlice("parentRefs") {
+		kind := parentRef.String("kind")
+		if kind != "" && kind != "Gateway" {
+			continue
+		}
+		gatewayName := parentRef.String("name")
+		if gatewayName == "" {
+			continue
+		}
+		gatewayNamespace := parentRef.String("namespace")
+		if gatewayNamespace == "" {
+			gatewayNamespace = routeNamespace
+		}
+		gatewayKey := BuildResourceKeyRef("gateway", gatewayNamespace, gatewayName)
+		if seenGateway[gatewayKey] {
+			continue
+		}
+		if !state.CanTraverse(gatewayKey) {
+			continue
+		}
+		if gatewayResource, exists := nodeMap[gatewayKey]; exists && gatewayResource.Type == "gateway" {
+			builder.Add(NewTree(gatewayKey, gatewayResource.Type, map[string]any{}))
+			state.MarkSeen(gatewayKey)
+			seenGateway[gatewayKey] = true
+		}
+	}
+
 	return builder.Build()
 }

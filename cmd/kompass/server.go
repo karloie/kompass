@@ -41,6 +41,8 @@ type scopeResponse struct {
 	CurrentNamespace string   `json:"currentNamespace,omitempty"`
 }
 
+const debugStatsLogInterval = 30 * time.Second
+
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "localhost" + addr
@@ -75,6 +77,8 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		client:       client,
 		webRoot:      tree.ResolveAppWebRoot(),
 	}
+	stopDebugStats := srv.startDebugStatsLogger()
+	defer stopDebugStats()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/graph", srv.handleGraph)
 	mux.HandleFunc("/api/tree", srv.handleTree)
@@ -83,6 +87,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/app/events", srv.handleAppEvents)
 	mux.HandleFunc("/api/app/hubble", srv.handleAppHubble)
 	mux.HandleFunc("/api/app/yaml", srv.handleAppYAML)
+	mux.HandleFunc("/api/app/cert", srv.handleAppCert)
 	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
 	mux.HandleFunc("/api/healthz", srv.handleHealth("text", false))
 	mux.HandleFunc("/api/readyz", srv.handleHealth("text", true))
@@ -107,6 +112,45 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Error("Server forced to shutdown", "error", err)
 	}
 	slog.Info("Server stopped")
+}
+
+func (s *server) startDebugStatsLogger() func() {
+	if s == nil || s.client == nil {
+		return func() {}
+	}
+	if !slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+		return func() {}
+	}
+
+	done := make(chan struct{})
+	ticker := time.NewTicker(debugStatsLogInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				meta := s.client.GetResponseMeta()
+				slog.Debug(
+					"server stats",
+					"cacheEnabled", meta.CacheEnabled,
+					"cacheSize", meta.CacheSize,
+					"cacheLastSync", meta.CacheLastSync,
+					"cacheSyncInterval", meta.CacheSyncInterval,
+					"cacheTTL", meta.CacheTTL,
+					"cacheCalls", meta.CacheCalls,
+					"cacheHits", meta.CacheHits,
+					"cacheMisses", meta.CacheMisses,
+					"cacheHitRate", meta.CacheHitRate,
+				)
+			}
+		}
+	}()
+
+	return func() {
+		close(done)
+	}
 }
 
 func (s *server) handleWeb(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +291,8 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		Selectors:  selectors,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 	json.NewEncoder(w).Encode(graphOnlyResponse(result))
 }
 
@@ -283,13 +328,15 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 		Selectors:  selectors,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 	json.NewEncoder(w).Encode(treeResult)
 }
 
 func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 
 	plain := true
 	switch strings.ToLower(r.URL.Query().Get("plain")) {
@@ -314,7 +361,8 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 
 	selectors, _, provider, result, err := s.inferForRequest(r)
 	if err != nil {

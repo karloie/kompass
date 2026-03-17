@@ -360,3 +360,202 @@ func TestBuildEndpointSliceChildren_HidesPodRefForInTreePod(t *testing.T) {
 		t.Fatalf("expected no pod-ref child for in-tree pod, got %d", len(children[0].Children))
 	}
 }
+
+func TestBuildHTTPRouteChildren_ShowsGatewayAsLeaf(t *testing.T) {
+	routeKey := "httproute/applikasjonsplattform/ad-explore-web"
+	gatewayKey := "gateway/los-platform/internal-gateway"
+	serviceKey := "service/applikasjonsplattform/ad-explore-web"
+	certKey := "certificate/los-platform/default-gateway-certificate"
+	issuerKey := "clusterissuer/letsencrypt-prod"
+
+	route := kube.Resource{
+		Key:  routeKey,
+		Type: "httproute",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "ad-explore-web", "namespace": "applikasjonsplattform"},
+			"spec": map[string]any{
+				"parentRefs": []any{
+					map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		routeKey:   route,
+		gatewayKey: {Key: gatewayKey, Type: "gateway", Resource: map[string]any{"metadata": map[string]any{"name": "internal-gateway", "namespace": "los-platform"}}},
+		serviceKey: {Key: serviceKey, Type: "service", Resource: map[string]any{"metadata": map[string]any{"name": "ad-explore-web", "namespace": "applikasjonsplattform"}}},
+		certKey: {
+			Key:  certKey,
+			Type: "certificate",
+			Resource: map[string]any{
+				"metadata": map[string]any{"name": "default-gateway-certificate", "namespace": "los-platform"},
+				"spec":     map[string]any{"issuerRef": map[string]any{"kind": "ClusterIssuer", "name": "letsencrypt-prod"}},
+			},
+		},
+		issuerKey: {Key: issuerKey, Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt-prod"}}},
+	}
+
+	graphChildren := map[string][]string{
+		routeKey:   {serviceKey, gatewayKey},
+		gatewayKey: {routeKey, certKey},
+		certKey:    {issuerKey},
+	}
+
+	children := buildHTTPRouteChildren(routeKey, route, graphChildren, newTreeBuildState(), nodeMap)
+
+	hasGateway := false
+	hasService := false
+	gatewayChildrenCount := -1
+	hasCert := false
+	for _, child := range children {
+		switch child.Key {
+		case gatewayKey:
+			hasGateway = true
+			gatewayChildrenCount = len(child.Children)
+		case serviceKey:
+			hasService = true
+		case certKey:
+			hasCert = true
+		}
+	}
+
+	if !hasGateway {
+		t.Fatalf("expected gateway child under httproute")
+	}
+	if gatewayChildrenCount != 0 {
+		t.Fatalf("expected gateway to be a leaf under httproute, got %d children", gatewayChildrenCount)
+	}
+	if hasService {
+		t.Fatalf("expected service child to be hidden under httproute")
+	}
+	if hasCert {
+		t.Fatalf("expected certificate to not be projected directly under httproute")
+	}
+	_ = issuerKey
+}
+
+func TestBuildCertificateChildren_ShowsBackingSecretAsLeaf(t *testing.T) {
+	certKey := "certificate/petshop/api-cert"
+	secretKey := "secret/petshop/api-cert"
+	issuerKey := "issuer/petshop/letsencrypt"
+	secretChildKey := "configmap/petshop/unexpected"
+
+	cert := kube.Resource{
+		Key:  certKey,
+		Type: "certificate",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "api-cert", "namespace": "petshop"},
+			"spec": map[string]any{"secretName": "api-cert"},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		certKey:        cert,
+		secretKey:      {Key: secretKey, Type: "secret", Resource: map[string]any{"metadata": map[string]any{"name": "api-cert", "namespace": "petshop"}}},
+		issuerKey:      {Key: issuerKey, Type: "issuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt", "namespace": "petshop"}}},
+		secretChildKey: {Key: secretChildKey, Type: "configmap", Resource: map[string]any{"metadata": map[string]any{"name": "unexpected", "namespace": "petshop"}}},
+	}
+
+	graphChildren := map[string][]string{
+		certKey:   {issuerKey, secretKey},
+		secretKey: {secretChildKey},
+	}
+
+	children := buildCertificateChildren(certKey, cert, graphChildren, newTreeBuildState(), nodeMap)
+
+	foundSecretLeaf := false
+	foundIssuer := false
+	for _, child := range children {
+		switch child.Key {
+		case secretKey:
+			foundSecretLeaf = true
+			if len(child.Children) != 0 {
+				t.Fatalf("expected backing secret to render as leaf, got %d children", len(child.Children))
+			}
+		case issuerKey:
+			foundIssuer = true
+		}
+	}
+
+	if !foundSecretLeaf {
+		t.Fatalf("expected backing secret child under certificate")
+	}
+	if !foundIssuer {
+		t.Fatalf("expected issuer child under certificate")
+	}
+}
+
+func TestBuildHTTPRouteChildren_AddsParentRefGatewayLeafWithoutGraphEdge(t *testing.T) {
+	routeKey := "httproute/applikasjonsplattform/ad-explore-web"
+	gatewayKey := "gateway/los-platform/internal-gateway"
+
+	route := kube.Resource{
+		Key:  routeKey,
+		Type: "httproute",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "ad-explore-web", "namespace": "applikasjonsplattform"},
+			"spec": map[string]any{
+				"parentRefs": []any{
+					map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		routeKey:   route,
+		gatewayKey: {Key: gatewayKey, Type: "gateway", Resource: map[string]any{"metadata": map[string]any{"name": "internal-gateway", "namespace": "los-platform"}}},
+	}
+
+	graphChildren := map[string][]string{
+		routeKey: {},
+	}
+
+	children := buildHTTPRouteChildren(routeKey, route, graphChildren, newTreeBuildState(), nodeMap)
+
+	if len(children) != 1 {
+		t.Fatalf("expected one gateway child under httproute, got %d", len(children))
+	}
+	if children[0].Key != gatewayKey {
+		t.Fatalf("expected gateway child %q, got %q", gatewayKey, children[0].Key)
+	}
+	if len(children[0].Children) != 0 {
+		t.Fatalf("expected gateway leaf under httproute, got %d children", len(children[0].Children))
+	}
+}
+
+func TestBuildHTTPRouteChildren_DoesNotAddGatewayLeafWhenGatewayAlreadySeen(t *testing.T) {
+	routeKey := "httproute/applikasjonsplattform/ad-explore-web"
+	gatewayKey := "gateway/los-platform/internal-gateway"
+
+	route := kube.Resource{
+		Key:  routeKey,
+		Type: "httproute",
+		Resource: map[string]any{
+			"metadata": map[string]any{"name": "ad-explore-web", "namespace": "applikasjonsplattform"},
+			"spec": map[string]any{
+				"parentRefs": []any{
+					map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"},
+				},
+			},
+		},
+	}
+
+	nodeMap := map[string]kube.Resource{
+		routeKey:   route,
+		gatewayKey: {Key: gatewayKey, Type: "gateway", Resource: map[string]any{"metadata": map[string]any{"name": "internal-gateway", "namespace": "los-platform"}}},
+	}
+
+	graphChildren := map[string][]string{
+		routeKey: {},
+	}
+
+	state := newTreeBuildState()
+	state.MarkSeen(gatewayKey)
+	children := buildHTTPRouteChildren(routeKey, route, graphChildren, state, nodeMap)
+
+	if len(children) != 0 {
+		t.Fatalf("expected no gateway leaf under httproute when gateway already seen, got %d children", len(children))
+	}
+}

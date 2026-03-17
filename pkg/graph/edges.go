@@ -142,6 +142,24 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	}
 
 	if hasRoutesOrIngress {
+		if gatewayTask, ok := ResourceTypes["gateway"]; ok && gatewayTask.Loader != nil {
+			for ns := range collectHTTPRouteGatewayNamespaces(nodeMap) {
+				if ns == "" || namespaces[ns] {
+					continue
+				}
+				if resources, err := gatewayTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+					for _, r := range resources {
+						if _, exists := nodeMap[r.Key]; !exists {
+							nodeMap[r.Key] = r
+							if r.Type == "gateway" {
+								hasGateways = true
+							}
+						}
+					}
+				}
+			}
+		}
+
 		loadedExtraCertNamespaces := make(map[string]bool)
 		if certTask, ok := ResourceTypes["certificate"]; ok && certTask.Loader != nil {
 			certNamespaces := []string{"management", "cert-manager", "gateway-system", "istio-system"}
@@ -150,6 +168,20 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 			}
 			for _, ns := range certNamespaces {
 				if ns = strings.TrimSpace(ns); ns == "" || namespaces[ns] {
+					continue
+				}
+				loadedExtraCertNamespaces[ns] = true
+				if resources, err := certTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+					for _, r := range resources {
+						if _, exists := nodeMap[r.Key]; !exists {
+							nodeMap[r.Key] = r
+						}
+					}
+				}
+			}
+
+			for ns := range collectGatewayCertificateNamespaces(nodeMap) {
+				if ns == "" || namespaces[ns] || loadedExtraCertNamespaces[ns] {
 					continue
 				}
 				loadedExtraCertNamespaces[ns] = true
@@ -232,6 +264,62 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	}
 
 	return buildGraphs(keys, edges, nodeMap), nil
+}
+
+func collectHTTPRouteGatewayNamespaces(nodeMap map[string]kube.Resource) map[string]bool {
+	namespaces := map[string]bool{}
+	for _, n := range nodeMap {
+		if n.Type != "httproute" {
+			continue
+		}
+		resourceMap := n.AsMap()
+		meta := M(resourceMap).Map("metadata").Raw()
+		routeNamespace := M(meta).String("namespace")
+		spec := M(resourceMap).Map("spec").Raw()
+		for _, parentRef := range M(spec).MapSlice("parentRefs") {
+			kind := parentRef.String("kind")
+			if kind != "" && !strings.EqualFold(kind, "Gateway") {
+				continue
+			}
+			gatewayNamespace := parentRef.String("namespace")
+			if gatewayNamespace == "" {
+				gatewayNamespace = routeNamespace
+			}
+			if gatewayNamespace != "" {
+				namespaces[gatewayNamespace] = true
+			}
+		}
+	}
+	return namespaces
+}
+
+func collectGatewayCertificateNamespaces(nodeMap map[string]kube.Resource) map[string]bool {
+	namespaces := map[string]bool{}
+	for _, n := range nodeMap {
+		if n.Type != "gateway" {
+			continue
+		}
+		resourceMap := n.AsMap()
+		meta := M(resourceMap).Map("metadata").Raw()
+		gatewayNamespace := M(meta).String("namespace")
+		spec := M(resourceMap).Map("spec").Raw()
+		for _, listener := range M(spec).MapSlice("listeners") {
+			tls, ok := listener.MapOk("tls")
+			if !ok {
+				continue
+			}
+			for _, certRef := range tls.MapSlice("certificateRefs") {
+				certNamespace := certRef.String("namespace")
+				if certNamespace == "" {
+					certNamespace = gatewayNamespace
+				}
+				if certNamespace != "" {
+					namespaces[certNamespace] = true
+				}
+			}
+		}
+	}
+	return namespaces
 }
 
 func buildGraphs(keys []string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Response {

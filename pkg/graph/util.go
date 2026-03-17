@@ -187,6 +187,21 @@ func forEachPodMatchingSelector(nodes map[string]kube.Resource, namespace string
 	})
 }
 
+func forEachPodMatchingCiliumSelector(nodes map[string]kube.Resource, namespace string, selector map[string]any, fn func(kube.Resource)) {
+	forEachNodeOfType(nodes, "pod", func(node kube.Resource) {
+		meta := M(node.AsMap()).Map("metadata").Raw()
+		if meta == nil {
+			return
+		}
+		if namespace != "" && M(meta).String("namespace") != namespace {
+			return
+		}
+		if matchesCiliumLabels(selector, meta) {
+			fn(node)
+		}
+	})
+}
+
 func hasOwnerKind(meta M, ownerKind string) bool {
 	for _, owner := range extractOwnerReferences(meta) {
 		if M(owner).String("kind") == ownerKind {

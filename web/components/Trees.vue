@@ -131,6 +131,7 @@ async function fetchTree() {
       headers: {
         Accept: 'application/json',
       },
+      cache: 'no-store',
       signal: controller.signal,
     })
 
@@ -536,9 +537,8 @@ function filterTree(node, filters) {
     .map((child) => filterTree(child, filters))
     .filter(Boolean)
 
-  const namespaceMatches = filters.namespace === '' || nodeNamespace(node) === filters.namespace
   const queryMatches = !filters.matcher.hasTerms || filters.matcher.test(nodeSearchText(node))
-  const matchesSelf = namespaceMatches && queryMatches
+  const matchesSelf = queryMatches
 
   if (matchesSelf || filteredChildren.length > 0) {
     return {
@@ -610,7 +610,10 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
     <p v-else-if="!filteredRoots.length && !loading" class="tree__hint">No matches for current filters.</p>
 
     <ul v-if="!error && (roots.length || loading)" class="tree__list">
-      <li v-if="loading" class="tree__loading-row">Loading tree rows...</li>
+      <li v-if="loading" class="tree__loading-row">
+        <span class="tree__loader" aria-hidden="true"></span>
+        <span>Loading tree rows...</span>
+      </li>
       <TreeNode
         v-for="(node, index) in filteredRoots"
         :key="node?.key || `root-${index}`"
@@ -719,10 +722,29 @@ const hashLikeToken = /^[a-f0-9]{24,}$/
   color: var(--text-muted);
   font-size: 0.86rem;
   background: color-mix(in srgb, var(--button-bg) 55%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.tree__loader {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--button-border) 75%, transparent);
+  border-top-color: var(--accent-color);
+  animation: tree-loader-spin 0.8s linear infinite;
+  flex: 0 0 auto;
 }
 
 .tree__spacer {
   list-style: none;
   height: 1rem;
+}
+
+@keyframes tree-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

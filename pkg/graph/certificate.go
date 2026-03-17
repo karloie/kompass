@@ -16,6 +16,11 @@ func inferCertificate(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *ma
 		return nil
 	}
 
+	if secretName := spec.String("secretName"); secretName != "" {
+		secretKey := Key("secret", namespace, secretName)
+		addEdgeIfNodeExists(edges, *nodes, key, secretKey, "stores")
+	}
+
 	if issuerRef := spec.Map("issuerRef").Raw(); issuerRef != nil {
 		issuerName := M(issuerRef).String("name")
 		issuerKind := M(issuerRef).String("kind")

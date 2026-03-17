@@ -1,8 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +22,7 @@ import (
 
 const appTestPodKey = "pod/petshop/petshop-tennant-5689f8488b-tr5ft"
 const appTestPodName = "petshop-tennant-5689f8488b-tr5ft"
+const appTestCertificateKey = "certificate/petshop/petshop-cert"
 
 func TestHandleAppYAML(t *testing.T) {
 	s := newAppTestServer()
@@ -161,6 +168,50 @@ func TestHandleAppHubbleCombinesNetpolAndHubble(t *testing.T) {
 	}
 }
 
+func TestHandleAppCert(t *testing.T) {
+	s := newAppTestServer()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/app/cert?key="+appTestCertificateKey+"&context=mock-01&namespace=petshop", nil)
+
+	s.handleAppCert(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	var out appViewResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatalf("expected JSON app response, got err: %v body=%q", err, rr.Body.String())
+	}
+	if out.Title != "Cert" {
+		t.Fatalf("expected Cert title, got %q", out.Title)
+	}
+	if !strings.Contains(out.Content, "Certificate Analysis") {
+		t.Fatalf("expected cert view to include analysis header, got %q", out.Content)
+	}
+	if !strings.Contains(out.Content, "Certificate:") {
+		t.Fatalf("expected cert view to include certificate section, got %q", out.Content)
+	}
+	if !strings.Contains(out.Content, "Issuer Certificate:") {
+		t.Fatalf("expected cert view to include issuer certificate section, got %q", out.Content)
+	}
+	if !strings.Contains(out.Content, "DNS Names: petshop.example.com") {
+		t.Fatalf("expected cert view to include parsed SAN info, got %q", out.Content)
+	}
+}
+
+func TestHandleAppCertRejectsNonCertificate(t *testing.T) {
+	s := newAppTestServer()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/app/cert?key="+appTestPodKey+"&context=mock-01&namespace=petshop", nil)
+
+	s.handleAppCert(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%q", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "cert view is only available for certificates") {
+		t.Fatalf("expected cert-only validation error, got %q", rr.Body.String())
+	}
+}
+
 func newAppTestServer() *server {
 	model := kube.NewModel()
 	model.Pods = append(model.Pods, &corev1.Pod{
@@ -184,10 +235,88 @@ func newAppTestServer() *server {
 		Type:    "Normal",
 	})
 	model.PodLogs["petshop/"+appTestPodName] = "log line"
+	model.Certificates = append(model.Certificates, map[string]any{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata": map[string]any{
+			"namespace": "petshop",
+			"name":      "petshop-cert",
+		},
+		"spec": map[string]any{
+			"secretName": "petshop-cert",
+			"issuerRef": map[string]any{
+				"kind": "ClusterIssuer",
+				"name": "letsencrypt-prod",
+			},
+		},
+	})
+
+	tlsCRT, err := generateTestCertificateChainPEM()
+	if err != nil {
+		panic(err)
+	}
+	model.Secrets = append(model.Secrets, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "petshop",
+			Name:      "petshop-cert",
+		},
+		Data: map[string][]byte{
+			"tls.crt": tlsCRT,
+		},
+	})
 
 	return &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
 		client := kube.NewMockClient(model)
 		client.SetNamespace(namespace)
 		return client, nil
 	}}
+}
+
+func generateTestCertificateChainPEM() ([]byte, error) {
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	caTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1001),
+		Subject:               pkix.Name{CommonName: "Test Root CA"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		return nil, err
+	}
+	caCert, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		return nil, err
+	}
+
+	leafTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2002),
+		Subject:               pkix.Name{CommonName: "petshop.example.com"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(12 * time.Hour),
+		DNSNames:              []string{"petshop.example.com"},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		return nil, err
+	}
+
+	leafPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER})
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	return append(leafPEM, caPEM...), nil
 }

@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -131,6 +134,24 @@ func (s *server) handleAppYAML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAppView(w, appViewResponse{Title: "YAML", Content: body})
+}
+
+func (s *server) handleAppCert(w http.ResponseWriter, r *http.Request) {
+	target, provider, _, resource, err := s.inferAppResource(r)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if target.Type != "certificate" {
+		writeAppError(w, badRequest("cert view is only available for certificates"))
+		return
+	}
+	body, err := buildCertView(provider, resource)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeAppView(w, appViewResponse{Title: "Cert", Content: body})
 }
 
 func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube, *kube.Response, *kube.Resource, error) {
@@ -323,6 +344,219 @@ func buildYAMLView(resource *kube.Resource) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(body)), nil
+}
+
+func buildCertView(provider kube.Kube, resource *kube.Resource) (string, error) {
+	if resource == nil {
+		return "", notFound("resource not found")
+	}
+
+	certObj := resource.AsMap()
+	meta := nestedMap(certObj, "metadata")
+	spec := nestedMap(certObj, "spec")
+	certNamespace := stringValue(meta["namespace"])
+	certName := stringValue(meta["name"])
+	secretName := stringValue(spec["secretName"])
+
+	var body strings.Builder
+	body.WriteString("Certificate Analysis\n")
+	body.WriteString("- Resource: ")
+	body.WriteString(strings.TrimSpace(certName))
+	body.WriteString("\n")
+	body.WriteString("- Namespace: ")
+	body.WriteString(strings.TrimSpace(certNamespace))
+	body.WriteString("\n")
+	body.WriteString("- Secret: ")
+	if secretName == "" {
+		body.WriteString("(missing spec.secretName)\n")
+		return body.String(), nil
+	}
+	body.WriteString(secretName)
+	body.WriteString("\n\n")
+
+	secretList, err := provider.GetSecrets(certNamespace, context.Background(), metav1.ListOptions{})
+	if err != nil {
+		body.WriteString("Failed to load secrets: ")
+		body.WriteString(err.Error())
+		return body.String(), nil
+	}
+
+	var tlsCRT []byte
+	for i := range secretList.Items {
+		item := secretList.Items[i]
+		if item.Name != secretName {
+			continue
+		}
+		tlsCRT = item.Data["tls.crt"]
+		break
+	}
+
+	if len(tlsCRT) == 0 {
+		body.WriteString("No tls.crt found in secret ")
+		body.WriteString(secretName)
+		return body.String(), nil
+	}
+
+	certs, parseErr := parseCertificateChainPEM(tlsCRT)
+	if parseErr != nil {
+		body.WriteString("Failed to parse tls.crt: ")
+		body.WriteString(parseErr.Error())
+		return body.String(), nil
+	}
+	if len(certs) == 0 {
+		body.WriteString("No X.509 certificates found in tls.crt")
+		return body.String(), nil
+	}
+
+	writeX509CertificateSection(&body, "Certificate", certs[0])
+
+	if len(certs) > 1 {
+		body.WriteString("\n\n")
+		writeX509CertificateSection(&body, "Issuer Certificate", certs[1])
+	}
+
+	return body.String(), nil
+}
+
+func parseCertificateChainPEM(pemBytes []byte) ([]*x509.Certificate, error) {
+	remaining := pemBytes
+	certs := make([]*x509.Certificate, 0, 2)
+	for len(remaining) > 0 {
+		block, rest := pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+		remaining = rest
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
+func writeX509CertificateSection(body *strings.Builder, title string, cert *x509.Certificate) {
+	body.WriteString(title)
+	body.WriteString(":\n")
+	body.WriteString("- Subject: ")
+	body.WriteString(cert.Subject.String())
+	body.WriteString("\n")
+	body.WriteString("- Issuer: ")
+	body.WriteString(cert.Issuer.String())
+	body.WriteString("\n")
+	body.WriteString("- Serial Number: ")
+	body.WriteString(cert.SerialNumber.String())
+	body.WriteString("\n")
+	body.WriteString("- Not Before: ")
+	body.WriteString(cert.NotBefore.Format(time.RFC3339))
+	body.WriteString("\n")
+	body.WriteString("- Not After: ")
+	body.WriteString(cert.NotAfter.Format(time.RFC3339))
+	body.WriteString("\n")
+	body.WriteString("- Signature Algorithm: ")
+	body.WriteString(cert.SignatureAlgorithm.String())
+	body.WriteString("\n")
+	body.WriteString("- Public Key Algorithm: ")
+	body.WriteString(cert.PublicKeyAlgorithm.String())
+	body.WriteString("\n")
+	body.WriteString("- Is CA: ")
+	body.WriteString(fmt.Sprintf("%t", cert.IsCA))
+	body.WriteString("\n")
+	body.WriteString("- DNS Names: ")
+	body.WriteString(strings.Join(cert.DNSNames, ", "))
+	body.WriteString("\n")
+	body.WriteString("- IP Addresses: ")
+	if len(cert.IPAddresses) == 0 {
+		body.WriteString("\n")
+	} else {
+		ips := make([]string, 0, len(cert.IPAddresses))
+		for _, ip := range cert.IPAddresses {
+			ips = append(ips, ip.String())
+		}
+		body.WriteString(strings.Join(ips, ", "))
+		body.WriteString("\n")
+	}
+	body.WriteString("- URI SANs: ")
+	if len(cert.URIs) == 0 {
+		body.WriteString("\n")
+	} else {
+		uris := make([]string, 0, len(cert.URIs))
+		for _, uri := range cert.URIs {
+			uris = append(uris, uri.String())
+		}
+		body.WriteString(strings.Join(uris, ", "))
+		body.WriteString("\n")
+	}
+	body.WriteString("- Key Usage: ")
+	body.WriteString(strings.Join(x509KeyUsageStrings(cert.KeyUsage), ", "))
+	body.WriteString("\n")
+	body.WriteString("- Extended Key Usage: ")
+	body.WriteString(strings.Join(x509ExtKeyUsageStrings(cert.ExtKeyUsage), ", "))
+	body.WriteString("\n")
+	body.WriteString("- Subject Key ID: ")
+	body.WriteString(strings.ToUpper(hex.EncodeToString(cert.SubjectKeyId)))
+	body.WriteString("\n")
+	body.WriteString("- Authority Key ID: ")
+	body.WriteString(strings.ToUpper(hex.EncodeToString(cert.AuthorityKeyId)))
+}
+
+func x509KeyUsageStrings(usage x509.KeyUsage) []string {
+	out := make([]string, 0, 9)
+	flags := []struct {
+		mask x509.KeyUsage
+		name string
+	}{
+		{x509.KeyUsageDigitalSignature, "DigitalSignature"},
+		{x509.KeyUsageContentCommitment, "ContentCommitment"},
+		{x509.KeyUsageKeyEncipherment, "KeyEncipherment"},
+		{x509.KeyUsageDataEncipherment, "DataEncipherment"},
+		{x509.KeyUsageKeyAgreement, "KeyAgreement"},
+		{x509.KeyUsageCertSign, "CertSign"},
+		{x509.KeyUsageCRLSign, "CRLSign"},
+		{x509.KeyUsageEncipherOnly, "EncipherOnly"},
+		{x509.KeyUsageDecipherOnly, "DecipherOnly"},
+	}
+	for _, item := range flags {
+		if usage&item.mask != 0 {
+			out = append(out, item.name)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"(none)"}
+	}
+	return out
+}
+
+func x509ExtKeyUsageStrings(usages []x509.ExtKeyUsage) []string {
+	if len(usages) == 0 {
+		return []string{"(none)"}
+	}
+	out := make([]string, 0, len(usages))
+	for _, usage := range usages {
+		switch usage {
+		case x509.ExtKeyUsageServerAuth:
+			out = append(out, "ServerAuth")
+		case x509.ExtKeyUsageClientAuth:
+			out = append(out, "ClientAuth")
+		case x509.ExtKeyUsageCodeSigning:
+			out = append(out, "CodeSigning")
+		case x509.ExtKeyUsageEmailProtection:
+			out = append(out, "EmailProtection")
+		case x509.ExtKeyUsageTimeStamping:
+			out = append(out, "TimeStamping")
+		case x509.ExtKeyUsageOCSPSigning:
+			out = append(out, "OCSPSigning")
+		case x509.ExtKeyUsageAny:
+			out = append(out, "Any")
+		default:
+			out = append(out, fmt.Sprintf("%d", usage))
+		}
+	}
+	return out
 }
 
 func buildEventsView(provider kube.Kube, target appResourceTarget, resource *kube.Resource) (string, error) {

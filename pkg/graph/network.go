@@ -254,15 +254,17 @@ func inferCiliumNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, n
 		return nil
 	}
 
-	endpointSelector, _ := spec["endpointSelector"].(map[string]any)
+	endpointSelectorAny, hasEndpointSelector := spec["endpointSelector"]
+	if !hasEndpointSelector {
+		return nil
+	}
+	endpointSelector, _ := endpointSelectorAny.(map[string]any)
 	matchLabels, _ := endpointSelector["matchLabels"].(map[string]any)
 	var targetPods []string
-	if len(matchLabels) > 0 {
-		forEachPodMatchingSelector(*nodes, namespace, matchLabels, func(n kube.Resource) {
-			addEdge(edges, item.Key, n.Key, "applies-to")
-			targetPods = append(targetPods, n.Key)
-		})
-	}
+	forEachPodMatchingCiliumSelector(*nodes, namespace, matchLabels, func(n kube.Resource) {
+		addEdge(edges, item.Key, n.Key, "applies-to")
+		targetPods = append(targetPods, n.Key)
+	})
 
 	if ingress, ok := spec["ingress"].([]any); ok {
 		for ruleIdx, rule := range ingress {
@@ -390,13 +392,15 @@ func inferCiliumClusterwideNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.
 		return nil
 	}
 
-	endpointSelector, _ := spec["endpointSelector"].(map[string]any)
-	matchLabels, _ := endpointSelector["matchLabels"].(map[string]any)
-	if len(matchLabels) > 0 {
-		forEachPodMatchingSelector(*nodes, "", matchLabels, func(n kube.Resource) {
-			addEdge(edges, key, n.Key, "applies-to")
-		})
+	endpointSelectorAny, hasEndpointSelector := spec["endpointSelector"]
+	if !hasEndpointSelector {
+		return nil
 	}
+	endpointSelector, _ := endpointSelectorAny.(map[string]any)
+	matchLabels, _ := endpointSelector["matchLabels"].(map[string]any)
+	forEachPodMatchingCiliumSelector(*nodes, "", matchLabels, func(n kube.Resource) {
+		addEdge(edges, key, n.Key, "applies-to")
+	})
 
 	return nil
 }

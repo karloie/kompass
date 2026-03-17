@@ -85,6 +85,7 @@ func BuildResponseTree(graphSet *kube.Response) *kube.Response {
 		graphNodes := graphNodesForTree(graphSet)
 		treeNode := BuildTree(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
 		if treeNode != nil {
+			normalizePolicyPlacement(treeNode)
 			out.Trees = append(out.Trees, *treeNode)
 		}
 	}
