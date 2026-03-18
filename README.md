@@ -49,7 +49,7 @@ Then open:
 - `http://localhost:8080/` (web app)
 - `http://localhost:8080/api/healthz` (liveness)
 
-Quick start manifest default: `KOMPASS_AUTH_MODE=basic` with `admin/admin`.
+Standalone `kubernetes.yaml` quick start default: `KOMPASS_AUTH_MODE=basic` with `admin/admin`.
 
 **Security note:** This default is for local/quick demos only. Change credentials before shared use.
 
@@ -182,8 +182,10 @@ kompass --debug '*/petshop/*'
 
 | Endpoint | Output | Usage |
 |----------|--------|-------|
-| `/api/graph` | Graph JSON (`nodes`, `edges`, `components`) | Default JSON endpoint for topology graphing. Use `selector` and `namespace`. |
-| `/api/tree` | Tree JSON (`trees` + shared `nodes`) | Send `Accept: application/json`. Use `selector` and `namespace`. |
+| `/api/graph` | Graph JSON (`nodes`, `edges`, `components`) | Default JSON endpoint for topology graphing. Use `context`, `namespace`, and optional `selector`. |
+| `/api/tree` | Tree JSON (`trees` + shared `nodes`) | Send `Accept: application/json`. Use `context`, `namespace`, and optional `selector`. |
+| `/api/app/cilium` | Cilium diagnostics JSON view | Pod app-view endpoint combining NetworkPolicy analysis and recent flow output. |
+| `/api/app/cilium/watch` | Live Cilium stream (SSE) | Pod app-view stream used by the Cilium tab for live flow updates. |
 | `/api/metadata` | Cache/build metadata JSON | Inspect cache status plus build metadata (`gitVersion`, `gitCommit`, `buildDate`). |
 | `/api/healthz` | Liveness probe (`ok`) | Basic health endpoint for uptime checks. |
 | `/api/readyz` | Readiness probe (`ok` when ready) | Readiness endpoint used by probes/orchestration. |
@@ -192,6 +194,7 @@ Endpoints accept query parameters:
 
 | Parameter | Description |
 |-----------|-------------|
+| `context` | Kubernetes context to use |
 | `selector` | Resource selector (comma-separated, optional) |
 | `namespace` | Target namespace |
 
@@ -201,10 +204,10 @@ Graph and tree JSON responses include request metadata under `request.selectors`
 
 ```bash
 # JSON graph
-curl -u admin:admin "http://localhost:8080/api/graph?selector=deployment/myapp/frontend&namespace=default"
+curl -u admin:admin "http://localhost:8080/api/graph?context=in-cluster&selector=deployment/myapp/frontend&namespace=default"
 
 # JSON tree
-curl -u admin:admin -H "Accept: application/json" "http://localhost:8080/api/tree?namespace=production&selector=pod/production/myapp"
+curl -u admin:admin -H "Accept: application/json" "http://localhost:8080/api/tree?context=in-cluster&namespace=production&selector=pod/production/myapp"
 
 # Cache metadata
 curl -u admin:admin "http://localhost:8080/api/metadata"
@@ -222,7 +225,10 @@ Auth mode is controlled by `KOMPASS_AUTH_MODE`:
 - `oidc`: OIDC login/session auth
 - `basic`: HTTP Basic Auth with bcrypt password hash
 
-`kubernetes.yaml` quick start defaults to `basic` with `admin/admin`.
+Basic (`KOMPASS_AUTH_MODE=basic`) requires:
+
+- `KOMPASS_AUTH_BASIC_USER`
+- `KOMPASS_AUTH_BASIC_HASH` # a BCRYPT hash ($2a$... style)
 
 OIDC (`KOMPASS_AUTH_MODE=oidc`) requires:
 
@@ -231,23 +237,18 @@ OIDC (`KOMPASS_AUTH_MODE=oidc`) requires:
 - `KOMPASS_OIDC_CLIENT_SECRET`
 - `KOMPASS_OIDC_REDIRECT_URI`
 
-Basic (`KOMPASS_AUTH_MODE=basic`) requires:
-
-- `KOMPASS_AUTH_BASIC_USER`
-- `KOMPASS_AUTH_BASIC_HASH`
-
-`KOMPASS_AUTH_BASIC_HASH` must be a bcrypt hash (`$2a$...` style); salt is embedded in the hash.
-
 For shared/in-cluster deployments, use `oidc` (preferred) or `basic`, and set `KOMPASS_REQUIRE_SECURE_CONNECTION=true`.
 
-### Cilium / Hubble
+### Cilium
 
-Kompass uses the Hubble relay gRPC API for network flow data. The relay address is controlled by `KOMPASS_HUBBLE_ADDR`:
+Kompass exposes network-flow diagnostics in the Cilium tab and uses the Hubble relay gRPC API underneath. The relay address is controlled by `KOMPASS_HUBBLE_ADDR`:
 
 - **Local**: leave unset and run `kubectl port-forward -n kube-system svc/hubble-relay 4245:80`. Default is `127.0.0.1:4245`.
 - **In-cluster**: set `KOMPASS_HUBBLE_ADDR=hubble-relay.kube-system.svc.cluster.local:80` (included in `kubernetes.yaml`).
 
-If Hubble is unavailable, the Cilium tab shows an unavailable message and falls back to the `hubble` CLI if present in the container image.
+The pod app-view routes are `/api/app/cilium` and `/api/app/cilium/watch`.
+
+If Hubble relay is unavailable, the Cilium tab shows an unavailable message and falls back to the `hubble` CLI if present in the container image.
 
 ## Development
 
