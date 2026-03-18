@@ -108,6 +108,9 @@ type Metadata struct {
 	CacheHits         int64         `json:"cacheHits"`
 	CacheMisses       int64         `json:"cacheMisses"`
 	CacheHitRate      float64       `json:"cacheHitRate"`
+	GitVersion        string        `json:"gitVersion,omitempty"`
+	GitCommit         string        `json:"gitCommit,omitempty"`
+	BuildDate         string        `json:"buildDate,omitempty"`
 }
 
 type Component struct {

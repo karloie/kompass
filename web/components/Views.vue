@@ -18,6 +18,10 @@ const props = defineProps({
     type: String,
     default: '/api/app',
   },
+  commitHash: {
+    type: String,
+    default: '',
+  },
   contextName: {
     type: String,
     default: 'mock-01',
@@ -65,21 +69,30 @@ const cache = ref({})
 const copiedCommand = ref(false)
 const contentFilter = ref('')
 const contentEl = ref(null)
-const hubbleStreamLines = ref([])
-const hubbleWatching = ref(false)
+const ciliumStreamLines = ref([])
+const ciliumWatching = ref(false)
 
-const scrollToBottomViews = new Set(['logs', 'events', 'hubble'])
+const scrollToBottomViews = new Set(['logs', 'events', 'cilium'])
+const ciliumFlushIntervalMs = 500
+const ciliumMaxLines = 800
+const ciliumRawMaxLines = 4000
 
 let currentController = null
 let copiedCommandTimer = null
-let hubbleEventSource = null
+let ciliumEventSource = null
+let ciliumReconnectTimer = null
+let ciliumReconnectDelayMs = 1000
+let ciliumSessionId = 0
+let ciliumFlushTimer = null
+let ciliumPendingLines = []
+let ciliumRawLines = []
 
 const views = computed(() => availableViewsForNode(props.node))
 const endpointMap = {
   describe: 'desc',
   logs: 'logs',
   events: 'events',
-  hubble: 'hubble',
+  cilium: 'cilium',
   cert: 'cert',
   yaml: 'yaml',
 }
@@ -93,15 +106,15 @@ const titleKindEmoji = computed(() => {
   return ''
 })
 const content = computed(() => {
-  if (activeView.value === 'hubble') {
-    return hubbleStreamLines.value.join('\n')
+  if (activeView.value === 'cilium') {
+    return ciliumStreamLines.value.join('\n')
   }
   return currentPayload.value?.content || ''
 })
 const fallbackCommand = computed(() => buildFallbackCommand(activeView.value, props.node, props.contextName))
 const supportsContentFilter = computed(() => {
   const view = String(activeView.value || '').toLowerCase()
-  return view === 'logs' || view === 'events' || view === 'hubble' || view === 'yaml' || view === 'cert'
+  return view === 'logs' || view === 'events' || view === 'cilium' || view === 'yaml' || view === 'cert'
 })
 const viewRequestScope = computed(() => [
   String(props.contextName || '').trim(),
@@ -134,7 +147,7 @@ const highlightedContent = computed(() => {
     mode = 'yaml'
   } else if (view === 'logs' || view === 'events') {
     mode = 'logs'
-  } else if (view === 'hubble') {
+  } else if (view === 'cilium') {
     mode = 'cilium'
   }
   return highlightContent(filteredContent.value, mode)
@@ -171,11 +184,11 @@ watch(highlightedContent, async () => {
 watch(
   activeView,
   (value, oldValue) => {
-    if (oldValue === 'hubble' && value !== 'hubble') {
-      stopHubbleWatch()
+    if (oldValue === 'cilium' && value !== 'cilium') {
+      stopCiliumWatch()
     }
-    if (value === 'hubble') {
-      startHubbleWatch()
+    if (value === 'cilium') {
+      startCiliumWatch()
       return
     }
     if (!value || value === 'tree' || cache.value[value]) {
@@ -191,8 +204,8 @@ watch(viewRequestScope, () => {
   if (!view || view === 'tree') {
     return
   }
-  if (view === 'hubble') {
-    startHubbleWatch()
+  if (view === 'cilium') {
+    startCiliumWatch()
     return
   }
   cache.value = {
@@ -214,39 +227,166 @@ onBeforeUnmount(() => {
   if (copiedCommandTimer) {
     clearTimeout(copiedCommandTimer)
   }
-  stopHubbleWatch()
+  stopCiliumWatch()
 })
 
-function startHubbleWatch() {
-  stopHubbleWatch()
-  hubbleStreamLines.value = []
-  hubbleWatching.value = true
+function startCiliumWatch() {
+  stopCiliumWatch()
+  const sessionId = ++ciliumSessionId
+  ciliumStreamLines.value = []
+  ciliumPendingLines = []
+  ciliumRawLines = []
+  ciliumWatching.value = true
+  ciliumReconnectDelayMs = 1000
 
   const params = nodeRequestParams(props.node)
   const ctx = String(props.contextName || '').trim()
   if (ctx) params.set('context', ctx)
 
   const base = String(props.apiBase || '/api/app').replace(/\/+$/, '')
-  const url = `${base}/hubble/watch?${params.toString()}`
-  hubbleEventSource = new EventSource(url)
-  hubbleEventSource.onmessage = (e) => {
-    hubbleStreamLines.value.push(String(e.data || ''))
-  }
-  hubbleEventSource.onerror = () => {
-    hubbleWatching.value = false
-    if (hubbleEventSource) {
-      hubbleEventSource.close()
-      hubbleEventSource = null
+  const url = `${base}/cilium/watch?${params.toString()}`
+
+  const connect = () => {
+    if (sessionId !== ciliumSessionId || activeView.value !== 'cilium') {
+      return
     }
+
+    if (ciliumReconnectTimer) {
+      clearTimeout(ciliumReconnectTimer)
+      ciliumReconnectTimer = null
+    }
+
+    if (ciliumEventSource) {
+      ciliumEventSource.close()
+      ciliumEventSource = null
+    }
+
+    ciliumEventSource = new EventSource(url)
+    ciliumEventSource.onmessage = (e) => {
+      ciliumWatching.value = true
+      ciliumReconnectDelayMs = 1000
+      enqueueCiliumLine(String(e.data || ''))
+    }
+    ciliumEventSource.onerror = () => {
+      if (sessionId !== ciliumSessionId || activeView.value !== 'cilium') {
+        return
+      }
+      ciliumWatching.value = false
+      if (ciliumEventSource) {
+        ciliumEventSource.close()
+        ciliumEventSource = null
+      }
+      ciliumReconnectTimer = setTimeout(connect, ciliumReconnectDelayMs)
+      ciliumReconnectDelayMs = Math.min(ciliumReconnectDelayMs * 2, 10000)
+    }
+  }
+
+  connect()
+}
+
+function stopCiliumWatch() {
+  ciliumSessionId++
+  ciliumWatching.value = false
+  ciliumReconnectDelayMs = 1000
+  if (ciliumFlushTimer) {
+    clearTimeout(ciliumFlushTimer)
+    ciliumFlushTimer = null
+  }
+  ciliumPendingLines = []
+  ciliumRawLines = []
+  if (ciliumReconnectTimer) {
+    clearTimeout(ciliumReconnectTimer)
+    ciliumReconnectTimer = null
+  }
+  if (ciliumEventSource) {
+    ciliumEventSource.close()
+    ciliumEventSource = null
   }
 }
 
-function stopHubbleWatch() {
-  hubbleWatching.value = false
-  if (hubbleEventSource) {
-    hubbleEventSource.close()
-    hubbleEventSource = null
+function enqueueCiliumLine(line) {
+  const text = String(line || '').trim()
+  if (!text) {
+    return
   }
+  ciliumPendingLines.push(text)
+  if (ciliumFlushTimer) {
+    return
+  }
+  ciliumFlushTimer = setTimeout(flushCiliumLines, ciliumFlushIntervalMs)
+}
+
+function flushCiliumLines() {
+  ciliumFlushTimer = null
+  if (!ciliumPendingLines.length) {
+    return
+  }
+
+  const combinedRaw = ciliumRawLines.concat(ciliumPendingLines)
+  ciliumPendingLines = []
+  if (combinedRaw.length > ciliumRawMaxLines) {
+    ciliumRawLines = combinedRaw.slice(combinedRaw.length - ciliumRawMaxLines)
+  } else {
+    ciliumRawLines = combinedRaw
+  }
+  const collapsed = collapseConsecutiveCiliumVerdicts(ciliumRawLines)
+  if (collapsed.length > ciliumMaxLines) {
+    ciliumStreamLines.value = collapsed.slice(collapsed.length - ciliumMaxLines)
+    return
+  }
+  ciliumStreamLines.value = collapsed
+}
+
+function collapseConsecutiveCiliumVerdicts(lines) {
+  const out = []
+  let i = 0
+  while (i < lines.length) {
+    const current = String(lines[i] || '').trim()
+    if (!current) {
+      i++
+      continue
+    }
+    const verdict = ciliumVerdictKind(current)
+    if (!verdict) {
+      out.push(current)
+      i++
+      continue
+    }
+
+    let j = i + 1
+    while (j < lines.length && ciliumVerdictKind(lines[j]) === verdict) {
+      j++
+    }
+
+    const runLen = j - i
+    if (runLen === 1) {
+      out.push(current)
+    } else {
+      const startTs = ciliumLineTimePrefix(lines[i])
+      const endTs = ciliumLineTimePrefix(lines[j-1])
+      const ts = startTs && endTs ? `${startTs}..${endTs}` : (startTs || endTs || '--:--:--')
+      const label = verdict === 'ALLOW' ? 'FORWARDED' : 'DROPPED'
+      out.push(`${ts} [collapsed] ${label} x${runLen}`)
+    }
+    i = j
+  }
+  return out
+}
+
+function ciliumVerdictKind(line) {
+  const upper = String(line || '').toUpperCase()
+  if (upper.includes('FORWARDED')) {
+    return 'ALLOW'
+  }
+  if (upper.includes('DROPPED')) {
+    return 'DROP'
+  }
+  return ''
+}
+
+function ciliumLineTimePrefix(line) {
+  const m = String(line || '').match(/^(\d{2}:\d{2}:\d{2})/) 
+  return m ? m[1] : ''
 }
 
 function pickInitialView() {
@@ -281,8 +421,8 @@ function reloadActiveView(view) {
   if (next === 'tree') {
     return
   }
-  if (next === 'hubble') {
-    startHubbleWatch()
+  if (next === 'cilium') {
+    startCiliumWatch()
     return
   }
   cache.value = {
@@ -394,14 +534,14 @@ function buildFallbackCommand(view, node, contextName) {
       return `${appendCommandScopeFlags(`${kubectl} get events --field-selector involvedObject.name=${shellQuote(target.name)} --sort-by=.lastTimestamp`, namespace, context)} | tail -n 100`
     case 'yaml':
       return appendCommandScopeFlags(`${kubectl} get ${kind} ${name} -o yaml`, namespace, context)
-    case 'hubble': {
+    case 'cilium': {
       if (target.type !== 'pod' || !target.namespace) {
         return appendCommandScopeFlags(`${kubectl} get netpol`, namespace, context)
       }
       const podRef = `${target.namespace}/${target.name}`
-      const hubble = appendCommandScopeFlags(`hubble observe --pod ${name} --last 100`, namespace, context)
-      const cilium = appendContextFlag(`cilium monitor --related-to ${shellQuote(podRef)}`, context)
-      return `${hubble} || ${cilium}`
+      const ciliumObserve = appendCommandScopeFlags(`hubble observe --pod ${name} --last 100`, namespace, context)
+      const ciliumMonitor = appendContextFlag(`cilium monitor --related-to ${shellQuote(podRef)}`, context)
+      return `${ciliumObserve} || ${ciliumMonitor}`
     }
     default:
       return appendCommandScopeFlags(`${kubectl} describe ${kind} ${name}`, namespace, context)
@@ -461,6 +601,7 @@ function shellQuote(value) {
   <section class="view">
     <MenuHeader
       class="view__menu-header"
+      :commit-hash="commitHash"
       :context-name="contextName"
       :contexts="contexts"
       :namespace="namespace"
@@ -505,7 +646,7 @@ function shellQuote(value) {
           type="button"
           @click="selectView(view)"
         >
-          {{ viewLabel(view) }}<span v-if="view === 'hubble' && hubbleWatching" class="view__tab-live" aria-label="live stream">●</span>
+          {{ viewLabel(view) }}<span v-if="view === 'cilium' && ciliumWatching" class="view__tab-live" aria-label="live stream">●</span>
         </button>
 
       </nav>

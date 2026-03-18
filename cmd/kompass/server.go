@@ -19,6 +19,7 @@ import (
 
 	"strings"
 
+	"github.com/karloie/kompass/pkg/auth"
 	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/pipeline"
@@ -39,6 +40,7 @@ type server struct {
 	providerMu     sync.Mutex
 	webRoot        fs.FS
 	fullGraphCache map[string]*cachedGraphEntry // keyed by context|namespace
+	authConfig     *auth.Config
 
 	providerGetCalls int64
 	providerReuse    int64
@@ -54,6 +56,17 @@ type scopeResponse struct {
 
 const debugStatsLogInterval = 30 * time.Second
 
+func shortCommitHash(raw string) string {
+	hash := strings.TrimSpace(raw)
+	if hash == "" || strings.EqualFold(hash, "none") {
+		return ""
+	}
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
+}
+
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "localhost" + addr
@@ -62,6 +75,14 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		slog.Error(msg, "error", err)
 		os.Exit(1)
 	}
+
+	// Load auth config early
+	authCfg, err := auth.LoadConfig(addr)
+	if err != nil {
+		fatalStart("Failed to load auth config", err)
+	}
+	authCfg.LogStartup(addr)
+
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
 	parts := strings.Split(addr, ":")
 	port := ":" + parts[len(parts)-1]
@@ -88,17 +109,26 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 		client:         client,
 		webRoot:        tree.ResolveAppWebRoot(),
 		fullGraphCache: make(map[string]*cachedGraphEntry),
+		authConfig:     authCfg,
 	}
 	stopDebugStats := srv.startDebugStatsLogger()
 	defer stopDebugStats()
 	mux := http.NewServeMux()
+
+	// Auth endpoints (public, not protected by middleware)
+	mux.HandleFunc("/auth/login", srv.authConfig.HandleLogin)
+	mux.HandleFunc("/auth/callback", srv.authConfig.HandleCallback)
+	mux.HandleFunc("/auth/logout", srv.authConfig.HandleLogout)
+	mux.HandleFunc("/auth/user", srv.authConfig.HandleUserInfo)
+
+	// Protected API routes
 	mux.HandleFunc("/api/graph", srv.handleGraph)
 	mux.HandleFunc("/api/tree", srv.handleTree)
 	mux.HandleFunc("/api/app/desc", srv.handleAppDescribe)
 	mux.HandleFunc("/api/app/logs", srv.handleAppLogs)
 	mux.HandleFunc("/api/app/events", srv.handleAppEvents)
-	mux.HandleFunc("/api/app/hubble", srv.handleAppHubble)
-	mux.HandleFunc("/api/app/hubble/watch", srv.handleAppHubbleWatch)
+	mux.HandleFunc("/api/app/cilium", srv.handleAppHubble)
+	mux.HandleFunc("/api/app/cilium/watch", srv.handleAppHubbleWatch)
 	mux.HandleFunc("/api/app/yaml", srv.handleAppYAML)
 	mux.HandleFunc("/api/app/cert", srv.handleAppCert)
 	mux.HandleFunc("/api/health", srv.handleHealth("json", false))
@@ -107,7 +137,11 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/api/metadata", srv.handleMetadata)
 	mux.HandleFunc("/api/scope", srv.handleScope)
 	mux.HandleFunc("/", srv.handleWeb)
-	httpServer := &http.Server{Addr: addr, Handler: mux}
+
+	// Wrap mux with auth middleware
+	handler := authCfg.Middleware(mux)
+
+	httpServer := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		slog.Info("Server ready", "url", "http://localhost"+port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -219,6 +253,9 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.client.GetResponseMeta()
+	meta.GitVersion = strings.TrimSpace(version)
+	meta.GitCommit = shortCommitHash(commit)
+	meta.BuildDate = strings.TrimSpace(date)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(meta)
 }
@@ -414,6 +451,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 		Static:    staticMode,
 		Context:   context_,
 		Namespace: namespace_,
+		Commit:    shortCommitHash(commit),
 	})))
 }
 
@@ -431,15 +469,11 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	if err != nil {
 		return nil, "", nil, nil, err
 	}
-	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
-	if mockProvider == "" && contextArg == "mock-01" {
-		mockProvider = "mock"
-	}
 
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 
-	provider, err := s.getProvider(mockProvider, contextArg, namespace)
+	provider, err := s.getProvider(contextArg, namespace)
 	if err != nil {
 		return nil, namespace, nil, nil, err
 	}
@@ -472,31 +506,19 @@ func graphOnlyResponse(result *kube.Response) *kube.Response {
 	}
 }
 
-func (s *server) getProvider(mockProvider, contextArg, namespace string) (kube.Kube, error) {
+func (s *server) getProvider(contextArg, namespace string) (kube.Kube, error) {
 	atomic.AddInt64(&s.providerGetCalls, 1)
 
 	if s.clientFactory != nil {
 		atomic.AddInt64(&s.providerInit, 1)
-		slog.Debug("provider resolve", "path", "clientFactory", "context", contextArg, "namespace", namespace, "mockProvider", mockProvider)
-		if mockProvider != "" {
-			return s.clientFactory("", namespace)
-		}
+		slog.Debug("provider resolve", "path", "clientFactory", "context", contextArg, "namespace", namespace)
 		return s.clientFactory(contextArg, namespace)
 	}
-	if mockProvider != "" {
-		if mockProvider != "mock" {
-			return nil, fmt.Errorf("unknown mock provider: %s", mockProvider)
-		}
-		if s.client != nil && s.client.IsMockMode() {
-			s.client.SetNamespace(namespace)
-			atomic.AddInt64(&s.providerReuse, 1)
-			slog.Debug("provider resolve", "path", "reuse-mock-server-client", "context", contextArg, "namespace", namespace)
-			return s.client, nil
-		}
-		atomic.AddInt64(&s.providerInit, 1)
-		slog.Debug("provider resolve", "path", "init-mock-client", "context", contextArg, "namespace", namespace)
-		provider, _, _, err := initProvider(true, "", namespace)
-		return provider, err
+	if s.client != nil && s.client.IsMockMode() {
+		s.client.SetNamespace(namespace)
+		atomic.AddInt64(&s.providerReuse, 1)
+		slog.Debug("provider resolve", "path", "reuse-mock-server-client", "context", contextArg, "namespace", namespace)
+		return s.client, nil
 	}
 	if s.client != nil && !s.client.IsMockMode() && (contextArg == "" || contextArg == s.contextArg) {
 		s.client.SetNamespace(namespace)

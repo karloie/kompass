@@ -64,7 +64,7 @@ spec:
             medium: Memory
       containers:
         - name: kompass
-          image: karloie/kompass:0.0.13
+          image: karloie/kompass:0.0.14
           imagePullPolicy: Always
           args:
             - --service
@@ -78,6 +78,36 @@ spec:
           env:
             - name: KOMPASS_K8S_TIMEOUT
               value: 30s
+            # Set to the in-cluster service address when deployed in Kubernetes.
+            - name: KOMPASS_HUBBLE_ADDR
+              value: hubble-relay.kube-system.svc.cluster.local:80
+            # Quickstart auth defaults (dev/demo): admin/admin.
+            - name: KOMPASS_AUTH_MODE
+              value: basic
+            - name: KOMPASS_AUTH_BASIC_USER
+              value: admin
+            - name: KOMPASS_AUTH_BASIC_HASH
+              value: "$2a$10$.iqlux/gKZVQmMzDu9BthusjBdPWMinbHhBknK1GYmHNIOxJOpuCW"
+            - name: KOMPASS_REQUIRE_SECURE_CONNECTION
+              value: "false"
+
+            # OIDC example (recommended for shared deployment):
+            # - name: KOMPASS_AUTH_MODE
+            #   value: oidc
+            # - name: KOMPASS_OIDC_ISSUER_URL
+            #   value: https://auth.petshop.com/realms/tennant
+            # - name: KOMPASS_OIDC_CLIENT_ID
+            #   value: kompass
+            # - name: KOMPASS_OIDC_REDIRECT_URI
+            #   value: https://kompass.petshop.com/auth/callback
+            # - name: KOMPASS_REQUIRE_SECURE_CONNECTION
+            #   value: "true"
+            # - name: KOMPASS_OIDC_CLIENT_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: kompass-auth
+            #       key: oidc-client-secret
+
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

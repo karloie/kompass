@@ -22,6 +22,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  commitHash: {
+    type: String,
+    default: '',
+  },
   loading: {
     type: Boolean,
     default: false,
@@ -57,6 +61,14 @@ const contextOptions = computed(() => {
   return [...out]
 })
 
+const shortCommitHash = computed(() => {
+  const value = String(props.commitHash || '').trim()
+  if (!value) {
+    return ''
+  }
+  return value.length > 7 ? value.slice(0, 7) : value
+})
+
 function onContextChange(event) {
   emit('update:context', event.target.value)
 }
@@ -85,6 +97,7 @@ function onSelectorsInput(event) {
     <select class="shared-header__select" :value="namespace" :disabled="disabled" @change="onNamespaceChange">
       <option v-for="item in namespaces" :key="item" :value="item">{{ item }}</option>
     </select>
+    <span v-if="shortCommitHash" class="shared-header__commit" :title="`Commit ${commitHash}`">#{{ shortCommitHash }}</span>
     <button
       class="shared-header__btn shared-header__btn--icon"
       type="button"
@@ -167,8 +180,15 @@ function onSelectorsInput(event) {
 }
 
 .shared-header__btn--icon {
-  margin-left: auto;
   min-width: 2.2rem;
+}
+
+.shared-header__commit {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
 
 .shared-header__btn:disabled,
