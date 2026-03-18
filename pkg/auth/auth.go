@@ -65,14 +65,14 @@ func LoadConfig(addr string) (*Config, error) {
 			return nil, fmt.Errorf("KOMPASS_AUTH_MODE=oidc but KOMPASS_OIDC_REDIRECT_URI not set")
 		}
 	case "basic":
-		cfg.BasicAuthUser = strings.TrimSpace(os.Getenv("KOMPASS_BASIC_AUTH_USER"))
-		cfg.BasicAuthHash = strings.TrimSpace(os.Getenv("KOMPASS_BASIC_AUTH_HASH"))
+		cfg.BasicAuthUser = strings.TrimSpace(os.Getenv("KOMPASS_AUTH_BASIC_USER"))
+		cfg.BasicAuthHash = strings.TrimSpace(os.Getenv("KOMPASS_AUTH_BASIC_HASH"))
 
 		if cfg.BasicAuthUser == "" {
-			return nil, fmt.Errorf("KOMPASS_AUTH_MODE=basic but KOMPASS_BASIC_AUTH_USER not set")
+			return nil, fmt.Errorf("KOMPASS_AUTH_MODE=basic but KOMPASS_AUTH_BASIC_USER not set")
 		}
 		if cfg.BasicAuthHash == "" {
-			return nil, fmt.Errorf("KOMPASS_AUTH_MODE=basic but KOMPASS_BASIC_AUTH_HASH not set")
+			return nil, fmt.Errorf("KOMPASS_AUTH_MODE=basic but KOMPASS_AUTH_BASIC_HASH not set")
 		}
 	default:
 		return nil, fmt.Errorf("invalid KOMPASS_AUTH_MODE=%q (must be none|oidc|basic)", mode)

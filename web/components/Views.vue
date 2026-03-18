@@ -73,6 +73,8 @@ const hubbleStreamLines = ref([])
 const hubbleWatching = ref(false)
 
 const scrollToBottomViews = new Set(['logs', 'events', 'hubble'])
+const hubbleFlushIntervalMs = 120
+const hubbleMaxLines = 1500
 
 let currentController = null
 let copiedCommandTimer = null
@@ -80,6 +82,8 @@ let hubbleEventSource = null
 let hubbleReconnectTimer = null
 let hubbleReconnectDelayMs = 1000
 let hubbleSessionId = 0
+let hubbleFlushTimer = null
+let hubblePendingLines = []
 
 const views = computed(() => availableViewsForNode(props.node))
 const endpointMap = {
@@ -228,6 +232,7 @@ function startHubbleWatch() {
   stopHubbleWatch()
   const sessionId = ++hubbleSessionId
   hubbleStreamLines.value = []
+  hubblePendingLines = []
   hubbleWatching.value = true
   hubbleReconnectDelayMs = 1000
 
@@ -257,7 +262,7 @@ function startHubbleWatch() {
     hubbleEventSource.onmessage = (e) => {
       hubbleWatching.value = true
       hubbleReconnectDelayMs = 1000
-      hubbleStreamLines.value.push(String(e.data || ''))
+      enqueueHubbleLine(String(e.data || ''))
     }
     hubbleEventSource.onerror = () => {
       if (sessionId !== hubbleSessionId || activeView.value !== 'hubble') {
@@ -280,6 +285,11 @@ function stopHubbleWatch() {
   hubbleSessionId++
   hubbleWatching.value = false
   hubbleReconnectDelayMs = 1000
+  if (hubbleFlushTimer) {
+    clearTimeout(hubbleFlushTimer)
+    hubbleFlushTimer = null
+  }
+  hubblePendingLines = []
   if (hubbleReconnectTimer) {
     clearTimeout(hubbleReconnectTimer)
     hubbleReconnectTimer = null
@@ -288,6 +298,33 @@ function stopHubbleWatch() {
     hubbleEventSource.close()
     hubbleEventSource = null
   }
+}
+
+function enqueueHubbleLine(line) {
+  const text = String(line || '').trim()
+  if (!text) {
+    return
+  }
+  hubblePendingLines.push(text)
+  if (hubbleFlushTimer) {
+    return
+  }
+  hubbleFlushTimer = setTimeout(flushHubbleLines, hubbleFlushIntervalMs)
+}
+
+function flushHubbleLines() {
+  hubbleFlushTimer = null
+  if (!hubblePendingLines.length) {
+    return
+  }
+
+  const combined = hubbleStreamLines.value.concat(hubblePendingLines)
+  hubblePendingLines = []
+  if (combined.length > hubbleMaxLines) {
+    hubbleStreamLines.value = combined.slice(combined.length - hubbleMaxLines)
+    return
+  }
+  hubbleStreamLines.value = combined
 }
 
 function pickInitialView() {

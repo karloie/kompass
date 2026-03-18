@@ -64,7 +64,7 @@ spec:
             medium: Memory
       containers:
         - name: kompass
-          image: karloie/kompass:0.0.13
+          image: karloie/kompass:0.0.14
           imagePullPolicy: Always
           args:
             - --service
@@ -87,9 +87,9 @@ spec:
             # Replace before shared or production use.
             - name: KOMPASS_AUTH_MODE
               value: basic
-            - name: KOMPASS_BASIC_AUTH_USER
+            - name: KOMPASS_AUTH_BASIC_USER
               value: admin
-            - name: KOMPASS_BASIC_AUTH_HASH
+            - name: KOMPASS_AUTH_BASIC_HASH
               value: "$2a$10$.iqlux/gKZVQmMzDu9BthusjBdPWMinbHhBknK1GYmHNIOxJOpuCW"
             - name: KOMPASS_REQUIRE_SECURE_CONNECTION
               value: "false"

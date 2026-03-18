@@ -57,7 +57,7 @@ For shared/in-cluster deployments:
 
 - For production/shared use, switch to `KOMPASS_AUTH_MODE=oidc` (preferred)
 - For OIDC, set `KOMPASS_OIDC_ISSUER_URL`, `KOMPASS_OIDC_CLIENT_ID`, `KOMPASS_OIDC_CLIENT_SECRET`, `KOMPASS_OIDC_REDIRECT_URI`
-- For Basic, set `KOMPASS_BASIC_AUTH_USER`, `KOMPASS_BASIC_AUTH_HASH` (bcrypt)
+- For Basic, set `KOMPASS_AUTH_BASIC_USER`, `KOMPASS_AUTH_BASIC_HASH` (bcrypt)
 - Set `KOMPASS_REQUIRE_SECURE_CONNECTION=true` outside local dev
 
 ## CLI Quick Start
@@ -184,7 +184,7 @@ kompass --debug '*/petshop/*'
 |----------|--------|-------|
 | `/api/graph` | Graph JSON (`nodes`, `edges`, `components`) | Default JSON endpoint for topology graphing. Use `selector` and `namespace`. |
 | `/api/tree` | Tree JSON (`trees` + shared `nodes`) | Send `Accept: application/json`. Use `selector` and `namespace`. |
-| `/api/metadata` | Cache/request metadata JSON | Inspect cache status and request metadata. |
+| `/api/metadata` | Cache/build metadata JSON | Inspect cache status plus build metadata (`gitVersion`, `gitCommit`, `buildDate`). |
 | `/api/healthz` | Liveness probe (`ok`) | Basic health endpoint for uptime checks. |
 | `/api/readyz` | Readiness probe (`ok` when ready) | Readiness endpoint used by probes/orchestration. |
 
@@ -233,10 +233,10 @@ OIDC (`KOMPASS_AUTH_MODE=oidc`) requires:
 
 Basic (`KOMPASS_AUTH_MODE=basic`) requires:
 
-- `KOMPASS_BASIC_AUTH_USER`
-- `KOMPASS_BASIC_AUTH_HASH`
+- `KOMPASS_AUTH_BASIC_USER`
+- `KOMPASS_AUTH_BASIC_HASH`
 
-`KOMPASS_BASIC_AUTH_HASH` must be a bcrypt hash (`$2a$...` style); salt is embedded in the hash.
+`KOMPASS_AUTH_BASIC_HASH` must be a bcrypt hash (`$2a$...` style); salt is embedded in the hash.
 
 For shared/in-cluster deployments, use `oidc` (preferred) or `basic`, and set `KOMPASS_REQUIRE_SECURE_CONNECTION=true`.
 
@@ -247,7 +247,7 @@ Kompass uses the Hubble relay gRPC API for network flow data. The relay address 
 - **Local**: leave unset and run `kubectl port-forward -n kube-system svc/hubble-relay 4245:80`. Default is `127.0.0.1:4245`.
 - **In-cluster**: set `KOMPASS_HUBBLE_ADDR=hubble-relay.kube-system.svc.cluster.local:80` (included in `kubernetes.yaml`).
 
-If Hubble is unavailable, the Cilium tab shows a unavailable message and falls back to the `hubble` CLI if present in the container image.
+If Hubble is unavailable, the Cilium tab shows an unavailable message and falls back to the `hubble` CLI if present in the container image.
 
 ## Development
 

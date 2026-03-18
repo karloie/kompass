@@ -11,9 +11,9 @@
 `KOMPASS_AUTH_MODE` (default: `none`)
 - `none`: no auth
 - `oidc`: OIDC (requires KOMPASS_OIDC_ISSUER_URL, KOMPASS_OIDC_CLIENT_ID, KOMPASS_OIDC_CLIENT_SECRET, KOMPASS_OIDC_REDIRECT_URI)
-- `basic`: HTTP Basic Auth (requires KOMPASS_BASIC_AUTH_USER, KOMPASS_BASIC_AUTH_HASH)
+- `basic`: HTTP Basic Auth (requires KOMPASS_AUTH_BASIC_USER, KOMPASS_AUTH_BASIC_HASH)
 
-**KOMPASS_BASIC_AUTH_HASH**: bcrypt hash of password (e.g., `$2a$12$...`). Salt is embedded in hash.
+**KOMPASS_AUTH_BASIC_HASH**: bcrypt hash of password (e.g., `$2a$12$...`). Salt is embedded in hash.
 
 Optional: `KOMPASS_REQUIRE_SECURE_CONNECTION=true` (recommended for non-localhost)
 
