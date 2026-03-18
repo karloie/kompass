@@ -259,6 +259,39 @@ function pickInitialView() {
   return views.value[0]
 }
 
+function selectView(nextView) {
+  const view = String(nextView || '').trim()
+  if (!view) {
+    return
+  }
+  if (view !== activeView.value) {
+    activeView.value = view
+    return
+  }
+  reloadActiveView(view)
+}
+
+function reloadActiveView(view) {
+  const next = String(view || '').trim()
+  if (!next) {
+    return
+  }
+  error.value = ''
+  contentFilter.value = ''
+  if (next === 'tree') {
+    return
+  }
+  if (next === 'hubble') {
+    startHubbleWatch()
+    return
+  }
+  cache.value = {
+    ...cache.value,
+    [next]: null,
+  }
+  fetchView(next)
+}
+
 async function fetchView(view) {
   if (currentController) {
     currentController.abort()
@@ -470,7 +503,7 @@ function shellQuote(value) {
           class="view__tab"
           :class="{ 'view__tab--active': view === activeView }"
           type="button"
-          @click="activeView = view"
+          @click="selectView(view)"
         >
           {{ viewLabel(view) }}<span v-if="view === 'hubble' && hubbleWatching" class="view__tab-live" aria-label="live stream">●</span>
         </button>

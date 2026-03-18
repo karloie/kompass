@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	kube "github.com/karloie/kompass/pkg/kube"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -119,16 +118,13 @@ func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	hasRoutesOrIngress := false
 	hasGateways := false
 
-	for resourceType, task := range ResourceTypes {
+	for _, task := range ResourceTypes {
 		if task.Loader == nil {
 			continue
 		}
 		for ns := range namespaces {
 			resources, err := task.Loader(provider, ns, context.Background(), metav1.ListOptions{})
 			if err != nil {
-				if resourceType == "secret" && apierrors.IsForbidden(err) {
-					continue
-				}
 				return nil, err
 			}
 			for _, r := range resources {

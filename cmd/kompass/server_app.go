@@ -311,15 +311,11 @@ func (s *server) resolveAppTarget(r *http.Request) (appResourceTarget, kube.Kube
 	if err != nil {
 		return appResourceTarget{}, nil, err
 	}
-	mockProvider := strings.TrimSpace(r.URL.Query().Get("mock"))
-	if mockProvider == "" && providerContext == "mock-01" {
-		mockProvider = "mock"
-	}
 
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 
-	provider, err := s.getProvider(mockProvider, providerContext, providerNamespace)
+	provider, err := s.getProvider(providerContext, providerNamespace)
 	if err != nil {
 		return appResourceTarget{}, nil, err
 	}

@@ -9,7 +9,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestBuildResourceKey(t *testing.T) {
@@ -84,6 +86,42 @@ func TestClusterLoad(t *testing.T) {
 	}
 }
 
+func TestNamespacedLoadSkipsForbidden(t *testing.T) {
+	loader := namespacedLoad[corev1.ConfigMap, *corev1.ConfigMap, *corev1.ConfigMapList](
+		"configmap",
+		func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (*corev1.ConfigMapList, error) {
+			return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "configmaps"}, "", nil)
+		},
+		func(l *corev1.ConfigMapList) []corev1.ConfigMap { return l.Items },
+	)
+
+	out, err := loader(nil, "petshop", context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("expected forbidden to be skipped, got %v", err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("expected empty result, got %#v", out)
+	}
+}
+
+func TestClusterLoadSkipsForbidden(t *testing.T) {
+	loader := clusterLoad[corev1.Node, *corev1.Node, *corev1.NodeList](
+		"node",
+		func(_ Kube, _ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
+			return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "nodes"}, "", nil)
+		},
+		func(l *corev1.NodeList) []corev1.Node { return l.Items },
+	)
+
+	out, err := loader(nil, "", context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("expected forbidden to be skipped, got %v", err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("expected empty result, got %#v", out)
+	}
+}
+
 func TestConditionBasedLoad(t *testing.T) {
 	t.Run("provider missing", func(t *testing.T) {
 		loader := conditionBasedLoad(
@@ -113,6 +151,24 @@ func TestConditionBasedLoad(t *testing.T) {
 		_, err := loader(nil, "petshop", context.Background(), metav1.ListOptions{})
 		if err == nil || err.Error() != "boom" {
 			t.Fatalf("expected boom error, got %v", err)
+		}
+	})
+
+	t.Run("getter forbidden", func(t *testing.T) {
+		loader := conditionBasedLoad(
+			"certificate",
+			func(Kube) (any, bool) { return struct{}{}, true },
+			func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error) {
+				return nil, apierrors.NewForbidden(schema.GroupResource{Group: "cert-manager.io", Resource: "certificates"}, "", nil)
+			},
+			true,
+		)
+		out, err := loader(nil, "petshop", context.Background(), metav1.ListOptions{})
+		if err != nil {
+			t.Fatalf("expected forbidden to be skipped, got %v", err)
+		}
+		if len(out) != 0 {
+			t.Fatalf("expected empty result, got %#v", out)
 		}
 	})
 
@@ -153,6 +209,20 @@ func TestWorkloadLoad(t *testing.T) {
 	}
 	if len(out) != 1 || out[0].Key != "deployment/petshop/api" {
 		t.Fatalf("unexpected workload output: %#v", out)
+	}
+}
+
+func TestWorkloadLoadSkipsForbidden(t *testing.T) {
+	loader := workloadLoad("deployment", func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (any, error) {
+		return nil, apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, "", nil)
+	})
+
+	out, err := loader(nil, "petshop", context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("expected forbidden to be skipped, got %v", err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("expected empty result, got %#v", out)
 	}
 }
 

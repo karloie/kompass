@@ -293,10 +293,10 @@ func TestListDynamicResourceObjectsErrorPath(t *testing.T) {
 	})
 
 	got, err := listDynamicResourceObjects(dc, gvr, "petshop", true, context.Background(), metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("expected nil error on list failure path, got %v", err)
+	if err == nil || err.Error() != "list failed" {
+		t.Fatalf("expected list failed error, got %v", err)
 	}
-	if len(got) != 0 {
-		t.Fatalf("expected empty result on list failure path, got %#v", got)
+	if got != nil {
+		t.Fatalf("expected nil result on list failure path, got %#v", got)
 	}
 }
