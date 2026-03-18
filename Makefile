@@ -31,8 +31,13 @@ build-release: test
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
-docker-dev:
+docker-build:
 	$(DOCKER) build -f Containerfile -t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
+
+docker-run: docker-build
+	$(DOCKER) run --rm --entrypoint=/bin/ash -ti $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
+
+docker-push: docker-build
 	$(DOCKER) push $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
 
 test:
