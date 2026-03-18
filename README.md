@@ -240,6 +240,15 @@ Basic (`KOMPASS_AUTH_MODE=basic`) requires:
 
 For shared/in-cluster deployments, use `oidc` (preferred) or `basic`, and set `KOMPASS_REQUIRE_SECURE_CONNECTION=true`.
 
+### Cilium / Hubble
+
+Kompass uses the Hubble relay gRPC API for network flow data. The relay address is controlled by `KOMPASS_HUBBLE_ADDR`:
+
+- **Local**: leave unset and run `kubectl port-forward -n kube-system svc/hubble-relay 4245:80`. Default is `127.0.0.1:4245`.
+- **In-cluster**: set `KOMPASS_HUBBLE_ADDR=hubble-relay.kube-system.svc.cluster.local:80` (included in `kubernetes.yaml`).
+
+If Hubble is unavailable, the Cilium tab shows a unavailable message and falls back to the `hubble` CLI if present in the container image.
+
 ## Development
 
 ### Building

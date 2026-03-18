@@ -78,6 +78,11 @@ spec:
           env:
             - name: KOMPASS_K8S_TIMEOUT
               value: 30s
+            # Hubble relay address for Cilium network flow data.
+            # Default is 127.0.0.1:4245 (kubectl port-forward locally).
+            # Set to the in-cluster service address when deployed in Kubernetes.
+            - name: KOMPASS_HUBBLE_ADDR
+              value: hubble-relay.kube-system.svc.cluster.local:80
             # Quickstart auth defaults (dev/demo): admin/admin.
             # Replace before shared or production use.
             - name: KOMPASS_AUTH_MODE

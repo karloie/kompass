@@ -32,7 +32,11 @@ build-release: test
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
 
 docker-build:
-	$(DOCKER) build -f Containerfile -t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
+	$(DOCKER) build -f Containerfile \
+		--build-arg VERSION=$(GIT_VERSION) \
+		--build-arg COMMIT=$(GIT_COMMIT) \
+		--build-arg BUILD_DATE=$(GIT_DATE) \
+		-t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
 
 docker-run: docker-build
 	$(DOCKER) run --rm --entrypoint=/bin/ash -ti $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)

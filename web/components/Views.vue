@@ -18,6 +18,10 @@ const props = defineProps({
     type: String,
     default: '/api/app',
   },
+  commitHash: {
+    type: String,
+    default: '',
+  },
   contextName: {
     type: String,
     default: 'mock-01',
@@ -73,6 +77,9 @@ const scrollToBottomViews = new Set(['logs', 'events', 'hubble'])
 let currentController = null
 let copiedCommandTimer = null
 let hubbleEventSource = null
+let hubbleReconnectTimer = null
+let hubbleReconnectDelayMs = 1000
+let hubbleSessionId = 0
 
 const views = computed(() => availableViewsForNode(props.node))
 const endpointMap = {
@@ -219,8 +226,10 @@ onBeforeUnmount(() => {
 
 function startHubbleWatch() {
   stopHubbleWatch()
+  const sessionId = ++hubbleSessionId
   hubbleStreamLines.value = []
   hubbleWatching.value = true
+  hubbleReconnectDelayMs = 1000
 
   const params = nodeRequestParams(props.node)
   const ctx = String(props.contextName || '').trim()
@@ -228,21 +237,53 @@ function startHubbleWatch() {
 
   const base = String(props.apiBase || '/api/app').replace(/\/+$/, '')
   const url = `${base}/hubble/watch?${params.toString()}`
-  hubbleEventSource = new EventSource(url)
-  hubbleEventSource.onmessage = (e) => {
-    hubbleStreamLines.value.push(String(e.data || ''))
-  }
-  hubbleEventSource.onerror = () => {
-    hubbleWatching.value = false
+
+  const connect = () => {
+    if (sessionId !== hubbleSessionId || activeView.value !== 'hubble') {
+      return
+    }
+
+    if (hubbleReconnectTimer) {
+      clearTimeout(hubbleReconnectTimer)
+      hubbleReconnectTimer = null
+    }
+
     if (hubbleEventSource) {
       hubbleEventSource.close()
       hubbleEventSource = null
     }
+
+    hubbleEventSource = new EventSource(url)
+    hubbleEventSource.onmessage = (e) => {
+      hubbleWatching.value = true
+      hubbleReconnectDelayMs = 1000
+      hubbleStreamLines.value.push(String(e.data || ''))
+    }
+    hubbleEventSource.onerror = () => {
+      if (sessionId !== hubbleSessionId || activeView.value !== 'hubble') {
+        return
+      }
+      hubbleWatching.value = false
+      if (hubbleEventSource) {
+        hubbleEventSource.close()
+        hubbleEventSource = null
+      }
+      hubbleReconnectTimer = setTimeout(connect, hubbleReconnectDelayMs)
+      hubbleReconnectDelayMs = Math.min(hubbleReconnectDelayMs * 2, 10000)
+    }
   }
+
+  connect()
 }
 
 function stopHubbleWatch() {
+  hubbleSessionId++
   hubbleWatching.value = false
+  hubbleReconnectDelayMs = 1000
+  if (hubbleReconnectTimer) {
+    clearTimeout(hubbleReconnectTimer)
+    hubbleReconnectTimer = null
+  }
   if (hubbleEventSource) {
     hubbleEventSource.close()
     hubbleEventSource = null
@@ -461,6 +502,7 @@ function shellQuote(value) {
   <section class="view">
     <MenuHeader
       class="view__menu-header"
+      :commit-hash="commitHash"
       :context-name="contextName"
       :contexts="contexts"
       :namespace="namespace"

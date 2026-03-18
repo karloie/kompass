@@ -56,6 +56,17 @@ type scopeResponse struct {
 
 const debugStatsLogInterval = 30 * time.Second
 
+func shortCommitHash(raw string) string {
+	hash := strings.TrimSpace(raw)
+	if hash == "" || strings.EqualFold(hash, "none") {
+		return ""
+	}
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
+}
+
 func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	if strings.HasPrefix(addr, ":") {
 		addr = "localhost" + addr
@@ -242,6 +253,9 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.client.GetResponseMeta()
+	meta.GitVersion = strings.TrimSpace(version)
+	meta.GitCommit = shortCommitHash(commit)
+	meta.BuildDate = strings.TrimSpace(date)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(meta)
 }
@@ -437,6 +451,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 		Static:    staticMode,
 		Context:   context_,
 		Namespace: namespace_,
+		Commit:    shortCommitHash(commit),
 	})))
 }
 
