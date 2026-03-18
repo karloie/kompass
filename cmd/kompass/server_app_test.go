@@ -138,7 +138,7 @@ func TestHandleAppEvents_LimitsToNewest100(t *testing.T) {
 func TestHandleAppHubbleCombinesNetpolAndHubble(t *testing.T) {
 	s := newAppTestServer()
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/app/hubble?key="+appTestPodKey+"&context=mock-01&namespace=petshop", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/app/cilium?key="+appTestPodKey+"&context=mock-01&namespace=petshop", nil)
 
 	s.handleAppHubble(rr, req)
 	if rr.Code != http.StatusOK {

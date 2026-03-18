@@ -21,7 +21,7 @@ export function availableViewsForNode(node, options = {}) {
     return []
   }
   if (type === 'pod') {
-    return ['describe', 'logs', 'events', 'hubble', 'yaml']
+    return ['describe', 'logs', 'events', 'cilium', 'yaml']
   }
   if (type === 'certificate') {
     return ['cert', 'describe', 'events', 'yaml']
@@ -34,7 +34,7 @@ export function viewLabel(view) {
     describe: 'Describe',
     logs: 'Logs',
     events: 'Events',
-    hubble: 'Cilium',
+    cilium: 'Cilium',
     cert: 'Cert',
     yaml: 'YAML',
     tree: 'Tree',
@@ -46,7 +46,7 @@ export function viewShortLabel(view) {
     describe: 'D',
     logs: 'L',
     events: 'E',
-    hubble: 'C',
+    cilium: 'C',
     cert: 'C',
     yaml: 'Y',
     tree: 'T',
