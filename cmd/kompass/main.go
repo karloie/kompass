@@ -93,7 +93,7 @@ func main() {
 	slog.SetDefault(slog.New(h))
 
 	if *versionArg {
-		fmt.Printf("kompass %s\n  commit: %s\n  built:  %s\n", version, commit, date)
+		fmt.Printf("kompass %s\n  commit: %s\n  built:  %s\n", buildVersion, buildCommit, buildDate)
 		os.Exit(0)
 	}
 	if *helpArg {

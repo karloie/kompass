@@ -232,9 +232,9 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.client.GetResponseMeta()
-	meta.GitVersion = strings.TrimSpace(version)
-	meta.GitCommit = shortCommitHash(commit)
-	meta.BuildDate = strings.TrimSpace(date)
+	meta.GitVersion = strings.TrimSpace(buildVersion)
+	meta.GitCommit = shortCommitHash(buildCommit)
+	meta.BuildDate = strings.TrimSpace(buildDate)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(meta)
 }
@@ -430,7 +430,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 		Static:    staticMode,
 		Context:   context_,
 		Namespace: namespace_,
-		Commit:    shortCommitHash(commit),
+		Commit:    shortCommitHash(buildCommit),
 	})))
 }
 
