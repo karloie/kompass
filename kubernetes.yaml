@@ -64,7 +64,7 @@ spec:
             medium: Memory
       containers:
         - name: kompass
-          image: karloie/kompass:0.0.13
+          image: karloie/kompass:0.0.14
           imagePullPolicy: Always
           args:
             - --service
@@ -78,6 +78,10 @@ spec:
           env:
             - name: KOMPASS_K8S_TIMEOUT
               value: 30s
+            # Set to the in-cluster service address when deployed in Kubernetes.
+            - name: KOMPASS_HUBBLE_ADDR
+              value: hubble-relay.kube-system.svc.cluster.local:80
+
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

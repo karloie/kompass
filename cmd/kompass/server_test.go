@@ -48,7 +48,7 @@ func TestInferForRequest_ContextNamespace_NoMockBleedover(t *testing.T) {
 	}
 }
 
-func TestInferForRequest_ContextMock01_InfersMockProvider(t *testing.T) {
+func TestInferForRequest_ContextMock01_PassesThroughContext(t *testing.T) {
 	calledContext := ""
 	calledNamespace := ""
 
@@ -66,8 +66,8 @@ func TestInferForRequest_ContextMock01_InfersMockProvider(t *testing.T) {
 		t.Fatalf("inferForRequest returned error: %v", err)
 	}
 
-	if calledContext != "" {
-		t.Fatalf("expected empty context passed to clientFactory in inferred mock mode, got %q", calledContext)
+	if calledContext != "mock-01" {
+		t.Fatalf("expected context mock-01 passed to clientFactory, got %q", calledContext)
 	}
 	if calledNamespace != "petshop" {
 		t.Fatalf("expected provider namespace petshop, got %q", calledNamespace)
@@ -166,19 +166,11 @@ func TestHandleScopeForExplicitContext(t *testing.T) {
 	}
 }
 
-func TestGetProviderUnknownMock(t *testing.T) {
-	s := &server{}
-	_, err := s.getProvider("nope", "", "")
-	if err == nil {
-		t.Fatalf("expected error for unknown mock provider")
-	}
-}
-
 func TestGetProviderFromClientFactoryError(t *testing.T) {
 	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
 		return nil, errors.New("factory error")
 	}}
-	_, err := s.getProvider("", "ctx-a", "petshop")
+	_, err := s.getProvider("ctx-a", "petshop")
 	if err == nil {
 		t.Fatalf("expected error from client factory")
 	}
@@ -189,7 +181,7 @@ func TestGetProviderUsesExistingClientAndUpdatesNamespace(t *testing.T) {
 	c.SetNamespace("default")
 	s := &server{client: c}
 
-	provider, err := s.getProvider("mock", "mock-01", "petshop")
+	provider, err := s.getProvider("mock-01", "petshop")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -209,7 +201,7 @@ func TestHandleGraphSuccess(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/graph?selector=*/petshop/*&context=mock-01&namespace=petshop&mock=mock", nil)
+	req := httptest.NewRequest(http.MethodGet, "/graph?selector=*/petshop/*&context=mock-01&namespace=petshop", nil)
 
 	s.handleGraph(rr, req)
 	if rr.Code != http.StatusOK {
@@ -240,7 +232,7 @@ func TestHandleGraphAcceptsPluralSelectorsParam(t *testing.T) {
 		return c, nil
 	}}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/graph?selectors=*/petshop/*+OR+*/kafka-system/*&context=mock-01&namespace=petshop&mock=mock", nil)
+	req := httptest.NewRequest(http.MethodGet, "/graph?selectors=*/petshop/*+OR+*/kafka-system/*&context=mock-01&namespace=petshop", nil)
 
 	s.handleGraph(rr, req)
 	if rr.Code != http.StatusOK {

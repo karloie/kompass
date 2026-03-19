@@ -36,6 +36,7 @@ type HTMLBootstrapConfig struct {
 	Static    bool   `json:"staticMode"`
 	Context   string `json:"context,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
+	Commit    string `json:"commit,omitempty"`
 }
 
 func RenderAppHTML(webRoot fs.FS, payload *kube.Response, cfg HTMLBootstrapConfig) string {

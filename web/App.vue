@@ -29,12 +29,20 @@ const loading = ref(false)
 const refreshKey = ref(0)
 const activeResourceView = ref(null)
 const scopeCache = new Map()
+const runtimeCommitHash = ref('')
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
+const commitHash = computed(() => {
+  const fromBootstrap = String(props.bootstrapConfig?.commit || '').trim()
+  if (fromBootstrap) {
+    return fromBootstrap
+  }
+  return String(runtimeCommitHash.value || '').trim()
+})
 const viewContextName = computed(() => String(selectedContext.value || contextTitle.value || '').trim())
 const contextOptions = computed(() => {
   const values = new Set(contexts.value.map((item) => String(item || '').trim()).filter(Boolean))
@@ -57,8 +65,27 @@ onMounted(() => {
   const storedTheme = window.localStorage.getItem('kompass-theme')
   const preferredDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   applyTheme(storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : preferredDark ? 'dark' : 'light')
+  loadRuntimeMetadata()
   initializeScope()
 })
+
+async function loadRuntimeMetadata() {
+  try {
+    const response = await fetch('/api/metadata', {
+      headers: {
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    })
+    if (!response.ok) {
+      return
+    }
+    const payload = await response.json()
+    runtimeCommitHash.value = String(payload?.gitCommit || '').trim()
+  } catch {
+    // Keep commit badge empty when metadata endpoint is unavailable.
+  }
+}
 
 watch(scopeQueryParams, syncScopeQueryParams, { immediate: true })
 
@@ -402,6 +429,7 @@ function setCookie(name, value) {
         class="app__menu-header"
         :context-name="viewContextName"
         :contexts="contextOptions"
+        :commit-hash="commitHash"
         :theme-icon="themeIcon"
         :theme-label="themeLabel"
         :refresh-disabled="isStaticMode"
@@ -440,6 +468,7 @@ function setCookie(name, value) {
       :node="activeResourceView.node"
       :initial-view="activeResourceView.view"
       :api-base="appApiBase"
+      :commit-hash="commitHash"
       :context-name="viewContextName"
       :contexts="contextOptions"
       :namespaces="namespaces"

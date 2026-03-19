@@ -36,7 +36,8 @@ go.work.sum
 *.tgz
 *.log
 node_modules/
-dist/
-cmd/kompass/dist/
+pkg/tree/dist/
 testdata/fixtures/real.*
-deploy/applikasjonsplattform-deployments/
+deploy/
+doc/*_note*.md
+doc/*_note*.txt
