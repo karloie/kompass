@@ -12,76 +12,27 @@ permissions:
 jobs:
   workflow-validation:
     name: Workflow Validation
-    runs-on: ubuntu-latest
     concurrency:
       group: ci-workflow-${{ github.ref }}
       cancel-in-progress: true
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Install actionlint
-        run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
-
-      - name: Setup act
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Lint workflows
-        run: make wf-lint
-
-      - name: Plan-check release workflow
-        run: make wf-plan-release
-
-      - name: Plan-check goreleaser workflow
-        run: make wf-plan-goreleaser
-
-      - name: Plan-check re-release workflow
-        run: make wf-plan-rerelease
+    uses: karloie/gh-workflows/.github/workflows/ci.yml@main
+    with:
+      make_targets: wf-lint wf-plan-release wf-plan-goreleaser wf-plan-rerelease
+      go_version: '1.25'
 
   build-and-test:
     name: Build and Test
-    runs-on: ubuntu-latest
     concurrency:
       group: ci-${{ github.ref }}
       cancel-in-progress: true
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Build
-        run: make build
-
-      - name: Test
-        run: go test ./...
+    uses: karloie/gh-workflows/.github/workflows/ci.yml@main
+    with:
+      mode: build-test
+      go_version: '1.25'
+      node_version: '22'
+      node_cache: npm
+      frontend_install_cmd: npm ci
+      frontend_build_cmd: npm run build
+      go_mod_download_cmd: go mod download
+      build_cmd: make build
+      test_cmd: go test ./...
