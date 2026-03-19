@@ -1,20 +1,6 @@
 name: Build and Publish GoReleaser Artifacts
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (example: v0.0.14). Required for manual runs.'
-        required: true
-        type: string
-      publish:
-        description: 'Publish artifacts (true) or run dry-run validation only (false)'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
   push:
     tags: ['v*']
 

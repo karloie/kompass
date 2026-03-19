@@ -19,12 +19,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 	go mod download
 COPY . .
 COPY --from=frontend /build/pkg/tree/dist ./pkg/tree/dist
-ARG VERSION=dev
-ARG COMMIT=none
+ARG BUILD_VERSION=dev
+ARG BUILD_COMMIT=none
 ARG BUILD_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	CGO_ENABLED=0 go build -tags release -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" -o kompass cmd/kompass/*.go
+	CGO_ENABLED=0 go build -tags release -ldflags="-w -s -X main.buildVersion=${BUILD_VERSION} -X main.buildCommit=${BUILD_COMMIT} -X main.buildDate=${BUILD_DATE}" -o kompass cmd/kompass/*.go
 
 
 # ---------- CILIUM BUILDER ----------

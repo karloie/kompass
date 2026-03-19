@@ -1,12 +1,6 @@
 name: Build and Push Docker Image
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build and push (example: v0.0.13). Required for manual runs.'
-        required: true
-        type: string
   push:
     tags: ['v*']
 

@@ -1,4 +1,4 @@
-.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev wf-lint wf-plan-release wf-plan-goreleaser wf-plan-rerelease wf-test-release wf-test-goreleaser wf-test-rerelease
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -95,27 +95,3 @@ snapshot-real:
 	$(GO_RUN) --json  -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.json
 	$(GO_RUN)         -c $(SNAP_REAL_CONTEXT) -n $(SNAP_REAL_NAMESPACE) > $(SNAP_DIR)/real.txt
 
-wf-lint:
-	@command -v actionlint >/dev/null 2>&1 || { \
-		echo "actionlint is required (install: go install github.com/rhysd/actionlint/cmd/actionlint@latest)"; \
-		exit 1; \
-	}
-	actionlint .github/workflows/*.yml
-
-wf-plan-release:
-	$(ACT) -n workflow_dispatch -W .github/workflows/release.yml -j manual-new-release --input bump=patch -P ubuntu-latest=$(ACT_IMAGE)
-
-wf-plan-goreleaser:
-	$(ACT) -n workflow_dispatch -W .github/workflows/goreleaser.yml -j goreleaser --input tag=v0.0.14 --input publish=false -P ubuntu-latest=$(ACT_IMAGE)
-
-wf-test-release:
-	$(ACT) workflow_dispatch -W .github/workflows/release.yml -j manual-new-release --input bump=patch -P ubuntu-latest=$(ACT_IMAGE)
-
-wf-test-goreleaser:
-	$(ACT) workflow_dispatch -W .github/workflows/goreleaser.yml -j goreleaser --input tag=v0.0.14 --input publish=false -P ubuntu-latest=$(ACT_IMAGE)
-
-wf-plan-rerelease:
-	$(ACT) -n workflow_dispatch -W .github/workflows/re-release.yml -j rerelease -P ubuntu-latest=$(ACT_IMAGE)
-
-wf-test-rerelease:
-	$(ACT) workflow_dispatch -W .github/workflows/re-release.yml -j rerelease -P ubuntu-latest=$(ACT_IMAGE)

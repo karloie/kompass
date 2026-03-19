@@ -23,9 +23,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X main.build_version={{.Version}}
+      - -X main.build_commit={{.Commit}}
+      - -X main.build_date={{.Date}}
 
 universal_binaries:
   - replace: true
