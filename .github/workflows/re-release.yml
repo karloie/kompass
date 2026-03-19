@@ -1,92 +1,21 @@
-name: Re-release
+name: Re-release Latest Tag
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag to rebuild and republish (defaults to latest tag)'
-        required: false
-        type: string
 
 permissions:
   contents: write
 
 jobs:
   rerelease:
-    runs-on: ubuntu-latest
     concurrency:
-      group: rerelease-${{ inputs.tag || 'latest' }}
+      group: rerelease-latest
       cancel-in-progress: false
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Resolve tag
-        id: tag
-        run: |
-          set -euo pipefail
-
-          git fetch --tags
-          selected_tag='${{ inputs.tag }}'
-          if [ -z "$selected_tag" ]; then
-            selected_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
-          fi
-
-          if [ -z "$selected_tag" ]; then
-            echo "No tag provided and no tags found in repository."
-            exit 1
-          fi
-
-          if ! git rev-parse "$selected_tag" >/dev/null 2>&1; then
-            echo "Tag '$selected_tag' does not exist."
-            exit 1
-          fi
-
-          if [[ "$selected_tag" != v* ]]; then
-            echo "Tag '$selected_tag' does not match expected release format v*"
-            exit 1
-          fi
-
-          echo "tag=$selected_tag" >> "$GITHUB_OUTPUT"
-          echo "Re-releasing tag: $selected_tag"
-
-      - name: Checkout selected tag
-        run: |
-          git checkout "${{ steps.tag.outputs.tag }}"
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install Syft
-        uses: anchore/sbom-action/download-syft@v0
-
-      - name: Run GoReleaser (re-release)
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-
-      - name: Summary
-        run: |
-          echo "Re-released tag: ${{ steps.tag.outputs.tag }}"
-          echo "No version bump or new tag was created."
+    uses: karloie/gh-workflows/.github/workflows/re-release.yml@main
+    with:
+      image: karloie/kompass
+      tool_ref: main
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
