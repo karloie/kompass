@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.14] - 2026-03-19
+
+### Fixed
+- Cilium network flow logging in the Cilium tab now streams correctly.
+- Fixing github workflows.
+- Improved documentation and examples.
+
 ## [0.0.13] - 2026-03-17
 
 ### Added
@@ -109,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` / `-v` flag for version information
 - `--help` / `-h` flag for usage information
 
+[0.0.14]: https://github.com/karloie/kompass/releases/tag/v0.0.14
 [0.0.13]: https://github.com/karloie/kompass/releases/tag/v0.0.13
 [0.0.12]: https://github.com/karloie/kompass/releases/tag/v0.0.12
 [0.0.9]: https://github.com/karloie/kompass/releases/tag/v0.0.9

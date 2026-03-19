@@ -64,7 +64,7 @@ spec:
             medium: Memory
       containers:
         - name: kompass
-          image: karloie/kompass:0.0.14
+          image: karloie/kompass:latest
           imagePullPolicy: Always
           args:
             - --service

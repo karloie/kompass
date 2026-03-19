@@ -94,7 +94,6 @@ jobs:
           IFS='.' read -r major minor patch <<< "$version"
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "major_minor=$major.$minor" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -126,7 +125,7 @@ jobs:
           images: karloie/kompass
           tags: |
             type=raw,value=${{ steps.docker_tags.outputs.version }}
-            type=raw,value=${{ steps.docker_tags.outputs.major_minor }}
+            type=raw,value=latest
             type=sha,prefix=sha-
 
       - name: Run GoReleaser
@@ -154,5 +153,5 @@ jobs:
           echo "Released new: ${{ steps.tag.outputs.next_tag }}"
           echo "Published Docker tags:"
           echo "  - karloie/kompass:${{ steps.docker_tags.outputs.version }}"
-          echo "  - karloie/kompass:${{ steps.docker_tags.outputs.major_minor }}"
+          echo "  - karloie/kompass:latest"
           echo "  - karloie/kompass:sha-${GITHUB_SHA::7}"
