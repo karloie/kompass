@@ -10,14 +10,14 @@ import (
 	"github.com/karloie/kompass/pkg/tree"
 )
 
-// InferGraphs builds the graph response, applies tree-oriented root policies,
+// BuildGraphs builds the graph response, applies tree-oriented root policies,
 // and attaches cache stats if the provider supports them.
-func InferGraphs(provider kube.Kube, selectors []string) (*kube.Response, error) {
+func BuildGraphs(provider kube.Kube, selectors []string) (*kube.Response, error) {
 	graphStart := time.Now()
 	slog.Debug("graph generation started", "selectors", selectors)
 
 	req := kube.Request{Selectors: selectors}
-	result, err := graph.InferGraphs(provider, req)
+	result, err := graph.BuildGraphs(provider, req)
 	if err != nil {
 		slog.Debug("graph generation failed", "selectors", selectors, "duration", time.Since(graphStart).String(), "error", err)
 		return nil, err

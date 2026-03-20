@@ -27,14 +27,14 @@ func TestMockOutputStructureAndMetadata(t *testing.T) {
 	client := kube.NewMockClient(GenerateMock())
 	client.SetNamespace("petshop")
 
-	resp, err := graph.InferGraphs(
+	resp, err := graph.BuildGraphs(
 		client,
 		kube.Request{},
 	)
 	if err != nil {
-		t.Fatalf("InferGraphs failed: %v", err)
+		t.Fatalf("BuildGraphs failed: %v", err)
 	}
-	treeResp := tree.BuildResponseTree(resp)
+	treeResp := tree.BuildTrees(resp)
 
 	t.Run("GraphOrdering", func(t *testing.T) {
 		if len(resp.Components) == 0 {

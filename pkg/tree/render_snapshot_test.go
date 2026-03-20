@@ -53,7 +53,7 @@ func renderAllTrees(t *testing.T, trees *kube.Response, plain bool) string {
 
 func TestBuildAndRenderTree_FromMockSnapshot_CoversVariationPaths(t *testing.T) {
 	graphs := loadMockSnapshotGraphs(t)
-	trees := BuildResponseTree(graphs)
+	trees := BuildTrees(graphs)
 	if trees == nil || len(trees.Trees) == 0 {
 		t.Fatalf("expected response trees")
 	}

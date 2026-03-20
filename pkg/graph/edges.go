@@ -103,7 +103,7 @@ func findWorkloadRoot(key string, keyType string, nodeMap map[string]kube.Resour
 	return ""
 }
 
-func InferGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
+func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	selectors := req.NormalizedSelectors()
 	defaultNamespace := req.DefaultNamespace()
 

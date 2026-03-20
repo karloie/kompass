@@ -76,14 +76,14 @@ func sortChildren(children []*kube.Tree) {
 	})
 }
 
-func BuildResponseTree(graphSet *kube.Response) *kube.Response {
+func BuildTrees(graphSet *kube.Response) *kube.Response {
 	if graphSet == nil {
 		return nil
 	}
 	out := &kube.Response{Nodes: graphSet.Nodes, Trees: make([]kube.Tree, 0, len(graphSet.Components)), Metadata: graphSet.Metadata}
 	for i := range graphSet.Components {
 		graphNodes := graphNodesForTree(graphSet)
-		treeNode := BuildTree(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
+		treeNode := BuildTreeInternal(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
 		if treeNode != nil {
 			normalizePolicyPlacement(treeNode)
 			out.Trees = append(out.Trees, *treeNode)
@@ -109,7 +109,7 @@ func graphNodesForTree(graphSet *kube.Response) map[string]kube.Resource {
 	return nodeMap
 }
 
-func BuildTree(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Tree {
+func BuildTreeInternal(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Tree {
 	children := buildTreeAdjacency(edges, nodeMap)
 	normalizeChildrenMap(children)
 

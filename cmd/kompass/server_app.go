@@ -130,7 +130,7 @@ func (s *server) handleAppHubble(w http.ResponseWriter, r *http.Request) {
 	s.providerMu.Unlock()
 
 	if result == nil {
-		result, err = pipeline.InferGraphs(provider, nil)
+		result, err = pipeline.BuildGraphs(provider, nil)
 		if err != nil {
 			writeAppError(w, err)
 			return

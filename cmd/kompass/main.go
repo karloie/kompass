@@ -124,7 +124,7 @@ func main() {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 
-	result, err := pipeline.InferGraphs(provider, selectors)
+	result, err := pipeline.BuildGraphs(provider, selectors)
 	if err != nil {
 		slog.Error("failed to infer graph", "cluster", context_, "namespace", namespace_, "selectors", selectors, "error", err.Error())
 		os.Exit(1)
@@ -136,7 +136,7 @@ func main() {
 	if *jsonArg {
 		printGraphs(result, context_, namespace_, configPath, selectors)
 	} else {
-		printTrees(tree.BuildResponseTree(result), context_, namespace_, configPath, selectors, *plainArg)
+		printTrees(tree.BuildTrees(result), context_, namespace_, configPath, selectors, *plainArg)
 	}
 }
 

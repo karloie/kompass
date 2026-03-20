@@ -9,7 +9,7 @@ import (
 
 func TestInferGraphsSuccess(t *testing.T) {
 	provider := kube.NewMockClient(mock.GenerateMock())
-	res, err := InferGraphs(provider, []string{"*/petshop/*"})
+	res, err := BuildGraphs(provider, []string{"*/petshop/*"})
 	if err != nil {
 		t.Fatalf("expected infer graphs success, got err: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestInferGraphsSuccess(t *testing.T) {
 
 func TestInferGraphsPropagatesProviderError(t *testing.T) {
 	provider := kube.NewMockClient(mock.GenerateMock(), kube.MockConfig{AllError: true})
-	res, err := InferGraphs(provider, []string{"*/petshop/*"})
+	res, err := BuildGraphs(provider, []string{"*/petshop/*"})
 	if err == nil {
 		t.Fatalf("expected error when provider fails")
 	}

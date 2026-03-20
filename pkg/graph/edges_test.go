@@ -217,9 +217,9 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 	}
 
 	provider := kube.NewMockClient(mock.GenerateMock())
-	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"pod/petshop/*"}})
+	resp, err := BuildGraphs(provider, kube.Request{Selectors: []string{"pod/petshop/*"}})
 	if err != nil {
-		t.Fatalf("InferGraphs error: %v", err)
+		t.Fatalf("BuildGraphs error: %v", err)
 	}
 
 	if callCount["pod"] == 0 || callCount["ingress"] == 0 {
@@ -345,9 +345,9 @@ func TestInferGraphsLoadsGatewayAndCertificateFromHTTPRouteParentNamespace(t *te
 	}
 
 	provider := kube.NewMockClient(mock.GenerateMock())
-	resp, err := InferGraphs(provider, kube.Request{Selectors: []string{"service/applikasjonsplattform/ad-explore-web"}})
+	resp, err := BuildGraphs(provider, kube.Request{Selectors: []string{"service/applikasjonsplattform/ad-explore-web"}})
 	if err != nil {
-		t.Fatalf("InferGraphs error: %v", err)
+		t.Fatalf("BuildGraphs error: %v", err)
 	}
 
 	if callCount["gateway"] == 0 {
@@ -367,4 +367,3 @@ func TestInferGraphsLoadsGatewayAndCertificateFromHTTPRouteParentNamespace(t *te
 		t.Fatalf("expected clusterissuer node")
 	}
 }
-

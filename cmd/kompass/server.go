@@ -352,7 +352,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 		writeServerError(w, err)
 		return
 	}
-	treeResult := tree.BuildResponseTree(result)
+	treeResult := tree.BuildTrees(result)
 	if treeResult == nil {
 		treeResult = &kube.Response{}
 	}
@@ -397,7 +397,7 @@ func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 	header := fmt.Sprintf("🌍 Kompass Context: %s, Namespace: %s, Selectors: %v, Config: %s", context_, namespace_, selectors, configPath)
-	w.Write([]byte(tree.RenderText(tree.BuildResponseTree(result), header, plain)))
+	w.Write([]byte(tree.RenderText(tree.BuildTrees(result), header, plain)))
 }
 
 func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +416,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	configPath, _ := provider.GetConfigPath()
 	staticMode := strings.EqualFold(r.URL.Query().Get("static"), "1") || strings.EqualFold(r.URL.Query().Get("static"), "true")
 
-	treeResult := tree.BuildResponseTree(result)
+	treeResult := tree.BuildTrees(result)
 	if treeResult == nil {
 		treeResult = &kube.Response{}
 	}
@@ -469,7 +469,7 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 		return nil, namespace, nil, nil, err
 	}
 
-	result, err := pipeline.InferGraphs(provider, selectors)
+	result, err := pipeline.BuildGraphs(provider, selectors)
 	if err != nil {
 		return nil, namespace, provider, nil, err
 	}
