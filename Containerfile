@@ -45,7 +45,20 @@ RUN \
 	sha256sum -c hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum && \
 	tar -xvf hubble-linux-${HUBBLE_ARCH}.tar.gz -C /usr/local/bin
 
-	
+
+# ---------- KUBECTL BUILDER ----------
+FROM alpine:3.20 AS kubectl
+ARG KUBECTL_VERSION=v1.35.3
+RUN apk --no-cache add curl
+RUN \
+	KUBECTL_ARCH=amd64; \
+	if [ "$(uname -m)" = "aarch64" ]; then KUBECTL_ARCH=arm64; fi && \
+	curl -LO --fail "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" && \
+	curl -LO --fail "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl.sha256" && \
+	echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c && \
+	mv kubectl /usr/local/bin/kubectl
+
+
 # ---------- RUNTIME IMAGE ----------
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates
@@ -53,6 +66,7 @@ WORKDIR /app
 COPY --from=builder --chmod=0555 /build/kompass /app/kompass
 COPY --from=cilium --chmod=0555 /usr/local/bin/cilium /usr/local/bin/cilium
 COPY --from=cilium --chmod=0555 /usr/local/bin/hubble /usr/local/bin/hubble
+COPY --from=kubectl --chmod=0555 /usr/local/bin/kubectl /usr/local/bin/kubectl
 RUN addgroup -g 1000 -S kompass \
 	&& adduser -u 1000 -S -D -G kompass kompass \
 	&& chown 1000:1000 /app
