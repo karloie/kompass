@@ -11,6 +11,17 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
+// isValidKubeContext returns true if s is a safe kubeconfig context/cluster name.
+func isValidKubeContext(s string) bool {
+	for _, c := range s {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '.' || c == '_' || c == '-' || c == '/' || c == ':' || c == '@') {
+			return false
+		}
+	}
+	return true
+}
+
 // RunNetpolAnalysis fetches pod and networkpolicies via kubectl and renders
 // a human-readable verdict.
 var RunNetpolAnalysis = func(target PodTarget, context string) (string, error) {
@@ -18,8 +29,11 @@ var RunNetpolAnalysis = func(target PodTarget, context string) (string, error) {
 		return "(no pod info available)", nil
 	}
 	args := []string{"get", "pod", target.Name, "-n", target.Namespace, "-o", "json"}
-	if strings.TrimSpace(context) != "" {
-		args = append(args, "--context", strings.TrimSpace(context))
+	if ctxName := strings.TrimSpace(context); ctxName != "" {
+		if !isValidKubeContext(ctxName) {
+			return "", fmt.Errorf("invalid context name")
+		}
+		args = append(args, "--context", ctxName)
 	}
 	podOut, err := exec.Command("kubectl", args...).CombinedOutput()
 	if err != nil {
@@ -31,8 +45,8 @@ var RunNetpolAnalysis = func(target PodTarget, context string) (string, error) {
 	}
 
 	npArgs := []string{"get", "networkpolicy", "-n", target.Namespace, "-o", "json"}
-	if strings.TrimSpace(context) != "" {
-		npArgs = append(npArgs, "--context", strings.TrimSpace(context))
+	if ctxName := strings.TrimSpace(context); ctxName != "" {
+		npArgs = append(npArgs, "--context", ctxName)
 	}
 	npOut, _ := exec.Command("kubectl", npArgs...).CombinedOutput()
 

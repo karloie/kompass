@@ -53,6 +53,8 @@ var (
 	hubbleAllowPattern   = regexp.MustCompile(`\b(?:ALLOW|ALLOWED|OPEN|FORWARDED|PERMIT)\b`)
 	hubbleTimePattern    = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b`)
 	hubbleFlowKeyPattern = regexp.MustCompile(`(\S+)\s+->\s+(\S+)`)
+	// validKubeContextRE matches safe kubeconfig context/cluster names.
+	validKubeContextRE = regexp.MustCompile(`^[a-zA-Z0-9._/:@-]+$`)
 )
 
 func (s *server) handleAppDescribe(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +168,7 @@ func (s *server) handleAppHubbleWatch(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	ctx, cancel := context.WithCancel(r.Context())
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 
 	lines := make(chan string, 64)
@@ -398,8 +400,11 @@ func runKubectlDescribe(target appResourceTarget, contextName string) (string, e
 	if strings.TrimSpace(target.Namespace) != "" {
 		args = append(args, "-n", target.Namespace)
 	}
-	if strings.TrimSpace(contextName) != "" {
-		args = append(args, "--context", contextName)
+	if ctxName := strings.TrimSpace(contextName); ctxName != "" {
+		if !validKubeContextRE.MatchString(ctxName) {
+			return "", fmt.Errorf("invalid context name")
+		}
+		args = append(args, "--context", ctxName)
 	}
 	out, err := exec.Command("kubectl", args...).CombinedOutput()
 	body := strings.TrimSpace(string(out))
@@ -995,7 +1000,9 @@ func sortedKeys(values map[string]any) []string {
 
 func writeAppView(w http.ResponseWriter, response appViewResponse) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Warn("writeAppView encode error", "error", err)
+	}
 }
 
 func writeAppError(w http.ResponseWriter, err error) {

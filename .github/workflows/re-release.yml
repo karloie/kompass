@@ -12,11 +12,11 @@ jobs:
     concurrency:
       group: rerelease-latest
       cancel-in-progress: false
-    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.28
+    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.29
     with:
       image: karloie/kompass
       mode: rerelease
-      tool_ref: v0.0.28
+      tool_ref: v0.0.29
       node_version: '22'
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}

@@ -86,7 +86,7 @@ spec:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
             runAsUser: 1000
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: false # kubectl may write temp files; /tmp is mounted as emptyDir
             capabilities:
               drop:
                 - ALL
@@ -97,7 +97,7 @@ spec:
             httpGet:
               path: /api/readyz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6

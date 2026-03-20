@@ -53,6 +53,7 @@ type scopeResponse struct {
 }
 
 const debugStatsLogInterval = 30 * time.Second
+const maxQueryParamLen = 512
 
 func shortCommitHash(raw string) string {
 	hash := strings.TrimSpace(raw)
@@ -236,7 +237,9 @@ func (s *server) handleMetadata(w http.ResponseWriter, r *http.Request) {
 	meta.GitCommit = shortCommitHash(buildCommit)
 	meta.BuildDate = strings.TrimSpace(buildDate)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(meta)
+	if err := json.NewEncoder(w).Encode(meta); err != nil {
+		slog.Warn("handleMetadata encode error", "error", err)
+	}
 }
 
 func (s *server) handleScope(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +270,9 @@ func (s *server) handleScope(w http.ResponseWriter, r *http.Request) {
 		response.CurrentNamespace = currentNamespace
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Warn("handleScope encode error", "error", err)
+	}
 }
 
 func (s *server) loadScopeContext(contextArg string) ([]string, string, error) {
@@ -325,7 +330,9 @@ func (s *server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store, max-age=0")
 	w.Header().Set("Pragma", "no-cache")
-	json.NewEncoder(w).Encode(graphOnlyResponse(result))
+	if err := json.NewEncoder(w).Encode(graphOnlyResponse(result)); err != nil {
+		slog.Warn("handleGraph encode error", "error", err)
+	}
 }
 
 func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +369,9 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store, max-age=0")
 	w.Header().Set("Pragma", "no-cache")
-	json.NewEncoder(w).Encode(treeResult)
+	if err := json.NewEncoder(w).Encode(treeResult); err != nil {
+		slog.Warn("handleTree encode error", "error", err)
+	}
 }
 
 func (s *server) handleTreeText(w http.ResponseWriter, r *http.Request) {
@@ -438,6 +447,9 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 	rawSelectors := strings.TrimSpace(r.URL.Query().Get("selectors"))
 	if rawSelectors == "" {
 		rawSelectors = r.URL.Query().Get("selector")
+	}
+	if len(rawSelectors) > maxQueryParamLen {
+		return nil, "", nil, nil, badRequest("selector parameter too long")
 	}
 	selectors := graph.ParseSelectors(rawSelectors)
 	contextArg, err := requireContextArg(r)
@@ -516,6 +528,9 @@ func requireContextArg(r *http.Request) (string, error) {
 	if contextArg == "" {
 		return "", badRequest("missing context")
 	}
+	if len(contextArg) > maxQueryParamLen {
+		return "", badRequest("context parameter too long")
+	}
 	return contextArg, nil
 }
 
@@ -523,6 +538,9 @@ func requireNamespaceArg(r *http.Request) (string, error) {
 	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
 	if namespace == "" {
 		return "", badRequest("missing namespace")
+	}
+	if len(namespace) > maxQueryParamLen {
+		return "", badRequest("namespace parameter too long")
 	}
 	return namespace, nil
 }
