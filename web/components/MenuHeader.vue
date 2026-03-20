@@ -22,6 +22,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  version: {
+    type: String,
+    default: '',
+  },
   commitHash: {
     type: String,
     default: '',
@@ -61,12 +65,21 @@ const contextOptions = computed(() => {
   return [...out]
 })
 
-const shortCommitHash = computed(() => {
-  const value = String(props.commitHash || '').trim()
-  if (!value) {
-    return ''
+const versionLabel = computed(() => {
+  const ver = String(props.version || '').trim()
+  const fullHash = String(props.commitHash || '').trim()
+  const shortHash = fullHash.substring(0, 7)
+  
+  // If version already contains the hash, don't append it
+  if (ver && shortHash && ver.includes(shortHash)) {
+    return ver
   }
-  return value.length > 7 ? value.slice(0, 7) : value
+  
+  // Otherwise show version#commit if we have both
+  if (ver && shortHash) return `${ver}#${shortHash}`
+  if (shortHash) return `#${shortHash}`
+  if (ver) return ver
+  return ''
 })
 
 function onContextChange(event) {
@@ -97,7 +110,7 @@ function onSelectorsInput(event) {
     <select class="shared-header__select" :value="namespace" :disabled="disabled" @change="onNamespaceChange">
       <option v-for="item in namespaces" :key="item" :value="item">{{ item }}</option>
     </select>
-    <span v-if="shortCommitHash" class="shared-header__commit" :title="`Commit ${commitHash}`">#{{ shortCommitHash }}</span>
+    <span v-if="versionLabel" class="shared-header__commit" :title="`Version ${version || ''} Commit ${commitHash || ''}`">{{ versionLabel }}</span>
     <button
       class="shared-header__btn shared-header__btn--icon"
       type="button"

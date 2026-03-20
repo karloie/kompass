@@ -100,8 +100,43 @@ function isNodeOpen(key, depth, nodeType) {
 }
 
 function toggleNode(key, node, depth, nodeType) {
-  const open = isNodeOpen(key, depth, nodeType)
-  userExpandOverride.set(key, !open)
+  const wasOpen = isNodeOpen(key, depth, nodeType)
+  const willBeOpen = !wasOpen
+  userExpandOverride.set(key, willBeOpen)
+  
+  // Auto-expand workload → pod → container hierarchy
+  if (willBeOpen && node && isWorkloadType(nodeType)) {
+    autoExpandWorkloadDescendants(node)
+  }
+}
+
+function isWorkloadType(type) {
+  const t = String(type || '').trim().toLowerCase()
+  return t === 'deployment' || t === 'daemonset' || t === 'statefulset' || 
+         t === 'replicaset' || t === 'job' || t === 'cronjob'
+}
+
+function autoExpandWorkloadDescendants(node) {
+  function expandPath(n, depth = 0) {
+    if (!n || depth > 5) return // Safety limit
+    
+    const type = String(n?.type || '').trim().toLowerCase()
+    const children = Array.isArray(n?.children) ? n.children : []
+    const key = String(n?.key || '').trim()
+    
+    // Expand pods and containers
+    if ((type === 'pod' || type === 'container') && key) {
+      userExpandOverride.set(key, true)
+    }
+    
+    // Recurse through workload path children
+    const allowedChildren = workloadPathChildren(n)
+    for (const child of allowedChildren) {
+      expandPath(child, depth + 1)
+    }
+  }
+  
+  expandPath(node)
 }
 
 provide('treeExpand', { isNodeOpen, toggleNode, queryFilterActive })
@@ -306,6 +341,7 @@ const workloadPathTransitions = {
   job: new Set(['pod']),
   statefulset: new Set(['pod']),
   daemonset: new Set(['pod']),
+  pod: new Set(['container']),
 }
 
 function treeURL() {

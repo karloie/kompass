@@ -63,7 +63,7 @@ const icon = computed(() => {
 
 const childNodes = computed(() => props.node?.children || [])
 const hasChildren = computed(() => childNodes.value.length > 0)
-const availableViews = computed(() => availableViewsForNode(props.node, { appViewsEnabled: props.viewActionsEnabled }))
+const availableViews = computed(() => availableViewsForNode(props.node, { appViewsEnabled: props.viewActionsEnabled }).filter(v => v !== 'tree'))
 
 const isOpen = computed(() => {
   if (!hasChildren.value || !treeExpand) return false

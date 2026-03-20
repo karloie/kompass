@@ -3,12 +3,12 @@
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-VERSION_LDFLAGS := -X main.version=$(GIT_VERSION) -X main.commit=$(GIT_COMMIT) -X main.date=$(GIT_DATE)
+VERSION_LDFLAGS := -X main.buildVersion=$(GIT_VERSION) -X main.buildCommit=$(GIT_COMMIT) -X main.buildDate=$(GIT_DATE)
 RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
 DOCKER ?= docker
 DOCKER_IMAGE ?= karloie/kompass
 DOCKER_DEV_TAG ?= dev
-LDFLAGS ?=
+LDFLAGS ?= $(VERSION_LDFLAGS)
 ARGS    ?=
 COVERPKG ?= ./...
 GO_RUN   = go run $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") ./cmd/kompass
@@ -84,16 +84,17 @@ coverage-func: build
 	@echo "└────────────────────────────────────────────────────────────────────┴──────────┘"
 
 dev:
+	@echo "Starting dev server ($(GIT_VERSION) # $(GIT_COMMIT))"
 	@set -e; \
 	trap 'kill $$gow_pid $$vite_pid 2>/dev/null || true' INT TERM EXIT; \
-	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --debug --mock --service $(ARGS) & gow_pid=$$!; \
+	$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run -ldflags "$(VERSION_LDFLAGS)" ./cmd/kompass --debug --mock --service $(ARGS) & gow_pid=$$!; \
 	npm run dev & vite_pid=$$!; \
 	wait $$gow_pid $$vite_pid
 
 help:    ; @$(GO_RUN) --help
 mock:    ; @$(GO_RUN) --mock $(ARGS)
 real:    ; @$(GO_RUN) $(ARGS)
-service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run ./cmd/kompass --mock --service $(ARGS)
+service: ; @$(GOW) -e=go -e=mod -e=sum -e=tmpl -e=html -e=js -e=css run -ldflags "$(VERSION_LDFLAGS)" ./cmd/kompass --mock --service $(ARGS)
 
 snapshot:
 	$(GO_RUN) --json --mock -n $(SNAP_MOCK_NAMESPACE) > $(SNAP_DIR)/mock.json

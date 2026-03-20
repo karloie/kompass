@@ -30,12 +30,20 @@ const refreshKey = ref(0)
 const activeResourceView = ref(null)
 const scopeCache = new Map()
 const runtimeCommitHash = ref('')
+const runtimeVersion = ref('')
 
 const themeIcon = computed(() => (theme.value === 'dark' ? '☀️' : '🌙'))
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'))
 const mode = computed(() => String(props.bootstrapConfig?.mode || 'dynamic').trim().toLowerCase())
 const isStaticMode = computed(() => mode.value === 'static')
 const appApiBase = computed(() => '/api/app')
+const version = computed(() => {
+  const fromBootstrap = String(props.bootstrapConfig?.version || '').trim()
+  if (fromBootstrap) {
+    return fromBootstrap
+  }
+  return String(runtimeVersion.value || '').trim()
+})
 const commitHash = computed(() => {
   const fromBootstrap = String(props.bootstrapConfig?.commit || '').trim()
   if (fromBootstrap) {
@@ -81,6 +89,7 @@ async function loadRuntimeMetadata() {
       return
     }
     const payload = await response.json()
+    runtimeVersion.value = String(payload?.gitVersion || '').trim()
     runtimeCommitHash.value = String(payload?.gitCommit || '').trim()
   } catch {
     // Keep commit badge empty when metadata endpoint is unavailable.
@@ -429,6 +438,7 @@ function setCookie(name, value) {
         class="app__menu-header"
         :context-name="viewContextName"
         :contexts="contextOptions"
+        :version="version"
         :commit-hash="commitHash"
         :theme-icon="themeIcon"
         :theme-label="themeLabel"
@@ -468,6 +478,7 @@ function setCookie(name, value) {
       :node="activeResourceView.node"
       :initial-view="activeResourceView.view"
       :api-base="appApiBase"
+      :version="version"
       :commit-hash="commitHash"
       :context-name="viewContextName"
       :contexts="contextOptions"

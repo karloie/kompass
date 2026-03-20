@@ -18,6 +18,10 @@ const props = defineProps({
     type: String,
     default: '/api/app',
   },
+  version: {
+    type: String,
+    default: '',
+  },
   commitHash: {
     type: String,
     default: '',
@@ -601,6 +605,7 @@ function shellQuote(value) {
   <section class="view">
     <MenuHeader
       class="view__menu-header"
+      :version="version"
       :commit-hash="commitHash"
       :context-name="contextName"
       :contexts="contexts"

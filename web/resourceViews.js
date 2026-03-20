@@ -49,7 +49,7 @@ export function viewShortLabel(view) {
     cilium: 'C',
     cert: 'C',
     yaml: 'Y',
-    tree: 'T',
+    tree: '',
   }[view] || '?'
 }
 
