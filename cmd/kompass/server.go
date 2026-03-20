@@ -75,8 +75,6 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	}
 
 	slog.Info("Starting kompass server", "addr", addr, "context", contextArg, "namespace", namespaceArg, "provider", map[bool]string{true: "mock", false: "cluster"}[useMock])
-	parts := strings.Split(addr, ":")
-	port := ":" + parts[len(parts)-1]
 	provider, resolvedContext, resolvedNamespace, err := initProvider(useMock, contextArg, namespaceArg)
 	if err != nil {
 		fatalStart("Failed to create provider", err)
@@ -122,7 +120,7 @@ func startServer(addr, contextArg, namespaceArg string, useMock bool) {
 	mux.HandleFunc("/", srv.handleWeb)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 	go func() {
-		slog.Info("Server ready", "url", "http://localhost"+port)
+		slog.Info("Server ready", "url", "http://"+addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fatalStart("Server failed", err)
 		}
