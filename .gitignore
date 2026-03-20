@@ -41,4 +41,3 @@ testdata/fixtures/real.*
 deploy/
 doc/*_note*.md
 doc/*_note*.txt
-/.goreleaser-generated.yml
