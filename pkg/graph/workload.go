@@ -2,15 +2,6 @@ package graph
 
 import kube "github.com/karloie/kompass/pkg/kube"
 
-var workloadOwners = map[string][]struct{ targetType, ownerKind string }{
-	"deployment":  {{"replicaset", "Deployment"}},
-	"replicaset":  {{"pod", "ReplicaSet"}},
-	"statefulset": {{"pod", "StatefulSet"}},
-	"daemonset":   {{"pod", "DaemonSet"}},
-	"job":         {{"pod", "Job"}},
-	"cronjob":     {{"job", "CronJob"}},
-}
-
 func inferWorkloadOwner(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, srcKey, targetType, ownerKind string) {
 	itemName := M(item.AsMap()).Path("metadata").String("name")
 	for _, n := range *nodes {
@@ -44,8 +35,11 @@ func extractOwnerReferences(meta M) []map[string]any {
 func inferWorkload(kind string) func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	return func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 		if key := addNode(edges, item, nodes, kind); key != "" {
-			for _, owner := range workloadOwners[kind] {
-				inferWorkloadOwner(edges, item, nodes, key, owner.targetType, owner.ownerKind)
+			// Get children and Kind from ResourceTypes schema
+			if meta, ok := kube.ResourceTypes[kind]; ok && len(meta.Children) > 0 && meta.Kind != "" {
+				for _, childType := range meta.Children {
+					inferWorkloadOwner(edges, item, nodes, key, childType, meta.Kind)
+				}
 			}
 		}
 		return nil
@@ -92,10 +86,13 @@ func inferReplicaSet(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map
 	}
 
 	ownedPodCount := 0
-	for _, owner := range workloadOwners["replicaset"] {
-		before := len(*edges)
-		inferWorkloadOwner(edges, item, nodes, key, owner.targetType, owner.ownerKind)
-		ownedPodCount += len(*edges) - before
+	// Get children and Kind from ResourceTypes schema
+	if meta, ok := kube.ResourceTypes["replicaset"]; ok && len(meta.Children) > 0 && meta.Kind != "" {
+		for _, childType := range meta.Children {
+			before := len(*edges)
+			inferWorkloadOwner(edges, item, nodes, key, childType, meta.Kind)
+			ownedPodCount += len(*edges) - before
+		}
 	}
 
 	if ownedPodCount == 0 {

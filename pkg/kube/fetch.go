@@ -9,82 +9,6 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// gvrInfo pairs a GVR with whether the resource is namespace-scoped.
-type gvrInfo struct {
-	GVR        schema.GroupVersionResource
-	Namespaced bool
-}
-
-// resourceTypeGVRs maps kompass resource-type strings to their GVR.
-// These are the types that can appear as nodes in the graph.
-var resourceTypeGVRs = map[string]gvrInfo{
-	// Core (group "")
-	"configmap":             {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"}, true},
-	"endpoints":             {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "endpoints"}, true},
-	"event":                 {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "events"}, true},
-	"limitrange":            {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "limitranges"}, true},
-	"namespace":             {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}, false},
-	"node":                  {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "nodes"}, false},
-	"persistentvolume":      {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumes"}, false},
-	"persistentvolumeclaim": {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"}, true},
-	"pod":                   {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}, true},
-	"resourcequota":         {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "resourcequotas"}, true},
-	"secret":                {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}, true},
-	"service":               {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}, true},
-	"serviceaccount":        {schema.GroupVersionResource{Group: "", Version: "v1", Resource: "serviceaccounts"}, true},
-	// Apps
-	"daemonset":   {schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "daemonsets"}, true},
-	"deployment":  {schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, true},
-	"replicaset":  {schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}, true},
-	"statefulset": {schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, true},
-	// Batch
-	"cronjob": {schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "cronjobs"}, true},
-	"job":     {schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}, true},
-	// RBAC
-	"clusterrole":        {schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterroles"}, false},
-	"clusterrolebinding": {schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterrolebindings"}, false},
-	"role":               {schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"}, true},
-	"rolebinding":        {schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings"}, true},
-	// Networking
-	"ingress":       {schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"}, true},
-	"ingressclass":  {schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1", Resource: "ingressclasses"}, false},
-	"networkpolicy": {schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"}, true},
-	// Discovery
-	"endpointslice": {schema.GroupVersionResource{Group: "discovery.k8s.io", Version: "v1", Resource: "endpointslices"}, true},
-	// Policy
-	"poddisruptionbudget": {schema.GroupVersionResource{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"}, true},
-	// Storage
-	"csidriver":        {schema.GroupVersionResource{Group: "storage.k8s.io", Version: "v1", Resource: "csidrivers"}, false},
-	"csinode":          {schema.GroupVersionResource{Group: "storage.k8s.io", Version: "v1", Resource: "csinodes"}, false},
-	"storageclass":     {schema.GroupVersionResource{Group: "storage.k8s.io", Version: "v1", Resource: "storageclasses"}, false},
-	"volumeattachment": {schema.GroupVersionResource{Group: "storage.k8s.io", Version: "v1", Resource: "volumeattachments"}, false},
-	// Autoscaling
-	"horizontalpodautoscaler": {schema.GroupVersionResource{Group: "autoscaling", Version: "v1", Resource: "horizontalpodautoscalers"}, true},
-	// Certificates (k8s native)
-	"certificatesigningrequest": {schema.GroupVersionResource{Group: "certificates.k8s.io", Version: "v1", Resource: "certificatesigningrequests"}, false},
-	// Flow control
-	"flowschema":                 {schema.GroupVersionResource{Group: "flowcontrol.apiserver.k8s.io", Version: "v1", Resource: "flowschemas"}, false},
-	"prioritylevelconfiguration": {schema.GroupVersionResource{Group: "flowcontrol.apiserver.k8s.io", Version: "v1", Resource: "prioritylevelconfigurations"}, false},
-	// Node
-	"runtimeclass": {schema.GroupVersionResource{Group: "node.k8s.io", Version: "v1", Resource: "runtimeclasses"}, false},
-	// Scheduling
-	"priorityclass": {schema.GroupVersionResource{Group: "scheduling.k8s.io", Version: "v1", Resource: "priorityclasses"}, false},
-	// API extensions
-	"customresourcedefinition": {schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}, false},
-	// Cilium
-	"ciliumnetworkpolicy":            {schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumnetworkpolicies"}, true},
-	"ciliumclusterwidenetworkpolicy": {schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumclusterwidenetworkpolicies"}, false},
-	// Gateway API
-	"gateway":   {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"}, true},
-	"httproute": {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"}, true},
-	// Cert-manager
-	"certificate":  {schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}, true},
-	"clusterissuer": {schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}, false},
-	"issuer":        {schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "issuers"}, true},
-	// Secrets store CSI
-	"secretproviderclass": {schema.GroupVersionResource{Group: "secrets-store.csi.x-k8s.io", Version: "v1", Resource: "secretproviderclasses"}, true},
-}
-
 // FetchResource retrieves a single Kubernetes resource by type, namespace, and name.
 // This is much cheaper than running the full graph pipeline — exactly one API call.
 // Namespace may be empty for cluster-scoped resources.
@@ -93,16 +17,27 @@ func (c *Client) FetchResource(resourceType, namespace, name string, ctx context
 		return c.fetchResourceMock(resourceType, namespace, name)
 	}
 
-	info, ok := resourceTypeGVRs[resourceType]
+	rt, ok := ResourceTypes[resourceType]
 	if !ok {
 		return nil, fmt.Errorf("unknown resource type %q", resourceType)
 	}
 
+	// Virtual types have no API representation
+	if rt.Resource == "" {
+		return nil, fmt.Errorf("resource type %q is virtual and cannot be fetched", resourceType)
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    rt.Group,
+		Version:  rt.Version,
+		Resource: rt.Resource,
+	}
+
 	var ri dynamic.ResourceInterface
-	if info.Namespaced && namespace != "" {
-		ri = c.dynamicClient.Resource(info.GVR).Namespace(namespace)
+	if rt.Namespaced && namespace != "" {
+		ri = c.dynamicClient.Resource(gvr).Namespace(namespace)
 	} else {
-		ri = c.dynamicClient.Resource(info.GVR)
+		ri = c.dynamicClient.Resource(gvr)
 	}
 
 	obj, err := ri.Get(ctx, name, metav1.GetOptions{})
