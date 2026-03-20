@@ -278,7 +278,7 @@ type InMemoryModel struct {
 	PodLogs                          map[string]string
 }
 
-type Kube interface {
+type Provider interface {
 	GetEndpoints(namespace string, ctx context.Context, opts metav1.ListOptions) (*corev1.EndpointsList, error)
 	GetContext() (string, error)
 	GetContexts() (any, error)

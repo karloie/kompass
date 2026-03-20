@@ -134,7 +134,7 @@ func findOrCreateSpecNode(node *kube.Tree) *kube.Tree {
 	}
 
 	specKey := node.Key + "/spec"
-	specNode := NewTree(specKey, "spec", map[string]any{})
+	specNode := newTree(specKey, "spec", map[string]any{})
 	node.Children = append(node.Children, specNode)
 	return specNode
 }

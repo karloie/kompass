@@ -7,7 +7,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func inferIngress(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferIngress(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	namespace, ingressName := ExtractNamespacedName(item)
 	if namespace == "" || ingressName == "" {
 		return nil
@@ -63,7 +63,7 @@ func inferIngress(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[st
 	return nil
 }
 
-func inferHTTPRoute(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferHTTPRoute(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	namespace, httpRouteName := ExtractNamespacedName(item)
 	if namespace == "" || httpRouteName == "" {
 		return nil
@@ -117,7 +117,7 @@ func inferHTTPRoute(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[
 	return nil
 }
 
-func inferGateway(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferGateway(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	namespace, name := ExtractNamespacedName(item)
 	if name == "" || namespace == "" {
 		return nil
@@ -172,7 +172,7 @@ func inferGateway(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[st
 	return nil
 }
 
-func inferNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	meta := M(item.AsMap()).Map("metadata").Raw()
 	namespace, name := M(meta).String("namespace"), M(meta).String("name")
 	if name == "" || namespace == "" {
@@ -198,7 +198,7 @@ func inferNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *
 	return nil
 }
 
-func inferEndpointSlices(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferEndpointSlices(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "endpointslice")
 	if key == "" {
 		return nil
@@ -232,7 +232,7 @@ func inferEndpointSlices(edges *[]kube.ResourceEdge, item *kube.Resource, nodes 
 	return nil
 }
 
-func inferEndpoints(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferEndpoints(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "endpoints")
 	if key == "" {
 		return nil
@@ -244,7 +244,7 @@ func inferEndpoints(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[
 	return nil
 }
 
-func inferCiliumNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferCiliumNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	addNode(edges, item, nodes, "ciliumnetworkpolicy")
 
 	meta := M(item.AsMap()).Map("metadata").Raw()
@@ -378,7 +378,7 @@ func matchesCiliumLabels(selector map[string]any, meta map[string]any) bool {
 	return true
 }
 
-func inferCiliumClusterwideNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferCiliumClusterwideNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 
 	meta := M(item.AsMap()).Map("metadata").Raw()
 	name := M(meta).String("name")
@@ -405,7 +405,7 @@ func inferCiliumClusterwideNetworkPolicy(edges *[]kube.ResourceEdge, item *kube.
 	return nil
 }
 
-func inferIngressClass(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferIngressClass(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	_, name := ExtractNamespacedName(item)
 	if name == "" {
 		return nil

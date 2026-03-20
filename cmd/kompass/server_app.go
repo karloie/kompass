@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/karloie/kompass/pkg/diagnostics"
+	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
-	"github.com/karloie/kompass/pkg/pipeline"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -130,10 +130,14 @@ func (s *server) handleAppHubble(w http.ResponseWriter, r *http.Request) {
 	s.providerMu.Unlock()
 
 	if result == nil {
-		result, err = pipeline.BuildGraphs(provider, nil)
+		req := kube.Request{}
+		result, err = graph.BuildGraphs(provider, req)
 		if err != nil {
 			writeAppError(w, err)
 			return
+		}
+		if client, ok := provider.(*kube.Client); ok {
+			result.Metadata = client.GetResponseMeta()
 		}
 	}
 
@@ -284,7 +288,7 @@ func (s *server) handleAppCert(w http.ResponseWriter, r *http.Request) {
 	writeAppView(w, appViewResponse{Title: "Cert", Content: body})
 }
 
-func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube, *kube.Response, *kube.Resource, error) {
+func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Provider, *kube.Response, *kube.Resource, error) {
 	target, provider, err := s.resolveAppTarget(r)
 	if err != nil {
 		return appResourceTarget{}, nil, nil, nil, err
@@ -299,7 +303,7 @@ func (s *server) inferAppResource(r *http.Request) (appResourceTarget, kube.Kube
 
 // resolveAppTarget parses the target from the request and returns the provider.
 // It does not make any Kubernetes API calls.
-func (s *server) resolveAppTarget(r *http.Request) (appResourceTarget, kube.Kube, error) {
+func (s *server) resolveAppTarget(r *http.Request) (appResourceTarget, kube.Provider, error) {
 	target, err := parseAppResourceTarget(r)
 	if err != nil {
 		return appResourceTarget{}, nil, err
@@ -372,7 +376,7 @@ func parseResourceKey(key string) appResourceTarget {
 	}
 }
 
-func buildDescribeView(provider kube.Kube, target appResourceTarget, resource *kube.Resource) (string, error) {
+func buildDescribeView(provider kube.Provider, target appResourceTarget, resource *kube.Resource) (string, error) {
 	contextName, _ := provider.GetContext()
 	body, err := runKubectlDescribe(target, contextName)
 	if err == nil && strings.TrimSpace(body) != "" {
@@ -477,7 +481,7 @@ func buildYAMLView(resource *kube.Resource) (string, error) {
 	return strings.TrimSpace(string(body)), nil
 }
 
-func buildCertView(provider kube.Kube, resource *kube.Resource) (string, error) {
+func buildCertView(provider kube.Provider, resource *kube.Resource) (string, error) {
 	if resource == nil {
 		return "", notFound("resource not found")
 	}
@@ -690,7 +694,7 @@ func x509ExtKeyUsageStrings(usages []x509.ExtKeyUsage) []string {
 	return out
 }
 
-func buildEventsView(provider kube.Kube, target appResourceTarget, resource *kube.Resource) (string, error) {
+func buildEventsView(provider kube.Provider, target appResourceTarget, resource *kube.Resource) (string, error) {
 	if strings.TrimSpace(target.Namespace) == "" {
 		return "(events unavailable for cluster-scoped resources)", nil
 	}
@@ -730,7 +734,7 @@ func buildEventsView(provider kube.Kube, target appResourceTarget, resource *kub
 	return strings.TrimSpace(body.String()), nil
 }
 
-func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.Response) (string, error) {
+func buildHubbleView(provider kube.Provider, target appResourceTarget, result *kube.Response) (string, error) {
 	resources := result.NodeMap()
 	contextName, _ := provider.GetContext()
 	podTarget := diagnostics.PodTarget{ResourceType: target.Type, Name: target.Name, Namespace: target.Namespace}
@@ -758,7 +762,7 @@ func buildHubbleView(provider kube.Kube, target appResourceTarget, result *kube.
 	return strings.Join(sections, "\n\n"), nil
 }
 
-func buildHubbleObserve(provider kube.Kube, target appResourceTarget) (string, error) {
+func buildHubbleObserve(provider kube.Provider, target appResourceTarget) (string, error) {
 	if isMockProvider(provider) {
 		return buildMockHubbleView(target), nil
 	}
@@ -766,7 +770,7 @@ func buildHubbleObserve(provider kube.Kube, target appResourceTarget) (string, e
 	return diagnostics.ResolveHubbleProvider(nil).ObservePod(target.Namespace+"/"+target.Name, 100, contextName)
 }
 
-func isMockProvider(provider kube.Kube) bool {
+func isMockProvider(provider kube.Provider) bool {
 	type mockAware interface {
 		IsMockMode() bool
 	}

@@ -21,7 +21,6 @@ import (
 
 	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
-	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -35,7 +34,7 @@ type server struct {
 	contextArg     string
 	namespaceArg   string
 	client         *kube.Client
-	clientFactory  func(contextArg, namespace string) (kube.Kube, error)
+	clientFactory  func(contextArg, namespace string) (kube.Provider, error)
 	providerMu     sync.Mutex
 	webRoot        fs.FS
 	fullGraphCache map[string]*cachedGraphEntry // keyed by context|namespace
@@ -299,7 +298,7 @@ func (s *server) loadScopeContext(contextArg string) ([]string, string, error) {
 	return namespaces, strings.TrimSpace(currentNamespace), nil
 }
 
-func (s *server) scopeProvider(contextArg string) (kube.Kube, error) {
+func (s *server) scopeProvider(contextArg string) (kube.Provider, error) {
 	if s.client != nil && strings.TrimSpace(contextArg) == strings.TrimSpace(s.contextArg) {
 		return s.client, nil
 	}
@@ -443,7 +442,7 @@ func (s *server) handleTreeHTML(w http.ResponseWriter, r *http.Request) {
 	})))
 }
 
-func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, *kube.Response, error) {
+func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Provider, *kube.Response, error) {
 	rawSelectors := strings.TrimSpace(r.URL.Query().Get("selectors"))
 	if rawSelectors == "" {
 		rawSelectors = r.URL.Query().Get("selector")
@@ -469,9 +468,13 @@ func (s *server) inferForRequest(r *http.Request) ([]string, string, kube.Kube, 
 		return nil, namespace, nil, nil, err
 	}
 
-	result, err := pipeline.BuildGraphs(provider, selectors)
+	req := kube.Request{Selectors: selectors}
+	result, err := graph.BuildGraphs(provider, req)
 	if err != nil {
 		return nil, namespace, provider, nil, err
+	}
+	if client, ok := provider.(*kube.Client); ok {
+		result.Metadata = client.GetResponseMeta()
 	}
 
 	// Cache the full (no-selector) graph so app view handlers can reuse it.
@@ -497,7 +500,7 @@ func graphOnlyResponse(result *kube.Response) *kube.Response {
 	}
 }
 
-func (s *server) getProvider(contextArg, namespace string) (kube.Kube, error) {
+func (s *server) getProvider(contextArg, namespace string) (kube.Provider, error) {
 	atomic.AddInt64(&s.providerGetCalls, 1)
 
 	if s.clientFactory != nil {

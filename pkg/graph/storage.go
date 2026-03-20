@@ -2,7 +2,7 @@ package graph
 
 import kube "github.com/karloie/kompass/pkg/kube"
 
-func inferPersistentVolumeClaim(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferPersistentVolumeClaim(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "persistentvolumeclaim")
 	if key == "" {
 		return nil
@@ -13,7 +13,7 @@ func inferPersistentVolumeClaim(edges *[]kube.ResourceEdge, item *kube.Resource,
 	return nil
 }
 
-func inferPersistentVolume(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferPersistentVolume(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "persistentvolume")
 	if key == "" {
 		return nil
@@ -24,7 +24,7 @@ func inferPersistentVolume(edges *[]kube.ResourceEdge, item *kube.Resource, node
 	return nil
 }
 
-func inferStorageClass(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferStorageClass(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	meta := M(item.AsMap()).Map("metadata")
 	name := meta.String("name")
 	scKey := Key("storageclass", "", name)
@@ -45,7 +45,7 @@ func inferStorageClass(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *m
 	return nil
 }
 
-func inferVolumeAttachment(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferVolumeAttachment(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "volumeattachment")
 	if key == "" {
 		return nil
@@ -65,7 +65,7 @@ func inferVolumeAttachment(edges *[]kube.ResourceEdge, item *kube.Resource, node
 	return nil
 }
 
-func inferCSIDriver(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferCSIDriver(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "csidriver")
 	if key == "" {
 		return nil
@@ -83,7 +83,7 @@ func inferCSIDriver(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[
 	return nil
 }
 
-func inferCSINode(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferCSINode(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "csinode")
 	if key == "" {
 		return nil

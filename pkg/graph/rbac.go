@@ -23,7 +23,7 @@ func inferSubject(resource, meta map[string]any) []any {
 	return nil
 }
 
-func inferServiceAccount(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferServiceAccount(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "serviceaccount")
 	if key == "" {
 		return nil
@@ -57,7 +57,7 @@ func inferServiceAccounts(edges *[]kube.ResourceEdge, subjects []any, bindingKey
 	}
 }
 
-func inferRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "role")
 	if key == "" {
 		return nil
@@ -70,7 +70,7 @@ func inferRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[strin
 	return nil
 }
 
-func inferClusterRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferClusterRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "clusterrole")
 	if key == "" {
 		return nil
@@ -87,7 +87,7 @@ func inferClusterRole(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *ma
 	return nil
 }
 
-func inferBinding(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube, bindingType, roleType string) error {
+func inferBinding(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider, bindingType, roleType string) error {
 	key := addNode(edges, item, nodes, bindingType)
 	if key == "" {
 		return nil

@@ -2,7 +2,7 @@ package graph
 
 import kube "github.com/karloie/kompass/pkg/kube"
 
-func inferPod(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferPod(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	podKey := addNode(edges, item, nodes, "pod")
 	if podKey == "" {
 		return nil
@@ -14,7 +14,7 @@ func inferPod(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string
 	return nil
 }
 
-func inferService(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferService(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "service")
 	if key == "" {
 		return nil
@@ -43,8 +43,8 @@ func inferService(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[st
 	return nil
 }
 
-func inferSimpleNode(kind string) func(*[]kube.ResourceEdge, *kube.Resource, *map[string]kube.Resource, kube.Kube) error {
-	return func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, _ kube.Kube) error {
+func inferSimpleNode(kind string) func(*[]kube.ResourceEdge, *kube.Resource, *map[string]kube.Resource, kube.Provider) error {
+	return func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, _ kube.Provider) error {
 		addNode(edges, item, nodes, kind)
 		return nil
 	}

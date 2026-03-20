@@ -41,8 +41,8 @@ func extractOwnerReferences(meta M) []map[string]any {
 	return result
 }
 
-func inferWorkload(kind string) func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
-	return func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferWorkload(kind string) func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
+	return func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 		if key := addNode(edges, item, nodes, kind); key != "" {
 			for _, owner := range workloadOwners[kind] {
 				inferWorkloadOwner(edges, item, nodes, key, owner.targetType, owner.ownerKind)
@@ -52,7 +52,7 @@ func inferWorkload(kind string) func(edges *[]kube.ResourceEdge, item *kube.Reso
 	}
 }
 
-func inferHorizontalPodAutoscaler(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferHorizontalPodAutoscaler(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "horizontalpodautoscaler")
 	if key == "" {
 		return nil
@@ -85,7 +85,7 @@ func inferHorizontalPodAutoscaler(edges *[]kube.ResourceEdge, item *kube.Resourc
 	return nil
 }
 
-func inferReplicaSet(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferReplicaSet(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "replicaset")
 	if key == "" {
 		return nil
@@ -140,7 +140,7 @@ func selectorsMatch(pdbSelector, workloadSelector map[string]any) bool {
 	return true
 }
 
-func inferPodDisruptionBudget(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferPodDisruptionBudget(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	meta, spec := ExtractMetaSpec(item)
 	namespace, name := ExtractNamespace(meta), M(meta).String("name")
 	if namespace == "" || name == "" {

@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ResourceLoader func(Kube, string, context.Context, metav1.ListOptions) ([]Resource, error)
+type ResourceLoader func(Provider, string, context.Context, metav1.ListOptions) ([]Resource, error)
 
 type ResourceConfig struct {
 	Group      string
@@ -37,37 +37,37 @@ func initLoaders() map[string]ResourceLoader {
 	return map[string]ResourceLoader{
 
 		"configmap": namespacedLoad("configmap",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*corev1.ConfigMapList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*corev1.ConfigMapList, error) {
 				return p.GetConfigMaps(ns, c, o)
 			},
 			func(l *corev1.ConfigMapList) []corev1.ConfigMap { return l.Items }),
 
 		"endpoints": namespacedLoad("endpoints",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*corev1.EndpointsList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*corev1.EndpointsList, error) {
 				return p.GetEndpoints(ns, c, o)
 			},
 			func(l *corev1.EndpointsList) []corev1.Endpoints { return l.Items }),
 
 		"role": namespacedLoad("role",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*rbacv1.RoleList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*rbacv1.RoleList, error) {
 				return p.GetRoles(ns, c, o)
 			},
 			func(l *rbacv1.RoleList) []rbacv1.Role { return l.Items }),
 
 		"rolebinding": namespacedLoad("rolebinding",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*rbacv1.RoleBindingList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*rbacv1.RoleBindingList, error) {
 				return p.GetRoleBindings(ns, c, o)
 			},
 			func(l *rbacv1.RoleBindingList) []rbacv1.RoleBinding { return l.Items }),
 
 		"endpointslice": namespacedLoad("endpointslice",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*discoveryv1.EndpointSliceList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*discoveryv1.EndpointSliceList, error) {
 				return p.GetEndpointSlices(ns, c, o)
 			},
 			func(l *discoveryv1.EndpointSliceList) []discoveryv1.EndpointSlice { return l.Items }),
 
 		"serviceaccount": namespacedLoad("serviceaccount",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*corev1.ServiceAccountList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*corev1.ServiceAccountList, error) {
 				type saProvider interface {
 					GetServiceAccounts(namespace string, ctx context.Context, opts metav1.ListOptions) (*corev1.ServiceAccountList, error)
 				}
@@ -79,107 +79,107 @@ func initLoaders() map[string]ResourceLoader {
 			func(l *corev1.ServiceAccountList) []corev1.ServiceAccount { return l.Items }),
 
 		"limitrange": namespacedLoad("limitrange",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*corev1.LimitRangeList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*corev1.LimitRangeList, error) {
 				return p.GetLimitRanges(ns, c, o)
 			},
 			func(l *corev1.LimitRangeList) []corev1.LimitRange { return l.Items }),
 
 		"resourcequota": namespacedLoad("resourcequota",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (*corev1.ResourceQuotaList, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (*corev1.ResourceQuotaList, error) {
 				return p.GetResourceQuotas(ns, c, o)
 			},
 			func(l *corev1.ResourceQuotaList) []corev1.ResourceQuota { return l.Items }),
 
 		"persistentvolume": clusterLoad("persistentvolume",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*corev1.PersistentVolumeList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*corev1.PersistentVolumeList, error) {
 				return p.GetPersistentVolumes(c, o)
 			},
 			func(l *corev1.PersistentVolumeList) []corev1.PersistentVolume { return l.Items }),
 
 		"storageclass": clusterLoad("storageclass",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*storagev1.StorageClassList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*storagev1.StorageClassList, error) {
 				return p.GetStorageClasses(c, o)
 			},
 			func(l *storagev1.StorageClassList) []storagev1.StorageClass { return l.Items }),
 
 		"volumeattachment": clusterLoad("volumeattachment",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*storagev1.VolumeAttachmentList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*storagev1.VolumeAttachmentList, error) {
 				return p.GetVolumeAttachments(c, o)
 			},
 			func(l *storagev1.VolumeAttachmentList) []storagev1.VolumeAttachment { return l.Items }),
 
 		"csidriver": clusterLoad("csidriver",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*storagev1.CSIDriverList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*storagev1.CSIDriverList, error) {
 				return p.GetCSIDrivers(c, o)
 			},
 			func(l *storagev1.CSIDriverList) []storagev1.CSIDriver { return l.Items }),
 
 		"csinode": clusterLoad("csinode",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*storagev1.CSINodeList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*storagev1.CSINodeList, error) {
 				return p.GetCSINodes(c, o)
 			},
 			func(l *storagev1.CSINodeList) []storagev1.CSINode { return l.Items }),
 
 		"clusterrole": clusterLoad("clusterrole",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*rbacv1.ClusterRoleList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*rbacv1.ClusterRoleList, error) {
 				return p.GetClusterRoles(c, o)
 			},
 			func(l *rbacv1.ClusterRoleList) []rbacv1.ClusterRole { return l.Items }),
 
 		"clusterrolebinding": clusterLoad("clusterrolebinding",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*rbacv1.ClusterRoleBindingList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*rbacv1.ClusterRoleBindingList, error) {
 				return p.GetClusterRoleBindings(c, o)
 			},
 			func(l *rbacv1.ClusterRoleBindingList) []rbacv1.ClusterRoleBinding { return l.Items }),
 
 		"ingressclass": clusterLoad("ingressclass",
-			func(p Kube, c context.Context, o metav1.ListOptions) (*networkingv1.IngressClassList, error) {
+			func(p Provider, c context.Context, o metav1.ListOptions) (*networkingv1.IngressClassList, error) {
 				return p.GetIngressClasses(c, o)
 			},
 			func(l *networkingv1.IngressClassList) []networkingv1.IngressClass { return l.Items }),
 
 		"deployment": workloadLoad("deployment",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetDeployments(ns, c, o)
 			}),
 
 		"replicaset": workloadLoad("replicaset",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetReplicaSets(ns, c, o)
 			}),
 
 		"statefulset": workloadLoad("statefulset",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetStatefulSets(ns, c, o)
 			}),
 
 		"daemonset": workloadLoad("daemonset",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetDaemonSets(ns, c, o)
 			}),
 
 		"persistentvolumeclaim": workloadLoad("persistentvolumeclaim",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetPersistentVolumeClaims(ns, c, o)
 			}),
 
 		"ingress": workloadLoad("ingress",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetIngresses(ns, c, o)
 			}),
 
 		"horizontalpodautoscaler": workloadLoad("horizontalpodautoscaler",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetHorizontalPodAutoscalers(ns, c, o)
 			}),
 
 		"cronjob": workloadLoad("cronjob",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetCronJobs(ns, c, o)
 			}),
 
 		"poddisruptionbudget": workloadLoad("poddisruptionbudget",
-			func(p Kube, ns string, c context.Context, o metav1.ListOptions) (any, error) {
+			func(p Provider, ns string, c context.Context, o metav1.ListOptions) (any, error) {
 				return p.GetPodDisruptionBudgets(ns, c, o)
 			}),
 	}
@@ -187,7 +187,7 @@ func initLoaders() map[string]ResourceLoader {
 
 var loaders = initLoaders()
 
-func GetLoader(resourceType string) ResourceLoader {
+func getLoader(resourceType string) ResourceLoader {
 	return loaders[resourceType]
 }
 
@@ -199,7 +199,7 @@ func skipForbiddenLoad(resourceType, namespace string, err error) bool {
 	return true
 }
 
-func LoadPod(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadPod(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	pods, err := provider.GetPods(namespace, ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("pod", namespace, err) {
@@ -219,7 +219,7 @@ func LoadPod(provider Kube, namespace string, ctx context.Context, opts metav1.L
 	return out, nil
 }
 
-func LoadService(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadService(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetServices(namespace, ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("service", namespace, err) {
@@ -240,7 +240,7 @@ func LoadService(provider Kube, namespace string, ctx context.Context, opts meta
 	return out, nil
 }
 
-func LoadSecret(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadSecret(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetSecrets(namespace, ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("secret", namespace, err) {
@@ -263,7 +263,7 @@ func LoadSecret(provider Kube, namespace string, ctx context.Context, opts metav
 	return out, nil
 }
 
-func LoadNode(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadNode(provider Provider, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	list, err := provider.GetNodes(ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("node", "", err) {
@@ -283,7 +283,7 @@ func LoadNode(provider Kube, _ string, ctx context.Context, opts metav1.ListOpti
 	return out, nil
 }
 
-func LoadJob(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadJob(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	jobs, err := provider.GetJobs(namespace, ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("job", namespace, err) {
@@ -303,7 +303,7 @@ func LoadJob(provider Kube, namespace string, ctx context.Context, opts metav1.L
 	return out, nil
 }
 
-func LoadNetworkPolicy(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadNetworkPolicy(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	nps, err := provider.GetNetworkPolicies(namespace, ctx, opts)
 	if err != nil {
 		if skipForbiddenLoad("networkpolicy", namespace, err) {
@@ -323,7 +323,7 @@ func LoadNetworkPolicy(provider Kube, namespace string, ctx context.Context, opt
 	return out, nil
 }
 
-func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadCiliumNetworkPolicy(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
 		return []Resource{}, nil
@@ -353,7 +353,7 @@ func LoadCiliumNetworkPolicy(provider Kube, namespace string, ctx context.Contex
 	return out, nil
 }
 
-func LoadCiliumClusterwideNetworkPolicy(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadCiliumClusterwideNetworkPolicy(provider Provider, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	cp, ok := provider.(CiliumProvider)
 	if !ok {
 		return []Resource{}, nil
@@ -382,49 +382,49 @@ func LoadCiliumClusterwideNetworkPolicy(provider Kube, _ string, ctx context.Con
 	return out, nil
 }
 
-func LoadCertificate(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadCertificate(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("certificate",
-		func(p Kube) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
+		func(p Provider) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(CertManagerProvider).GetCertificates(ns, c, o)
 		}, true)(provider, namespace, ctx, opts)
 }
 
-func LoadHTTPRoute(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadHTTPRoute(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("httproute",
-		func(p Kube) (any, bool) { gp, ok := p.(GatewayProvider); return gp, ok },
+		func(p Provider) (any, bool) { gp, ok := p.(GatewayProvider); return gp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(GatewayProvider).GetHTTPRoutes(ns, c, o)
 		}, true)(provider, namespace, ctx, opts)
 }
 
-func LoadGateway(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadGateway(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("gateway",
-		func(p Kube) (any, bool) { gp, ok := p.(GatewayProvider); return gp, ok },
+		func(p Provider) (any, bool) { gp, ok := p.(GatewayProvider); return gp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(GatewayProvider).GetGateways(ns, c, o)
 		}, true)(provider, namespace, ctx, opts)
 }
 
-func LoadIssuer(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadIssuer(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("issuer",
-		func(p Kube) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
+		func(p Provider) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(CertManagerProvider).GetIssuers(ns, c, o)
 		}, true)(provider, namespace, ctx, opts)
 }
 
-func LoadClusterIssuer(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadClusterIssuer(provider Provider, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("clusterissuer",
-		func(p Kube) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
+		func(p Provider) (any, bool) { cp, ok := p.(CertManagerProvider); return cp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(CertManagerProvider).GetClusterIssuers(c, o)
 		}, false)(provider, "", ctx, opts)
 }
 
-func LoadSecretProviderClass(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func LoadSecretProviderClass(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 	return conditionBasedLoad("secretproviderclass",
-		func(p Kube) (any, bool) { sp, ok := p.(SecretsStoreProvider); return sp, ok },
+		func(p Provider) (any, bool) { sp, ok := p.(SecretsStoreProvider); return sp, ok },
 		func(p any, ns string, c context.Context, o metav1.ListOptions) ([]map[string]any, error) {
 			return p.(SecretsStoreProvider).GetSecretProviderClasses(ns, c, o)
 		}, true)(provider, namespace, ctx, opts)
@@ -450,10 +450,10 @@ func newResource(resourceType, namespace, name string, resource map[string]any) 
 
 func namespacedLoad[T any, PT objectMetaPtr[T], L any](
 	resourceType string,
-	getter func(Kube, string, context.Context, metav1.ListOptions) (L, error),
+	getter func(Provider, string, context.Context, metav1.ListOptions) (L, error),
 	extractItems func(L) []T,
-) func(Kube, string, context.Context, metav1.ListOptions) ([]Resource, error) {
-	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+) func(Provider, string, context.Context, metav1.ListOptions) ([]Resource, error) {
+	return func(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, namespace, ctx, opts)
 		if err != nil {
 			if skipForbiddenLoad(resourceType, namespace, err) {
@@ -475,10 +475,10 @@ func namespacedLoad[T any, PT objectMetaPtr[T], L any](
 
 func clusterLoad[T any, PT objectMetaPtr[T], L any](
 	resourceType string,
-	getter func(Kube, context.Context, metav1.ListOptions) (L, error),
+	getter func(Provider, context.Context, metav1.ListOptions) (L, error),
 	extractItems func(L) []T,
-) func(Kube, string, context.Context, metav1.ListOptions) ([]Resource, error) {
-	return func(provider Kube, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+) func(Provider, string, context.Context, metav1.ListOptions) ([]Resource, error) {
+	return func(provider Provider, _ string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, ctx, opts)
 		if err != nil {
 			if skipForbiddenLoad(resourceType, "", err) {
@@ -498,8 +498,8 @@ func clusterLoad[T any, PT objectMetaPtr[T], L any](
 	}
 }
 
-func conditionBasedLoad(resourceType string, providerCheck func(Kube) (any, bool), getter func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error), isNamespaced bool) ResourceLoader {
-	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func conditionBasedLoad(resourceType string, providerCheck func(Provider) (any, bool), getter func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error), isNamespaced bool) ResourceLoader {
+	return func(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		p, ok := providerCheck(provider)
 		if !ok {
 			return []Resource{}, nil
@@ -531,8 +531,8 @@ func conditionBasedLoad(resourceType string, providerCheck func(Kube) (any, bool
 	}
 }
 
-func workloadLoad(resourceType string, getter func(Kube, string, context.Context, metav1.ListOptions) (any, error)) ResourceLoader {
-	return func(provider Kube, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
+func workloadLoad(resourceType string, getter func(Provider, string, context.Context, metav1.ListOptions) (any, error)) ResourceLoader {
+	return func(provider Provider, namespace string, ctx context.Context, opts metav1.ListOptions) ([]Resource, error) {
 		list, err := getter(provider, namespace, ctx, opts)
 		if err != nil {
 			if skipForbiddenLoad(resourceType, namespace, err) {

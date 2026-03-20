@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karloie/kompass/pkg/graph"
+	kube "github.com/karloie/kompass/pkg/kube"
 )
 
 const (
@@ -30,7 +30,7 @@ func formatNodeName(nodeType string, meta map[string]any, resource map[string]an
 			emojiType = displayPrefix
 		}
 
-		emoji := graph.GetResourceEmoji(emojiType)
+		emoji := kube.GetResourceEmoji(emojiType)
 
 		if nodeType == "replicaset" {
 			if orphaned, ok := meta["orphaned"].(bool); ok && orphaned {

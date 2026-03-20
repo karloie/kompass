@@ -4,7 +4,7 @@ import (
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-func inferCertificate(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferCertificate(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "certificate")
 	if key == "" {
 		return nil
@@ -38,7 +38,7 @@ func inferCertificate(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *ma
 	return nil
 }
 
-func inferIssuer(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferIssuer(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "issuer")
 	if key == "" {
 		return nil
@@ -49,7 +49,7 @@ func inferIssuer(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[str
 	return nil
 }
 
-func inferClusterIssuer(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Kube) error {
+func inferClusterIssuer(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error {
 	key := addNode(edges, item, nodes, "clusterissuer")
 	if key == "" {
 		return nil

@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/karloie/kompass/pkg/graph"
 	"github.com/karloie/kompass/pkg/kube"
 	"github.com/karloie/kompass/pkg/mock"
-	"github.com/karloie/kompass/pkg/pipeline"
 	"github.com/karloie/kompass/pkg/tree"
 )
 
@@ -124,10 +124,14 @@ func main() {
 	namespace_, _ := provider.GetNamespace()
 	configPath, _ := provider.GetConfigPath()
 
-	result, err := pipeline.BuildGraphs(provider, selectors)
+	req := kube.Request{Selectors: selectors}
+	result, err := graph.BuildGraphs(provider, req)
 	if err != nil {
 		slog.Error("failed to infer graph", "cluster", context_, "namespace", namespace_, "selectors", selectors, "error", err.Error())
 		os.Exit(1)
+	}
+	if client, ok := provider.(*kube.Client); ok {
+		result.Metadata = client.GetResponseMeta()
 	}
 
 	totalNodes, totalEdges := len(result.Nodes), len(result.Edges)
@@ -140,7 +144,7 @@ func main() {
 	}
 }
 
-func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Kube, string, string, error) {
+func initProvider(useMock bool, contextArg, namespaceArg string) (kube.Provider, string, string, error) {
 	slog.Debug("initializing provider", "provider", map[bool]string{true: "mock", false: "cluster"}[useMock], "requestedContext", contextArg, "requestedNamespace", namespaceArg)
 
 	if useMock {

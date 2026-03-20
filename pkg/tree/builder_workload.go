@@ -121,7 +121,7 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	if workload.Type == "deployment" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode = NewTree(specKey, "spec", map[string]any{})
+			specNode = newTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
@@ -129,7 +129,7 @@ func buildWorkloadChildren(workloadKey string, workload kube.Resource, graphChil
 	} else if workload.Type == "daemonset" || workload.Type == "statefulset" {
 		if templateSpec != nil {
 			specKey := workloadKey + "/spec"
-			specNode = NewTree(specKey, "spec", map[string]any{})
+			specNode = newTree(specKey, "spec", map[string]any{})
 			specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 			children = append(children, specNode)
 		}
@@ -214,7 +214,7 @@ func buildCronJobChildren(cronJobKey string, cronJob kube.Resource, graphChildre
 	templateSpec := graph.M(spec).Map("jobTemplate").Map("spec").Map("template").Map("spec").Raw()
 	if templateSpec != nil {
 		specKey := cronJobKey + "/spec"
-		specNode := NewTree(specKey, "spec", map[string]any{})
+		specNode := newTree(specKey, "spec", map[string]any{})
 		specNode.Children = buildPodTemplateChildren(specKey, namespace, templateSpec, graphChildren, state, nodeMap)
 		children = append(children, specNode)
 	}
@@ -241,7 +241,7 @@ func buildCronJobChildren(cronJobKey string, cronJob kube.Resource, graphChildre
 		}
 
 		state.MarkSeen(jobKey)
-		jobNode := NewTree(jobKey, "job", map[string]any{})
+		jobNode := newTree(jobKey, "job", map[string]any{})
 		for _, podKey := range childKeysOfType(jobKey, "pod", graphChildren, nodeMap) {
 			if !state.CanTraverse(podKey) {
 				continue

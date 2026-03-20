@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
@@ -64,7 +63,7 @@ func renderTreeNode(sb *strings.Builder, treeNode *kube.Tree, prefix string, isL
 	if len(meta) > 0 {
 		displayKey = formatNodeName(treeNode.Type, meta, nil, plain, parentMeta)
 	} else {
-		emoji := graph.GetResourceEmoji(treeNode.Type) + " "
+		emoji := kube.GetResourceEmoji(treeNode.Type) + " "
 		displayKey = emoji + treeNode.Type
 	}
 

@@ -13,7 +13,7 @@ import (
 func buildEnvarsNode(containerKey string, namespace string, envVars []any, volumeMounts []any, volumes []any, nodeMap map[string]kube.Resource) *kube.Tree {
 	envarsKey := containerKey + "/environment"
 
-	envarsNode := NewTree(envarsKey, "environment", nil)
+	envarsNode := newTree(envarsKey, "environment", nil)
 	secretStoresBySecret := mapSecretStoresBySyncedSecret(namespace, volumes, nodeMap)
 	secretStoreMounts := mapSecretStoreMountPaths(volumeMounts, volumes)
 
@@ -88,7 +88,7 @@ func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string
 
 				cmKey := BuildResourceKeyRef("configmap", namespace, configMapName)
 				if _, exists := nodeMap[cmKey]; exists {
-					referencedResource = NewTree(cmKey, "configmap", nil)
+					referencedResource = newTree(cmKey, "configmap", nil)
 				}
 			}
 		} else if fieldRef, ok := valueFrom.MapOk("fieldRef"); ok {
@@ -118,7 +118,7 @@ func buildEnvNode(envarsKey string, namespace string, idx int, envMap map[string
 		metadata["sourceType"] = sourceType
 	}
 
-	envNode := NewTree(envKey, "env", metadata)
+	envNode := newTree(envKey, "env", metadata)
 
 	if referencedResource != nil && sourceType != "secret" && sourceType != "configmap" {
 		envNode.Children = append(envNode.Children, referencedResource)

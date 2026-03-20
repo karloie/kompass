@@ -149,8 +149,8 @@ func TestBuildGraphsWorkloadAndInferredOrdering(t *testing.T) {
 }
 
 func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
-	original := ResourceTypes
-	t.Cleanup(func() { ResourceTypes = original })
+	originalLoaders := kube.Loaders
+	t.Cleanup(func() { kube.Loaders = originalLoaders })
 	t.Setenv("KOMPASS_CERT_NAMESPACES", "extra-ns")
 
 	callCount := map[string]int{}
@@ -160,59 +160,49 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 		return kube.Resource{Key: key, Type: typ, Resource: map[string]any{"metadata": map[string]any{"namespace": ns, "name": name}}}
 	}
 
-	ResourceTypes = map[string]ResourceType{
-		"pod": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["pod"]++
-				if ns == "petshop" {
-					return []kube.Resource{mk("pod/petshop/api-0", "pod", "petshop", "api-0")}, nil
-				}
-				return nil, nil
-			},
+	kube.Loaders = map[string]kube.ResourceLoader{
+		"pod": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["pod"]++
+			if ns == "petshop" {
+				return []kube.Resource{mk("pod/petshop/api-0", "pod", "petshop", "api-0")}, nil
+			}
+			return nil, nil
 		},
-		"ingress": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["ingress"]++
-				if ns == "petshop" {
-					return []kube.Resource{mk("ingress/petshop/web", "ingress", "petshop", "web")}, nil
-				}
-				return nil, nil
-			},
+		"ingress": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["ingress"]++
+			if ns == "petshop" {
+				return []kube.Resource{mk("ingress/petshop/web", "ingress", "petshop", "web")}, nil
+			}
+			return nil, nil
 		},
-		"certificate": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["certificate"]++
-				loadedCertNS = append(loadedCertNS, ns)
-				if ns == "extra-ns" {
-					cert := mk("certificate/extra-ns/web-cert", "certificate", "extra-ns", "web-cert")
-					certMap, _ := cert.Resource.(map[string]any)
-					certMap["spec"] = map[string]any{
-						"issuerRef": map[string]any{"kind": "Issuer", "name": "shared-issuer"},
-					}
-					cert.Resource = certMap
-					return []kube.Resource{cert}, nil
+		"certificate": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["certificate"]++
+			loadedCertNS = append(loadedCertNS, ns)
+			if ns == "extra-ns" {
+				cert := mk("certificate/extra-ns/web-cert", "certificate", "extra-ns", "web-cert")
+				certMap, _ := cert.Resource.(map[string]any)
+				certMap["spec"] = map[string]any{
+					"issuerRef": map[string]any{"kind": "Issuer", "name": "shared-issuer"},
 				}
-				return nil, nil
-			},
+				cert.Resource = certMap
+				return []kube.Resource{cert}, nil
+			}
+			return nil, nil
 		},
-		"issuer": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["issuer"]++
-				loadedIssuerNS = append(loadedIssuerNS, ns)
-				if ns == "extra-ns" {
-					return []kube.Resource{mk("issuer/extra-ns/shared-issuer", "issuer", "extra-ns", "shared-issuer")}, nil
-				}
-				return nil, nil
-			},
+		"issuer": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["issuer"]++
+			loadedIssuerNS = append(loadedIssuerNS, ns)
+			if ns == "extra-ns" {
+				return []kube.Resource{mk("issuer/extra-ns/shared-issuer", "issuer", "extra-ns", "shared-issuer")}, nil
+			}
+			return nil, nil
 		},
-		"clusterissuer": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["clusterissuer"]++
-				if ns == "" {
-					return []kube.Resource{{Key: "clusterissuer/letsencrypt", Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt"}}}}, nil
-				}
-				return nil, nil
-			},
+		"clusterissuer": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["clusterissuer"]++
+			if ns == "" {
+				return []kube.Resource{{Key: "clusterissuer/letsencrypt", Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt"}}}}, nil
+			}
+			return nil, nil
 		},
 	}
 
@@ -259,89 +249,86 @@ func TestInferGraphsLoadsCertificateNamespacesAndClusterIssuer(t *testing.T) {
 }
 
 func TestInferGraphsLoadsGatewayAndCertificateFromHTTPRouteParentNamespace(t *testing.T) {
-	original := ResourceTypes
-	t.Cleanup(func() { ResourceTypes = original })
+	originalLoaders := kube.Loaders
+	originalHandlers := handlers
+	t.Cleanup(func() {
+		kube.Loaders = originalLoaders
+		handlers = originalHandlers
+	})
 
 	callCount := map[string]int{}
 	mk := func(key, typ, ns, name string) kube.Resource {
 		return kube.Resource{Key: key, Type: typ, Resource: map[string]any{"metadata": map[string]any{"namespace": ns, "name": name}}}
 	}
 
-	ResourceTypes = map[string]ResourceType{
-		"service": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["service"]++
-				if ns == "applikasjonsplattform" {
-					svc := mk("service/applikasjonsplattform/ad-explore-web", "service", ns, "ad-explore-web")
-					svcMap, _ := svc.Resource.(map[string]any)
-					svcMap["spec"] = map[string]any{"selector": map[string]any{"app": "ad-explore-web"}, "ports": []any{map[string]any{"port": float64(8080)}}}
-					svc.Resource = svcMap
-					return []kube.Resource{svc}, nil
-				}
-				return nil, nil
-			},
-			Handler: inferService,
+	kube.Loaders = map[string]kube.ResourceLoader{
+		"service": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["service"]++
+			if ns == "applikasjonsplattform" {
+				svc := mk("service/applikasjonsplattform/ad-explore-web", "service", ns, "ad-explore-web")
+				svcMap, _ := svc.Resource.(map[string]any)
+				svcMap["spec"] = map[string]any{"selector": map[string]any{"app": "ad-explore-web"}, "ports": []any{map[string]any{"port": float64(8080)}}}
+				svc.Resource = svcMap
+				return []kube.Resource{svc}, nil
+			}
+			return nil, nil
 		},
-		"httproute": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["httproute"]++
-				if ns == "applikasjonsplattform" {
-					route := mk("httproute/applikasjonsplattform/ad-explore-web", "httproute", ns, "ad-explore-web")
-					routeMap, _ := route.Resource.(map[string]any)
-					routeMap["spec"] = map[string]any{
-						"parentRefs": []any{map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"}},
-						"rules":      []any{map[string]any{"backendRefs": []any{map[string]any{"name": "ad-explore-web"}}}},
-					}
-					route.Resource = routeMap
-					return []kube.Resource{route}, nil
+		"httproute": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["httproute"]++
+			if ns == "applikasjonsplattform" {
+				route := mk("httproute/applikasjonsplattform/ad-explore-web", "httproute", ns, "ad-explore-web")
+				routeMap, _ := route.Resource.(map[string]any)
+				routeMap["spec"] = map[string]any{
+					"parentRefs": []any{map[string]any{"kind": "Gateway", "name": "internal-gateway", "namespace": "los-platform"}},
+					"rules":      []any{map[string]any{"backendRefs": []any{map[string]any{"name": "ad-explore-web"}}}},
 				}
-				return nil, nil
-			},
-			Handler: inferHTTPRoute,
+				route.Resource = routeMap
+				return []kube.Resource{route}, nil
+			}
+			return nil, nil
 		},
-		"gateway": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["gateway"]++
-				if ns == "los-platform" {
-					gw := mk("gateway/los-platform/internal-gateway", "gateway", ns, "internal-gateway")
-					gwMap, _ := gw.Resource.(map[string]any)
-					gwMap["spec"] = map[string]any{
-						"listeners": []any{map[string]any{"tls": map[string]any{"certificateRefs": []any{map[string]any{"name": "internal-gateway-tls"}}}}},
-					}
-					gw.Resource = gwMap
-					return []kube.Resource{gw}, nil
+		"gateway": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["gateway"]++
+			if ns == "los-platform" {
+				gw := mk("gateway/los-platform/internal-gateway", "gateway", ns, "internal-gateway")
+				gwMap, _ := gw.Resource.(map[string]any)
+				gwMap["spec"] = map[string]any{
+					"listeners": []any{map[string]any{"tls": map[string]any{"certificateRefs": []any{map[string]any{"name": "internal-gateway-tls"}}}}},
 				}
-				return nil, nil
-			},
-			Handler: inferGateway,
+				gw.Resource = gwMap
+				return []kube.Resource{gw}, nil
+			}
+			return nil, nil
 		},
-		"certificate": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["certificate"]++
-				if ns == "los-platform" {
-					cert := mk("certificate/los-platform/internal-gateway-cert", "certificate", ns, "internal-gateway-cert")
-					certMap, _ := cert.Resource.(map[string]any)
-					certMap["spec"] = map[string]any{
-						"secretName": "internal-gateway-tls",
-						"issuerRef":  map[string]any{"kind": "ClusterIssuer", "name": "letsencrypt-prod"},
-					}
-					cert.Resource = certMap
-					return []kube.Resource{cert}, nil
+		"certificate": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["certificate"]++
+			if ns == "los-platform" {
+				cert := mk("certificate/los-platform/internal-gateway-cert", "certificate", ns, "internal-gateway-cert")
+				certMap, _ := cert.Resource.(map[string]any)
+				certMap["spec"] = map[string]any{
+					"secretName": "internal-gateway-tls",
+					"issuerRef":  map[string]any{"kind": "ClusterIssuer", "name": "letsencrypt-prod"},
 				}
-				return nil, nil
-			},
-			Handler: inferCertificate,
+				cert.Resource = certMap
+				return []kube.Resource{cert}, nil
+			}
+			return nil, nil
 		},
-		"clusterissuer": {
-			Loader: func(_ kube.Kube, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
-				callCount["clusterissuer"]++
-				if ns == "" {
-					return []kube.Resource{{Key: "clusterissuer/letsencrypt-prod", Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt-prod"}}}}, nil
-				}
-				return nil, nil
-			},
-			Handler: inferClusterIssuer,
+		"clusterissuer": func(_ kube.Provider, ns string, _ context.Context, _ metav1.ListOptions) ([]kube.Resource, error) {
+			callCount["clusterissuer"]++
+			if ns == "" {
+				return []kube.Resource{{Key: "clusterissuer/letsencrypt-prod", Type: "clusterissuer", Resource: map[string]any{"metadata": map[string]any{"name": "letsencrypt-prod"}}}}, nil
+			}
+			return nil, nil
 		},
+	}
+
+	handlers = map[string]func(edges *[]kube.ResourceEdge, item *kube.Resource, nodes *map[string]kube.Resource, provider kube.Provider) error{
+		"service":       inferService,
+		"httproute":     inferHTTPRoute,
+		"gateway":       inferGateway,
+		"certificate":   inferCertificate,
+		"clusterissuer": inferClusterIssuer,
 	}
 
 	provider := kube.NewMockClient(mock.GenerateMock())

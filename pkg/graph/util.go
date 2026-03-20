@@ -367,7 +367,7 @@ func expandSelectors(selectors []string, defaultNamespace string, nodeMap map[st
 	return result, nil
 }
 
-func parseNamespaces(selectors []string, defaultNamespace string, provider kube.Kube) map[string]bool {
+func parseNamespaces(selectors []string, defaultNamespace string, provider kube.Provider) map[string]bool {
 	namespaces := map[string]bool{}
 	if len(selectors) == 0 {
 		namespaces[defaultNamespace] = true

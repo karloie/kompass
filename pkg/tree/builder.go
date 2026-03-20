@@ -3,16 +3,15 @@ package tree
 import (
 	"sort"
 
-	"github.com/karloie/kompass/pkg/graph"
 	kube "github.com/karloie/kompass/pkg/kube"
 )
 
-type ChildBuilder func(string, kube.Resource, map[string][]string, *treeBuildState, map[string]kube.Resource) []*kube.Tree
+type childBuilder func(string, kube.Resource, map[string][]string, *treeBuildState, map[string]kube.Resource) []*kube.Tree
 
-var childBuilders map[string]ChildBuilder
+var childBuilders map[string]childBuilder
 
 func init() {
-	childBuilders = map[string]ChildBuilder{
+	childBuilders = map[string]childBuilder{
 		"cronjob":               buildCronJobChildren,
 		"deployment":            buildWorkloadChildren,
 		"statefulset":           buildWorkloadChildren,
@@ -32,29 +31,29 @@ func init() {
 	}
 }
 
-type ChildrenBuilder struct {
+type childrenBuilder struct {
 	children []*kube.Tree
 }
 
-func NewChildrenBuilder() *ChildrenBuilder {
-	return &ChildrenBuilder{
+func newChildrenBuilder() *childrenBuilder {
+	return &childrenBuilder{
 		children: make([]*kube.Tree, 0),
 	}
 }
 
-func (cb *ChildrenBuilder) Add(node *kube.Tree) *ChildrenBuilder {
+func (cb *childrenBuilder) Add(node *kube.Tree) *childrenBuilder {
 	if node != nil {
 		cb.children = append(cb.children, node)
 	}
 	return cb
 }
 
-func (cb *ChildrenBuilder) Extend(nodes []*kube.Tree) *ChildrenBuilder {
+func (cb *childrenBuilder) Extend(nodes []*kube.Tree) *childrenBuilder {
 	cb.children = append(cb.children, nodes...)
 	return cb
 }
 
-func (cb *ChildrenBuilder) Build() []*kube.Tree {
+func (cb *childrenBuilder) Build() []*kube.Tree {
 	sortChildren(cb.children)
 	return cb.children
 }
@@ -76,6 +75,9 @@ func sortChildren(children []*kube.Tree) {
 	})
 }
 
+// BuildTrees transforms a graph response into a hierarchical tree representation.
+// Each connected component becomes a tree with parent-child relationships,
+// enriched with metadata for display purposes.
 func BuildTrees(graphSet *kube.Response) *kube.Response {
 	if graphSet == nil {
 		return nil
@@ -83,7 +85,7 @@ func BuildTrees(graphSet *kube.Response) *kube.Response {
 	out := &kube.Response{Nodes: graphSet.Nodes, Trees: make([]kube.Tree, 0, len(graphSet.Components)), Metadata: graphSet.Metadata}
 	for i := range graphSet.Components {
 		graphNodes := graphNodesForTree(graphSet)
-		treeNode := BuildTreeInternal(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
+		treeNode := buildTreeInternal(graphSet.Components[i].Root, graphSet.Edges, graphNodes)
 		if treeNode != nil {
 			normalizePolicyPlacement(treeNode)
 			out.Trees = append(out.Trees, *treeNode)
@@ -109,7 +111,7 @@ func graphNodesForTree(graphSet *kube.Response) map[string]kube.Resource {
 	return nodeMap
 }
 
-func BuildTreeInternal(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Tree {
+func buildTreeInternal(rootKey string, edges []kube.ResourceEdge, nodeMap map[string]kube.Resource) *kube.Tree {
 	children := buildTreeAdjacency(edges, nodeMap)
 	normalizeChildrenMap(children)
 
@@ -125,7 +127,7 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 
 	state.MarkSeen(key)
 
-	treeNode := NewTree(key, resource.Type, map[string]any{})
+	treeNode := newTree(key, resource.Type, map[string]any{})
 
 	if builder, hasBuilder := childBuilders[resource.Type]; hasBuilder {
 		treeNode.Children = builder(key, resource, children, state, nodeMap)
@@ -133,9 +135,9 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 	}
 
 	var leafChildrenTypes map[string]bool
-	if proc, ok := graph.ResourceTypes[resource.Type]; ok && len(proc.LeafChildren) > 0 {
+	if meta, ok := kube.ResourceTypes[resource.Type]; ok && len(meta.NoRecurse) > 0 {
 		leafChildrenTypes = make(map[string]bool)
-		for _, leafType := range proc.LeafChildren {
+		for _, leafType := range meta.NoRecurse {
 			leafChildrenTypes[leafType] = true
 		}
 	}
@@ -148,7 +150,7 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 			}
 
 			if leafChildrenTypes != nil && leafChildrenTypes[childResource.Type] {
-				leafNode := NewTree(childKey, childResource.Type, map[string]any{})
+				leafNode := newTree(childKey, childResource.Type, map[string]any{})
 				treeNode.Children = append(treeNode.Children, leafNode)
 				state.MarkSeen(childKey)
 			} else {
@@ -163,14 +165,14 @@ func buildTreeNode(key string, children map[string][]string, state *treeBuildSta
 	return treeNode
 }
 
-func NewTree(key, nodeType string, meta map[string]any) *kube.Tree {
+func newTree(key, nodeType string, meta map[string]any) *kube.Tree {
 	if meta == nil {
 		meta = map[string]any{}
 	}
 	return &kube.Tree{
 		Key:      key,
 		Type:     nodeType,
-		Icon:     graph.GetResourceEmoji(nodeType),
+		Icon:     kube.GetResourceEmoji(nodeType),
 		Meta:     meta,
 		Children: []*kube.Tree{},
 	}

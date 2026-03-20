@@ -11,7 +11,7 @@ import (
 func buildMountsNode(containerKey string, namespace string, volumeMounts []any, volumes []any, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) *kube.Tree {
 	mountsKey := containerKey + "/mounts"
 
-	mountsNode := NewTree(mountsKey, "mounts", nil)
+	mountsNode := newTree(mountsKey, "mounts", nil)
 
 	for idx, vm := range volumeMounts {
 		if vmMap, ok := vm.(map[string]any); ok {
@@ -96,7 +96,7 @@ func buildMountNode(mountsKey string, namespace string, idx int, vmMap map[strin
 		metadata["volume"] = mountName
 	}
 
-	mountNode := NewTree(mountKey, "mount", metadata)
+	mountNode := newTree(mountKey, "mount", metadata)
 
 	return mountNode
 }
@@ -124,7 +124,7 @@ func buildVolumeFallbackNode(mountKey, namespace, volumeType, volumeSource strin
 				}
 			}
 
-			fallbackNode := NewTree(mountKey+"/volume", nodeType, meta)
+			fallbackNode := newTree(mountKey+"/volume", nodeType, meta)
 			if !includeReferences {
 				if nps, ok := csi.Raw()["nodePublishSecretRef"].(map[string]any); ok {
 					if secretName, ok := nps["name"].(string); ok && secretName != "" {
@@ -160,7 +160,7 @@ func buildVolumeFallbackNode(mountKey, namespace, volumeType, volumeSource strin
 		}
 	}
 
-	return NewTree(mountKey+"/volume", "storage", meta)
+	return newTree(mountKey+"/volume", "storage", meta)
 }
 
 func extractVolumeInfo(volMap map[string]any, namespace string) (volumeType, volumeSource, resourceKey string) {

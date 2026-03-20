@@ -7,7 +7,7 @@ import (
 )
 
 func appendGraphChildren(parentKey string, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 	for _, childKey := range graphChildren[parentKey] {
 		if state.CanTraverse(childKey) {
 			builder.Add(buildTreeNode(childKey, graphChildren, state, nodeMap))

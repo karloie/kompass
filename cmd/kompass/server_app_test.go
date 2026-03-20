@@ -107,7 +107,7 @@ func TestHandleAppEvents_LimitsToNewest100(t *testing.T) {
 		})
 	}
 
-	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		client := kube.NewMockClient(model)
 		client.SetNamespace(namespace)
 		return client, nil
@@ -265,7 +265,7 @@ func newAppTestServer() *server {
 		},
 	})
 
-	return &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	return &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		client := kube.NewMockClient(model)
 		client.SetNamespace(namespace)
 		return client, nil

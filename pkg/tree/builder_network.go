@@ -109,7 +109,7 @@ func addPodReference(node *kube.Tree, nodeKey, namespace, serviceName, podName, 
 		meta["name"] = podName
 	}
 	podRefKey := fmt.Sprintf("%s/pod-ref/%s", nodeKey, podName)
-	node.Children = append(node.Children, NewTree(podRefKey, "pod-ref", meta))
+	node.Children = append(node.Children, newTree(podRefKey, "pod-ref", meta))
 }
 
 func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
@@ -184,7 +184,7 @@ func buildEndpointSliceChildren(endpointSliceKey string, endpointSlice kube.Reso
 				podName = podNameByIP(namespace, addressValues, nodeMap)
 			}
 
-			epNode := NewTree(epKey, "endpoint", metadata)
+			epNode := newTree(epKey, "endpoint", metadata)
 			addPodReference(epNode, epKey, namespace, serviceName, podName, hostname, nodeMap)
 			children = append(children, epNode)
 		}
@@ -211,7 +211,7 @@ func buildServiceChildren(serviceKey string, service kube.Resource, graphChildre
 				continue
 			}
 
-			leafNode := NewTree(childKey, childResource.Type, map[string]any{})
+			leafNode := newTree(childKey, childResource.Type, map[string]any{})
 			children = append(children, leafNode)
 			state.MarkSeen(childKey)
 			continue
@@ -245,7 +245,7 @@ func buildServiceAccountChildren(serviceAccountKey string, serviceAccount kube.R
 				continue
 			}
 
-			leafNode := NewTree(childKey, childResource.Type, map[string]any{})
+			leafNode := newTree(childKey, childResource.Type, map[string]any{})
 			children = append(children, leafNode)
 			state.MarkSeen(childKey)
 			continue
@@ -311,7 +311,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 				}
 			}
 
-			subsetNode := NewTree(subsetKey, "subset", subsetMetadata)
+			subsetNode := newTree(subsetKey, "subset", subsetMetadata)
 
 			addrCounter := 0
 			if addresses, ok := subsetMap["addresses"].([]any); ok && len(addresses) > 0 {
@@ -354,7 +354,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							podName = podNameByIP(namespace, addressValues, nodeMap)
 						}
 
-						addrNode := NewTree(addrKey, "address", addrMetadata)
+						addrNode := newTree(addrKey, "address", addrMetadata)
 						addPodReference(addrNode, addrKey, namespace, serviceName, podName, hostname, nodeMap)
 						subsetNode.Children = append(subsetNode.Children, addrNode)
 					}
@@ -395,7 +395,7 @@ func buildEndpointsChildren(endpointsKey string, endpoints kube.Resource, graphC
 							podName = podNameFromTargetRef(targetRef)
 						}
 
-						addrNode := NewTree(addrKey, "address", addrMetadata)
+						addrNode := newTree(addrKey, "address", addrMetadata)
 						if podName == "" {
 							podName = podNameByHostname(namespace, hostname, nodeMap)
 						}
@@ -435,7 +435,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 			for _, labelKey := range labelKeys {
 				labelValue := matchLabels[labelKey]
 				if labelStr, ok := labelValue.(string); ok {
-					labelNode := NewTree(
+					labelNode := newTree(
 						fmt.Sprintf("%s/endpointSelector/label/%s", policyKey, labelKey),
 						"label",
 						map[string]any{
@@ -460,7 +460,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 						if epMap, ok := ep.(map[string]any); ok {
 							if matchLabels, ok := epMap["matchLabels"].(map[string]any); ok {
 								epKey := fmt.Sprintf("%s/fromEndpoint/%d", ruleKey, epIdx)
-								epNode := NewTree(epKey, "fromendpoint", map[string]any{
+								epNode := newTree(epKey, "fromendpoint", map[string]any{
 									"displayPrefix": "cnp-ingress",
 									"matchLabels":   matchLabels,
 								})
@@ -472,7 +472,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 											continue
 										}
 										if childResource.Type == "service" {
-											childNode := NewTree(childKey, childResource.Type, map[string]any{})
+											childNode := newTree(childKey, childResource.Type, map[string]any{})
 											epNode.Children = append(epNode.Children, childNode)
 										}
 									}
@@ -493,7 +493,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 					if len(entities) > 0 {
 						entitiesKey := fmt.Sprintf("%s/fromEntities", ruleKey)
-						entitiesNode := NewTree(entitiesKey, "fromentities", map[string]any{
+						entitiesNode := newTree(entitiesKey, "fromentities", map[string]any{
 							"displayPrefix": "cnp-ingress",
 							"entities":      entities,
 						})
@@ -511,7 +511,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								portMetadata["ports"] = ports
 							}
 
-							portNode := NewTree(portKey, "toport", portMetadata)
+							portNode := newTree(portKey, "toport", portMetadata)
 							children = append(children, portNode)
 						}
 					}
@@ -530,7 +530,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 						if epMap, ok := ep.(map[string]any); ok {
 							if matchLabels, ok := epMap["matchLabels"].(map[string]any); ok {
 								epKey := fmt.Sprintf("%s/toEndpoint/%d", ruleKey, epIdx)
-								epNode := NewTree(epKey, "toendpoint", map[string]any{
+								epNode := newTree(epKey, "toendpoint", map[string]any{
 									"displayPrefix": "cnp-egress",
 									"matchLabels":   matchLabels,
 								})
@@ -542,7 +542,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 											continue
 										}
 										if childResource.Type == "service" {
-											childNode := NewTree(childKey, childResource.Type, map[string]any{})
+											childNode := newTree(childKey, childResource.Type, map[string]any{})
 											epNode.Children = append(epNode.Children, childNode)
 										}
 									}
@@ -563,7 +563,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 					if len(entities) > 0 {
 						entitiesKey := fmt.Sprintf("%s/toEntities", ruleKey)
-						entitiesNode := NewTree(entitiesKey, "toentities", map[string]any{
+						entitiesNode := newTree(entitiesKey, "toentities", map[string]any{
 							"displayPrefix": "cnp-egress",
 							"entities":      entities,
 						})
@@ -584,7 +584,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								fqdnMetadata["matchName"] = matchName
 							}
 
-							fqdnNode := NewTree(fqdnKey, "tofqdn", fqdnMetadata)
+							fqdnNode := newTree(fqdnKey, "tofqdn", fqdnMetadata)
 							children = append(children, fqdnNode)
 						}
 					}
@@ -600,7 +600,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 								portMetadata["ports"] = ports
 							}
 
-							portNode := NewTree(portKey, "toport", portMetadata)
+							portNode := newTree(portKey, "toport", portMetadata)
 							children = append(children, portNode)
 						}
 					}
@@ -628,7 +628,7 @@ func buildCiliumNetworkPolicyChildren(policyKey string, policy kube.Resource, gr
 					}
 				}
 
-				leafNode := NewTree(childKey, childResource.Type, leafMeta)
+				leafNode := newTree(childKey, childResource.Type, leafMeta)
 				children = append(children, leafNode)
 				state.MarkSeen(childKey)
 			} else {
@@ -649,10 +649,10 @@ func buildPersistentVolumeClaimChildren(pvcKey string, pvc kube.Resource, graphC
 }
 
 func buildSecretChildren(secretKey string, secret kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 
 	if immutable, ok := secret.AsMap()["immutable"].(bool); ok && immutable {
-		builder.Add(NewTree(secretKey+"/immutable", "immutable", map[string]any{"value": true}))
+		builder.Add(newTree(secretKey+"/immutable", "immutable", map[string]any{"value": true}))
 	}
 
 	builder.Extend(appendGraphChildren(secretKey, graphChildren, state, nodeMap))
@@ -670,7 +670,7 @@ func buildCertificateChildren(certKey string, cert kube.Resource, graphChildren 
 			continue
 		}
 		if childResource.Type == "secret" {
-			children = append(children, NewTree(childKey, childResource.Type, map[string]any{}))
+			children = append(children, newTree(childKey, childResource.Type, map[string]any{}))
 			state.MarkSeen(childKey)
 			continue
 		}
@@ -684,7 +684,7 @@ func buildCertificateChildren(certKey string, cert kube.Resource, graphChildren 
 }
 
 func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 	seenGateway := map[string]bool{}
 	routeNamespace := ParseResourceKeyRef(httpRouteKey).Namespace
 
@@ -700,7 +700,7 @@ func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphC
 			}
 			if childResource.Type == "gateway" {
 				// Keep gateway visible under HTTPRoute, but do not expand it in this branch.
-				builder.Add(NewTree(childKey, childResource.Type, map[string]any{}))
+				builder.Add(newTree(childKey, childResource.Type, map[string]any{}))
 				state.MarkSeen(childKey)
 				seenGateway[childKey] = true
 				continue
@@ -732,7 +732,7 @@ func buildHTTPRouteChildren(httpRouteKey string, httpRoute kube.Resource, graphC
 			continue
 		}
 		if gatewayResource, exists := nodeMap[gatewayKey]; exists && gatewayResource.Type == "gateway" {
-			builder.Add(NewTree(gatewayKey, gatewayResource.Type, map[string]any{}))
+			builder.Add(newTree(gatewayKey, gatewayResource.Type, map[string]any{}))
 			state.MarkSeen(gatewayKey)
 			seenGateway[gatewayKey] = true
 		}

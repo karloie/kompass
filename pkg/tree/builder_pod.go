@@ -76,7 +76,7 @@ func buildSectionNode(parentKey, sectionType string, sectionChildren []*kube.Tre
 	if len(sectionChildren) == 0 {
 		return nil
 	}
-	node := NewTree(parentKey+"/"+sectionType, sectionType, nil)
+	node := newTree(parentKey+"/"+sectionType, sectionType, nil)
 	node.Children = sectionChildren
 	sortChildren(node.Children)
 	return node
@@ -139,12 +139,12 @@ func attachSyncedSecretsToSecretStores(namespace string, secretStoreNodes []*kub
 					}
 				}
 				if secretNode == nil {
-					secretNode = NewTree(secretKey, "secret", nil)
+					secretNode = newTree(secretKey, "secret", nil)
 					storeNode.Children = append(storeNode.Children, secretNode)
 				}
 
 				for envIdx, envUsage := range envUsageBySecretKey[secretKey] {
-					secretNode.Children = append(secretNode.Children, NewTree(secretKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
+					secretNode.Children = append(secretNode.Children, newTree(secretKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
 				}
 				sortChildren(secretNode.Children)
 
@@ -428,7 +428,7 @@ func attachSecretStoreUsage(secretStoreNodes []*kube.Tree, usageBySignature map[
 		signature := secretStoreSignature(driver, spc, nps, storeNode.Key)
 
 		for idx, usage := range usageBySignature[signature] {
-			storeNode.Children = append(storeNode.Children, NewTree(storeNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+			storeNode.Children = append(storeNode.Children, newTree(storeNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
 		}
 
 		sortSecretStoreChildren(storeNode.Children)
@@ -815,7 +815,7 @@ func attachPersistentVolumeClaimUsage(storageNodes []*kube.Tree, usageByKey map[
 		}
 
 		for idx, usage := range usageByKey[storageNode.Key] {
-			storageNode.Children = append(storageNode.Children, NewTree(storageNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+			storageNode.Children = append(storageNode.Children, newTree(storageNode.Key+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
 		}
 
 		sortPersistentVolumeClaimChildren(storageNode.Children)
@@ -838,12 +838,12 @@ func expandConfigMapsAsResources(namespace string, containers []any, volumes []a
 		if !state.CanTraverse(cmKey) {
 			continue
 		}
-		cmNode := NewTree(cmKey, "configmap", nil)
+		cmNode := newTree(cmKey, "configmap", nil)
 		for envIdx, envUsage := range envUsageByKey[cmKey] {
-			cmNode.Children = append(cmNode.Children, NewTree(cmKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
+			cmNode.Children = append(cmNode.Children, newTree(cmKey+"/env/"+fmt.Sprintf("%d", envIdx), "env", envUsage))
 		}
 		for idx, usage := range usageByKey[cmKey] {
-			cmNode.Children = append(cmNode.Children, NewTree(cmKey+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
+			cmNode.Children = append(cmNode.Children, newTree(cmKey+"/mount/"+fmt.Sprintf("%d", idx), "mount", usage))
 		}
 		sortConfigMapChildren(cmNode.Children)
 		nodes = append(nodes, cmNode)
@@ -858,7 +858,7 @@ func buildPodSpecChildren(specKey, namespace string, spec map[string]any, graphC
 		return nil, nil
 	}
 
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 	containers, _ := spec["containers"].([]any)
 	volumes, _ := spec["volumes"].([]any)
 
@@ -904,7 +904,7 @@ func buildPodTemplateChildren(templateKey string, namespace string, templateSpec
 		return nil
 	}
 
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 	specChildren, podSecurityContextNode := buildPodSpecChildren(templateKey, namespace, templateSpec, graphChildren, state, nodeMap, true)
 	builder.Add(podSecurityContextNode)
 	builder.Extend(specChildren)
@@ -954,7 +954,7 @@ func buildSimplifiedPodNode(podKey string, pod kube.Resource) *kube.Tree {
 		}
 	}
 
-	return NewTree(podKey, "pod", nodeMetadata)
+	return newTree(podKey, "pod", nodeMetadata)
 }
 
 func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string][]string, state *treeBuildState, nodeMap map[string]kube.Resource) []*kube.Tree {
@@ -967,9 +967,9 @@ func buildPodChildren(podKey string, pod kube.Resource, graphChildren map[string
 		return nil
 	}
 
-	builder := NewChildrenBuilder()
+	builder := newChildrenBuilder()
 	specKey := podKey + "/spec"
-	specNode := NewTree(specKey, "spec", map[string]any{})
+	specNode := newTree(specKey, "spec", map[string]any{})
 	specChildren, podSecurityContextNode := buildPodSpecChildren(specKey, namespace, spec, graphChildren, state, nodeMap, false)
 	if podSecurityContextNode != nil {
 		podSecurityContextNode.Key = podKey + "/podsecuritycontext"
@@ -1038,9 +1038,9 @@ func buildRuntimeContainerNode(podKey string, idx int, containerSpec map[string]
 	metadata := map[string]any{"name": containerName}
 	applyContainerStatusMetadata(metadata, containerStatus)
 
-	containerNode := NewTree(containerKey, "container", metadata)
+	containerNode := newTree(containerKey, "container", metadata)
 	if imageMeta, ok := runtimeImageMetadata(containerSpec, containerStatus); ok {
-		containerNode.Children = append(containerNode.Children, NewTree(containerKey+"/image", "image", imageMeta))
+		containerNode.Children = append(containerNode.Children, newTree(containerKey+"/image", "image", imageMeta))
 	}
 	if resourcesNode := buildRuntimeResourcesNode(containerKey, containerSpec, containerStatus); resourcesNode != nil {
 		containerNode.Children = append(containerNode.Children, resourcesNode)
@@ -1091,7 +1091,7 @@ func buildContainerChildren(parentKey string, namespace string, idx int, contain
 		if pullPolicy, ok := containerSpec["imagePullPolicy"].(string); ok && pullPolicy != "" {
 			imageMetadata["pullPolicy"] = pullPolicy
 		}
-		imageNode := NewTree(containerKey+"/image", "image", imageMetadata)
+		imageNode := newTree(containerKey+"/image", "image", imageMetadata)
 		children = append(children, imageNode)
 	}
 
@@ -1166,7 +1166,7 @@ func buildContainerNode(podKey string, namespace string, idx int, containerSpec 
 	}
 	applyContainerStatusMetadata(metadata, containerStatus)
 
-	containerNode := NewTree(containerKey, "container", metadata)
+	containerNode := newTree(containerKey, "container", metadata)
 
 	containerNode.Children = buildContainerChildren(podKey, namespace, idx, containerSpec, containerStatus, volumes, graphChildren, state, nodeMap)
 
@@ -1249,7 +1249,7 @@ func buildRuntimeResourcesNode(containerKey string, containerSpec map[string]any
 		return nil
 	}
 
-	return NewTree(containerKey+"/resources", "resources", runtimeResources)
+	return newTree(containerKey+"/resources", "resources", runtimeResources)
 }
 
 func normalizeRuntimeImageRef(ref string) string {
@@ -1360,7 +1360,7 @@ func buildSecurityContextNode(containerKey string, securityContext map[string]an
 		return nil
 	}
 
-	return NewTree(securityContextKey, "securitycontext", metadata)
+	return newTree(securityContextKey, "securitycontext", metadata)
 }
 
 func buildPodSecurityContextNode(podKey string, securityContext map[string]any) *kube.Tree {
@@ -1455,13 +1455,13 @@ func buildPodSecurityContextNode(podKey string, securityContext map[string]any) 
 		return nil
 	}
 
-	return NewTree(securityContextKey, "podsecuritycontext", metadata)
+	return newTree(securityContextKey, "podsecuritycontext", metadata)
 }
 
 func buildPortsNode(containerKey string, ports []any) *kube.Tree {
 	portsKey := containerKey + "/ports"
 
-	portsNode := NewTree(portsKey, "ports", nil)
+	portsNode := newTree(portsKey, "ports", nil)
 
 	for idx, p := range ports {
 		if portMap, ok := p.(map[string]any); ok {
@@ -1484,7 +1484,7 @@ func buildPortsNode(containerKey string, ports []any) *kube.Tree {
 				metadata["hostPort"] = hostPort
 			}
 
-			portNode := NewTree(portKey, "port", metadata)
+			portNode := newTree(portKey, "port", metadata)
 			portsNode.Children = append(portsNode.Children, portNode)
 		}
 	}
@@ -1527,7 +1527,7 @@ func buildResourcesNode(containerKey string, resources map[string]any) *kube.Tre
 		return nil
 	}
 
-	return NewTree(resourcesKey, "resources", metadata)
+	return newTree(resourcesKey, "resources", metadata)
 }
 
 func buildProbeNode(containerKey string, probeType string, probe map[string]any, containerStatus map[string]any) *kube.Tree {
@@ -1645,5 +1645,5 @@ func buildProbeNode(containerKey string, probeType string, probe map[string]any,
 		return nil
 	}
 
-	return NewTree(probeKey, probeType, metadata)
+	return newTree(probeKey, probeType, metadata)
 }

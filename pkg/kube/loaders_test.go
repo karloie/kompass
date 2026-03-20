@@ -44,7 +44,7 @@ func TestNewResource(t *testing.T) {
 func TestNamespacedLoad(t *testing.T) {
 	loader := namespacedLoad[corev1.ConfigMap, *corev1.ConfigMap, *corev1.ConfigMapList](
 		"configmap",
-		func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (*corev1.ConfigMapList, error) {
+		func(_ Provider, _ string, _ context.Context, _ metav1.ListOptions) (*corev1.ConfigMapList, error) {
 			return &corev1.ConfigMapList{Items: []corev1.ConfigMap{
 				{ObjectMeta: metav1.ObjectMeta{Namespace: "petshop", Name: "cfg"}},
 				{ObjectMeta: metav1.ObjectMeta{Namespace: "petshop", Name: ""}},
@@ -68,7 +68,7 @@ func TestNamespacedLoad(t *testing.T) {
 func TestClusterLoad(t *testing.T) {
 	loader := clusterLoad[corev1.Node, *corev1.Node, *corev1.NodeList](
 		"node",
-		func(_ Kube, _ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
+		func(_ Provider, _ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
 			return &corev1.NodeList{Items: []corev1.Node{
 				{ObjectMeta: metav1.ObjectMeta{Name: "worker-1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: ""}},
@@ -89,7 +89,7 @@ func TestClusterLoad(t *testing.T) {
 func TestNamespacedLoadSkipsForbidden(t *testing.T) {
 	loader := namespacedLoad[corev1.ConfigMap, *corev1.ConfigMap, *corev1.ConfigMapList](
 		"configmap",
-		func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (*corev1.ConfigMapList, error) {
+		func(_ Provider, _ string, _ context.Context, _ metav1.ListOptions) (*corev1.ConfigMapList, error) {
 			return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "configmaps"}, "", nil)
 		},
 		func(l *corev1.ConfigMapList) []corev1.ConfigMap { return l.Items },
@@ -107,7 +107,7 @@ func TestNamespacedLoadSkipsForbidden(t *testing.T) {
 func TestClusterLoadSkipsForbidden(t *testing.T) {
 	loader := clusterLoad[corev1.Node, *corev1.Node, *corev1.NodeList](
 		"node",
-		func(_ Kube, _ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
+		func(_ Provider, _ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
 			return nil, apierrors.NewForbidden(schema.GroupResource{Group: "", Resource: "nodes"}, "", nil)
 		},
 		func(l *corev1.NodeList) []corev1.Node { return l.Items },
@@ -126,7 +126,7 @@ func TestConditionBasedLoad(t *testing.T) {
 	t.Run("provider missing", func(t *testing.T) {
 		loader := conditionBasedLoad(
 			"certificate",
-			func(Kube) (any, bool) { return nil, false },
+			func(Provider) (any, bool) { return nil, false },
 			func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error) { return nil, nil },
 			true,
 		)
@@ -142,7 +142,7 @@ func TestConditionBasedLoad(t *testing.T) {
 	t.Run("getter error", func(t *testing.T) {
 		loader := conditionBasedLoad(
 			"certificate",
-			func(Kube) (any, bool) { return struct{}{}, true },
+			func(Provider) (any, bool) { return struct{}{}, true },
 			func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error) {
 				return nil, errors.New("boom")
 			},
@@ -157,7 +157,7 @@ func TestConditionBasedLoad(t *testing.T) {
 	t.Run("getter forbidden", func(t *testing.T) {
 		loader := conditionBasedLoad(
 			"certificate",
-			func(Kube) (any, bool) { return struct{}{}, true },
+			func(Provider) (any, bool) { return struct{}{}, true },
 			func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error) {
 				return nil, apierrors.NewForbidden(schema.GroupResource{Group: "cert-manager.io", Resource: "certificates"}, "", nil)
 			},
@@ -175,7 +175,7 @@ func TestConditionBasedLoad(t *testing.T) {
 	t.Run("filters invalid metadata", func(t *testing.T) {
 		loader := conditionBasedLoad(
 			"certificate",
-			func(Kube) (any, bool) { return struct{}{}, true },
+			func(Provider) (any, bool) { return struct{}{}, true },
 			func(any, string, context.Context, metav1.ListOptions) ([]map[string]any, error) {
 				return []map[string]any{
 					{"metadata": map[string]any{"namespace": "petshop", "name": "ok"}},
@@ -196,7 +196,7 @@ func TestConditionBasedLoad(t *testing.T) {
 }
 
 func TestWorkloadLoad(t *testing.T) {
-	loader := workloadLoad("deployment", func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (any, error) {
+	loader := workloadLoad("deployment", func(_ Provider, _ string, _ context.Context, _ metav1.ListOptions) (any, error) {
 		return &appsv1.DeploymentList{Items: []appsv1.Deployment{
 			{ObjectMeta: metav1.ObjectMeta{Namespace: "petshop", Name: "api"}},
 			{ObjectMeta: metav1.ObjectMeta{Namespace: "petshop", Name: ""}},
@@ -213,7 +213,7 @@ func TestWorkloadLoad(t *testing.T) {
 }
 
 func TestWorkloadLoadSkipsForbidden(t *testing.T) {
-	loader := workloadLoad("deployment", func(_ Kube, _ string, _ context.Context, _ metav1.ListOptions) (any, error) {
+	loader := workloadLoad("deployment", func(_ Provider, _ string, _ context.Context, _ metav1.ListOptions) (any, error) {
 		return nil, apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, "", nil)
 	})
 
@@ -227,10 +227,10 @@ func TestWorkloadLoadSkipsForbidden(t *testing.T) {
 }
 
 func TestGetLoader(t *testing.T) {
-	if GetLoader("configmap") == nil {
+	if getLoader("configmap") == nil {
 		t.Fatalf("expected configmap loader to exist")
 	}
-	if GetLoader("does-not-exist") != nil {
+	if getLoader("does-not-exist") != nil {
 		t.Fatalf("expected unknown loader to be nil")
 	}
 }

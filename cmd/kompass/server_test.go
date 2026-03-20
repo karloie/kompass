@@ -16,7 +16,7 @@ func TestInferForRequest_ContextNamespace_NoMockBleedover(t *testing.T) {
 	calledContext := ""
 	calledNamespace := ""
 
-	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		calledContext = contextArg
 		calledNamespace = namespace
 		c := kube.NewMockClient(mock.GenerateMock())
@@ -52,7 +52,7 @@ func TestInferForRequest_ContextMock01_PassesThroughContext(t *testing.T) {
 	calledContext := ""
 	calledNamespace := ""
 
-	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		calledContext = contextArg
 		calledNamespace = namespace
 		c := kube.NewMockClient(mock.GenerateMock())
@@ -167,7 +167,7 @@ func TestHandleScopeForExplicitContext(t *testing.T) {
 }
 
 func TestGetProviderFromClientFactoryError(t *testing.T) {
-	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		return nil, errors.New("factory error")
 	}}
 	_, err := s.getProvider("ctx-a", "petshop")
@@ -195,7 +195,7 @@ func TestGetProviderUsesExistingClientAndUpdatesNamespace(t *testing.T) {
 }
 
 func TestHandleGraphSuccess(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -226,7 +226,7 @@ func TestHandleGraphSuccess(t *testing.T) {
 }
 
 func TestHandleGraphAcceptsPluralSelectorsParam(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -251,7 +251,7 @@ func TestHandleGraphAcceptsPluralSelectorsParam(t *testing.T) {
 }
 
 func TestHandleGraphProviderError(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		return nil, errors.New("provider failure")
 	}}
 	rr := httptest.NewRecorder()
@@ -275,7 +275,7 @@ func TestHandleGraphMissingScope(t *testing.T) {
 }
 
 func TestHandleTreeSuccess(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -319,7 +319,7 @@ func assertTreeIcons(t *testing.T, node *kube.Tree) {
 }
 
 func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -344,7 +344,7 @@ func TestHandleTreeTextDefaultPlainRendering(t *testing.T) {
 }
 
 func TestHandleTreeTextRichQuery(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -363,7 +363,7 @@ func TestHandleTreeTextRichQuery(t *testing.T) {
 }
 
 func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -392,7 +392,7 @@ func TestHandleTreeHTML_DefaultShowsNamespaceSelector(t *testing.T) {
 }
 
 func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
-	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{namespaceArg: "petshop", clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		c := kube.NewMockClient(mock.GenerateMock())
 		c.SetNamespace(namespace)
 		return c, nil
@@ -418,7 +418,7 @@ func TestHandleTreeHTML_StaticHidesNamespaceSelector(t *testing.T) {
 }
 
 func TestHandleTreeProviderError(t *testing.T) {
-	s := &server{clientFactory: func(contextArg, namespace string) (kube.Kube, error) {
+	s := &server{clientFactory: func(contextArg, namespace string) (kube.Provider, error) {
 		return nil, errors.New("provider failure")
 	}}
 	rr := httptest.NewRecorder()

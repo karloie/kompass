@@ -103,7 +103,10 @@ func findWorkloadRoot(key string, keyType string, nodeMap map[string]kube.Resour
 	return ""
 }
 
-func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
+// BuildGraphs constructs a graph of Kubernetes resources and their relationships.
+// It loads resources matching the request selectors, analyzes their dependencies,
+// and returns a Response containing nodes, edges, and connected components.
+func BuildGraphs(provider kube.Provider, req kube.Request) (*kube.Response, error) {
 	selectors := req.NormalizedSelectors()
 	defaultNamespace := req.DefaultNamespace()
 
@@ -118,12 +121,12 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	hasRoutesOrIngress := false
 	hasGateways := false
 
-	for _, task := range ResourceTypes {
-		if task.Loader == nil {
+	for _, loader := range kube.Loaders {
+		if loader == nil {
 			continue
 		}
 		for ns := range namespaces {
-			resources, err := task.Loader(provider, ns, context.Background(), metav1.ListOptions{})
+			resources, err := loader(provider, ns, context.Background(), metav1.ListOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -142,12 +145,12 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	}
 
 	if hasRoutesOrIngress {
-		if gatewayTask, ok := ResourceTypes["gateway"]; ok && gatewayTask.Loader != nil {
+		if gatewayLoader, ok := kube.Loaders["gateway"]; ok && gatewayLoader != nil {
 			for ns := range collectHTTPRouteGatewayNamespaces(nodeMap) {
 				if ns == "" || namespaces[ns] {
 					continue
 				}
-				if resources, err := gatewayTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+				if resources, err := gatewayLoader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r
@@ -161,7 +164,7 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 		}
 
 		loadedExtraCertNamespaces := make(map[string]bool)
-		if certTask, ok := ResourceTypes["certificate"]; ok && certTask.Loader != nil {
+		if certLoader, ok := kube.Loaders["certificate"]; ok && certLoader != nil {
 			certNamespaces := []string{"management", "cert-manager", "gateway-system", "istio-system"}
 			if envNs := os.Getenv("KOMPASS_CERT_NAMESPACES"); envNs != "" {
 				certNamespaces = strings.Split(envNs, ",")
@@ -171,7 +174,7 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 					continue
 				}
 				loadedExtraCertNamespaces[ns] = true
-				if resources, err := certTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+				if resources, err := certLoader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r
@@ -185,7 +188,7 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 					continue
 				}
 				loadedExtraCertNamespaces[ns] = true
-				if resources, err := certTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+				if resources, err := certLoader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r
@@ -195,9 +198,9 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 			}
 		}
 
-		if issuerTask, ok := ResourceTypes["issuer"]; ok && issuerTask.Loader != nil {
+		if issuerLoader, ok := kube.Loaders["issuer"]; ok && issuerLoader != nil {
 			for ns := range loadedExtraCertNamespaces {
-				if resources, err := issuerTask.Loader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
+				if resources, err := issuerLoader(provider, ns, context.Background(), metav1.ListOptions{}); err == nil {
 					for _, r := range resources {
 						if _, exists := nodeMap[r.Key]; !exists {
 							nodeMap[r.Key] = r
@@ -207,8 +210,8 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 			}
 		}
 
-		if clusterIssuerTask, ok := ResourceTypes["clusterissuer"]; ok && clusterIssuerTask.Loader != nil {
-			if resources, err := clusterIssuerTask.Loader(provider, "", context.Background(), metav1.ListOptions{}); err == nil {
+		if clusterIssuerLoader, ok := kube.Loaders["clusterissuer"]; ok && clusterIssuerLoader != nil {
+			if resources, err := clusterIssuerLoader(provider, "", context.Background(), metav1.ListOptions{}); err == nil {
 				for _, r := range resources {
 					if _, exists := nodeMap[r.Key]; !exists {
 						nodeMap[r.Key] = r
@@ -219,9 +222,9 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 	}
 
 	if hasGateways {
-		if httpRouteTask, ok := ResourceTypes["httproute"]; ok && httpRouteTask.Loader != nil {
+		if httpRouteLoader, ok := kube.Loaders["httproute"]; ok && httpRouteLoader != nil {
 			// Fetch all HTTPRoutes cluster-wide in one call instead of iterating every namespace.
-			if resources, err := httpRouteTask.Loader(provider, "", context.Background(), metav1.ListOptions{}); err == nil {
+			if resources, err := httpRouteLoader(provider, "", context.Background(), metav1.ListOptions{}); err == nil {
 				for _, r := range resources {
 					if _, exists := nodeMap[r.Key]; !exists {
 						nodeMap[r.Key] = r
@@ -237,15 +240,15 @@ func BuildGraphs(provider kube.Kube, req kube.Request) (*kube.Response, error) {
 		return nil, err
 	}
 
-	nodesByType := make(map[string][]kube.Resource, len(ResourceTypes))
+	nodesByType := make(map[string][]kube.Resource, len(kube.Loaders))
 	for _, n := range nodeMap {
 		nodesByType[n.Type] = append(nodesByType[n.Type], n)
 	}
 
-	for typ, task := range ResourceTypes {
-		if task.Handler != nil {
+	for typ, handler := range handlers {
+		if handler != nil {
 			for i := range nodesByType[typ] {
-				if err := task.Handler(&edges, &nodesByType[typ][i], &nodeMap, provider); err != nil {
+				if err := handler(&edges, &nodesByType[typ][i], &nodeMap, provider); err != nil {
 					return nil, err
 				}
 			}
