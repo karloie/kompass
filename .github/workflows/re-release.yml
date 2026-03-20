@@ -11,9 +11,10 @@ jobs:
     concurrency:
       group: rerelease-latest
       cancel-in-progress: false
-    uses: karloie/gh-workflows/.github/workflows/re-release.yml@main
+    uses: karloie/shipkit/.github/workflows/release.yml@main
     with:
       image: karloie/kompass
+      mode: rerelease
       tool_ref: main
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
