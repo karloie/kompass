@@ -1,4 +1,4 @@
-name: Re-release Latest Tag
+name: Re-release latest tag
 
 on:
   workflow_dispatch:
