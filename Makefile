@@ -1,4 +1,4 @@
-.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev ci-build ci-test
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -25,6 +25,14 @@ build: test
 	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
+
+ci-build: LDFLAGS := $(RELEASE_LDFLAGS)
+ci-build:
+	npm run build
+	go build -tags release -ldflags "$(RELEASE_LDFLAGS)" -o kompass ./cmd/kompass
+
+ci-test:
+	go test -count=1 ./...
 
 build-release: LDFLAGS := $(RELEASE_LDFLAGS)
 build-release: test

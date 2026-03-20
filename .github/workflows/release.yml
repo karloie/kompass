@@ -24,12 +24,12 @@ jobs:
     concurrency:
       group: manual-release-main
       cancel-in-progress: false
-    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.21
+    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.22
     with:
       image: karloie/kompass
       event_name: ${{ github.event_name }}
       bump: ${{ inputs.bump }}
-      tool_ref: v0.0.21
+      tool_ref: v0.0.22
       node_version: '22'
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}

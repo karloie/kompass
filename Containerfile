@@ -27,10 +27,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 	CGO_ENABLED=0 go build -tags release -ldflags="-w -s -X main.buildVersion=${BUILD_VERSION} -X main.buildCommit=${BUILD_COMMIT} -X main.buildDate=${BUILD_DATE}" -o kompass cmd/kompass/*.go
 
 
-# ---------- CILIUM BUILDER ----------
-FROM alpine:3.20 AS cilium
+# ---------- SETUP BUILDER ----------
+FROM alpine:3.20 AS setup
 ARG CILIUM_CLI_VERSION=v0.19.2
 ARG HUBBLE_VERSION=v1.18.6
+ARG KUBECTL_VERSION=v1.35.3
 RUN apk --no-cache add curl
 RUN \
 	CLI_ARCH=amd64; \
@@ -44,12 +45,6 @@ RUN \
 	curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/$HUBBLE_VERSION/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum} && \
 	sha256sum -c hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum && \
 	tar -xvf hubble-linux-${HUBBLE_ARCH}.tar.gz -C /usr/local/bin
-
-
-# ---------- KUBECTL BUILDER ----------
-FROM alpine:3.20 AS kubectl
-ARG KUBECTL_VERSION=v1.35.3
-RUN apk --no-cache add curl
 RUN \
 	KUBECTL_ARCH=amd64; \
 	if [ "$(uname -m)" = "aarch64" ]; then KUBECTL_ARCH=arm64; fi && \
@@ -64,9 +59,9 @@ FROM alpine:3.20
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder --chmod=0555 /build/kompass /app/kompass
-COPY --from=cilium --chmod=0555 /usr/local/bin/cilium /usr/local/bin/cilium
-COPY --from=cilium --chmod=0555 /usr/local/bin/hubble /usr/local/bin/hubble
-COPY --from=kubectl --chmod=0555 /usr/local/bin/kubectl /usr/local/bin/kubectl
+COPY --from=setup --chmod=0555 /usr/local/bin/cilium /usr/local/bin/cilium
+COPY --from=setup --chmod=0555 /usr/local/bin/hubble /usr/local/bin/hubble
+COPY --from=setup --chmod=0555 /usr/local/bin/kubectl /usr/local/bin/kubectl
 RUN addgroup -g 1000 -S kompass \
 	&& adduser -u 1000 -S -D -G kompass kompass \
 	&& chown 1000:1000 /app
