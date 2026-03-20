@@ -1,7 +1,6 @@
 # 🧭 Kompass
 
 [![CI](https://github.com/karloie/kompass/actions/workflows/ci.yml/badge.svg)](https://github.com/karloie/kompass/actions/workflows/ci.yml)
-[![Release](https://github.com/karloie/kompass/actions/workflows/release.yml/badge.svg)](https://github.com/karloie/kompass/actions/workflows/release.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/karloie/kompass.svg)](https://pkg.go.dev/github.com/karloie/kompass)
 [![Go Report Card](https://goreportcard.com/badge/github.com/karloie/kompass)](https://goreportcard.com/report/github.com/karloie/kompass)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
