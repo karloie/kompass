@@ -1,6 +1,6 @@
 # 🧭 Kompass
 
-<img src="doc/vibecoded.png" width="120" alt="Vibe Coded Badge" align="right">
+<img src="https://raw.githubusercontent.com/karloie/kompass/main/doc/vibecoded.png" width="200" alt="Vibe Coded Badge" align="right">
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/karloie/kompass.svg)](https://pkg.go.dev/github.com/karloie/kompass)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -34,7 +34,7 @@ Kompass is a Kubernetes explorer for understanding resource relationships in rea
 
 Kompass provides an interactive web UI and API for exploring topology, workloads, traffic paths, logs, YAML, certificates, and related Kubernetes metadata in one place.
 
-![Kompass web app](doc/webapp.png)
+![Kompass web app](https://raw.githubusercontent.com/karloie/kompass/main/doc/webapp.png)
 
 Quick start (in cluster):
 
