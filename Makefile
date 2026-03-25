@@ -1,4 +1,4 @@
-.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev ci-build ci-test
+.PHONY: test build build-release coverage dev snapshot snapshot-real mock real tui service help docker-dev ci-build ci-test ci-release ci-summary
 
 GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -6,7 +6,7 @@ GIT_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 VERSION_LDFLAGS := -X main.buildVersion=$(GIT_VERSION) -X main.buildCommit=$(GIT_COMMIT) -X main.buildDate=$(GIT_DATE)
 RELEASE_LDFLAGS := -s -w $(VERSION_LDFLAGS)
 DOCKER ?= docker
-DOCKER_IMAGE ?= karloie/kompass
+CONTAINER_IMAGE ?= karloie/kompass
 DOCKER_DEV_TAG ?= dev
 LDFLAGS ?= $(VERSION_LDFLAGS)
 ARGS    ?=
@@ -21,11 +21,6 @@ SNAP_MOCK_NAMESPACE ?= petshop
 SNAP_REAL_CONTEXT   ?= tool-test-01
 SNAP_REAL_NAMESPACE ?= applikasjonsplattform
 
-build: test
-	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
-	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
-	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
-
 ci-build: LDFLAGS := $(RELEASE_LDFLAGS)
 ci-build:
 	npm run build
@@ -34,25 +29,32 @@ ci-build:
 ci-test:
 	go test -count=1 ./...
 
-build-release: LDFLAGS := $(RELEASE_LDFLAGS)
-build-release: test
-	npm run build
-	go build -tags release $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
+ci-release:
+	@echo "📦 Building release artifacts..."
+	@shipkit go-build --output=kompass --main=./cmd/kompass
+	@shipkit docker --release --image=$(CONTAINER_IMAGE) --file=Containerfile
+	@shipkit github-release kompass
+
+ci-summary:
+	@echo "📊 Generating release summary..."
+	@if [ -f plan.json ]; then \
+		VERSION=$$(shipkit env | grep BUILD_VERSION | cut -d'=' -f2); \
+		echo ""; \
+		echo "✅ kompass $$VERSION released successfully!"; \
+		echo ""; \
+		echo "Artifacts:"; \
+		echo "  - Docker: $(CONTAINER_IMAGE):$$VERSION"; \
+		echo "  - Docker: $(CONTAINER_IMAGE):latest"; \
+		echo "  - Binary: kompass"; \
+		echo ""; \
+	else \
+		echo "✅ kompass release complete"; \
+	fi
+
+build: test
+	go build $(if $(strip $(LDFLAGS)),-ldflags "$(LDFLAGS)") -o kompass ./cmd/kompass
 	@OUT_SIZE=$$(du -hs kompass | cut -f1); OUT_PATH=$$(realpath kompass); \
 	echo "\n$$OUT_PATH $(GIT_VERSION) # $(GIT_COMMIT) ~ $$OUT_SIZE"
-
-docker-build:
-	$(DOCKER) build -f Containerfile \
-		--build-arg VERSION=$(GIT_VERSION) \
-		--build-arg COMMIT=$(GIT_COMMIT) \
-		--build-arg BUILD_DATE=$(GIT_DATE) \
-		-t $(DOCKER_IMAGE):$(DOCKER_DEV_TAG) .
-
-docker-run: docker-build
-	$(DOCKER) run --rm --entrypoint=/bin/ash -ti $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
-
-docker-push: docker-build
-	$(DOCKER) push $(DOCKER_IMAGE):$(DOCKER_DEV_TAG)
 
 test:
 	go test -count=1 ./...

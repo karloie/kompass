@@ -9,15 +9,11 @@ permissions:
 
 jobs:
   rerelease:
-    concurrency:
-      group: rerelease-latest
-      cancel-in-progress: false
-    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.30
+    uses: karloie/shipkit/.github/workflows/release.yml@v0.0.76
     with:
-      image: karloie/kompass
       mode: rerelease
-      tool_ref: v0.0.30
-      node_version: '24'
+      tool_ref: v0.0.76
+      image: karloie/bastille
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
